@@ -1,0 +1,29 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+# 依赖
+dependencies = [
+    "fastapi>=0.128.0",
+    "httpx>=0.28.1",
+    "langchain>=1.2.0",
+    "langgraph>=1.0.5",
+    "neo4j>=6.0.3",
+    "psycopg2-binary>=2.9.11",
+    "pyjwt>=2.10.1",
+    "redis>=7.1.0",
+    "sqlmodel>=0.0.31",
+    "sse-starlette>=3.1.2",
+    "uvicorn>=0.40.0",
+]
+
+# 模块配置
+# TODO:合理性待验证。
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+[tool.setuptools.packages.find]
+where = ["src"]              
+include = ["*"]    

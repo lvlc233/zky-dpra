@@ -1,2 +1,2 @@
-# zky-dpra
-zky-dpra(简单的毕设版本)
+# DeepPaperResearcher
+一个论文研究助手。
