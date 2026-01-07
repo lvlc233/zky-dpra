@@ -1,6 +1,9 @@
 # 项目规格文档
 ## 介绍
 这是一个基于Langgraph的DeepAgent项目，该项目旨在利用强大的Agent编排，上下文工程和资源管理技术，为任意的研究人员提供更好的Agent服务，降低研究人员的研发过程中的心智负担，全身心的投入在有价值的内容产出中。
+
+> **注意**: 本文档提供高层次的项目指导。详细的技术实现、API 契约和数据库模型，请参考 [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md)。所有开发工作应以 TECHNICAL_ARCHITECTURE.md 为最终事实来源。
+
 补充: 这是一个毕设，给一个不太懂代码的人代写的，尽量简单些。
 
 ## 项目架构
@@ -124,8 +127,15 @@ TODO: 前端内容不了解，需要一定的调研。
 ### 2. 前端
 | 组件 | 版本/说明 | 作用 |
 |---|---|---|
-| React + Next.js | latest | SSR/SSG、文件式路由、全栈一体 |
-| React PDF | latest | 前端 PDF 阅读器，支持标注与高亮 |
+| Next.js | 14+ (App Router) | 全栈框架，路由与SSR |
+| TypeScript | 5.x | 静态类型系统 |
+| TailwindCSS | latest | 原子化样式引擎 |
+| Shadcn/UI | latest | 基于 Radix UI 的组件库 |
+| React PDF | latest | PDF 渲染引擎 |
+| Reagraph | latest | 知识图谱可视化 (WebGL) |
+| Vercel AI SDK | latest | AI 流式对话与工具调用 |
+| TanStack Query | v5 | 服务端状态管理 |
+| Zustand | latest | 客户端全局状态管理 |
 
 ---
 
@@ -188,7 +198,7 @@ TODO: 前端内容不了解，需要一定的调研。
 10. 后端项目始终使用模块化导包而非相对位置导包，若不清楚模块内容，查看pyproject.toml
 
 ## 代码结构
-\main
+main
 └── backend/                                  # 后端（基于 FastAPI + Python）
     ├── .env                                  # 环境变量（未开始）
     ├── .env.template                         # 环境变量模板（未开始）
@@ -244,6 +254,21 @@ TODO: 前端内容不了解，需要一定的调研。
         │   └── README.md                      # 评估评测开发流程说明（未完成）
         └── src/                               # 传统后端单元测试
             └── README.md
+└── frontend/                                   # 前端（基于 Next.js 14+）
+    ├── src/
+    │   ├── app/                                # 路由层 (App Router)
+    │   │   ├── (dashboard)/                    # 主应用区 (Layout)
+    │   │   │   ├── graph/                      # 知识图谱页
+    │   │   │   ├── library/                    # 论文管理页
+    │   │   │   └── reader/[id]/                # 阅读器页
+    │   │   └── api/                            # API Routes (AI SDK 转发)
+    │   ├── components/
+    │   │   ├── ui/                             # Shadcn 基础组件
+    │   │   ├── graph/                          # Reagraph 封装组件
+    │   │   ├── pdf/                            # PDF 核心组件 (react-pdf)
+    │   │   └── ai/                             # 聊天/流式反馈组件
+    │   └── lib/
+    │       └── ai/                             # AI SDK 配置与工具
 
 
 
