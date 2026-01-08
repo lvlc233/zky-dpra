@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class ArxivClient:
     '''
-    arXiv API 客户端（Infrastructure层）
+    arXiv API 客户端（Base层）
 
     职责说明:
     - 负责与arXiv外部API进行HTTP通信
@@ -26,7 +26,7 @@ class ArxivClient:
     - 不处理业务逻辑，只处理数据传输
 
     设计原则:
-    - 符合Infrastructure层职责，不依赖Service层
+    - 符合Base层职责，不依赖Service层
     - 返回原始数据，由上层解析
     - 统一的错误处理和重试机制（TODO）
 
@@ -50,7 +50,8 @@ class ArxivClient:
 
         logger.info(f"ArxivClient 初始化完成，基础URL: {self.base_url}")
 
-
+    
+    # TODO: 或需要考虑更多的筛选查询条件
     async def query_by_ids(self, arxiv_ids: List[str]) -> str:
         '''
         通过arXiv ID列表查询论文元数据
