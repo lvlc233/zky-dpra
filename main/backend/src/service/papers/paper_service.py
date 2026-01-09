@@ -1,12 +1,13 @@
 '''
 开发者: BackendAgent
-当前版本: v1.2_paper_service
+当前版本: v1.3_paper_service_saas
 创建时间: 2026年01月08日 14:00
-更新时间: 2026年01月09日 16:10
+更新时间: 2026年01月10日 10:20
 更新记录:
-    [2026年01月08日 14:00:v1.0_paper_service:创建论文上传与解析服务，实现文件处理、状态管理、向量化等核心功能]
-    [2026年01月08日 16:30:v1.1_paper_service:从/src/base/service/paper_service.py迁移到/src/service/papers/paper_service.py中]
+    [2026年01月10日 10:20:v1.3_paper_service_saas:适配SaaS化架构，Service层返回DTO而非Entity，解耦数据层]
     [2026年01月09日 16:10:v1.2_paper_service:重构数据库访问逻辑，移除Service层SQL语句，使用Repository模式]
+    [2026年01月08日 16:30:v1.1_paper_service:从/src/base/service/paper_service.py迁移到/src/service/papers/paper_service.py中]
+    [2026年01月08日 14:00:v1.0_paper_service:创建论文上传与解析服务，实现文件处理、状态管理、向量化等核心功能]
 '''
 
 import asyncio
@@ -21,12 +22,15 @@ from uuid import UUID
 
 import aiofiles
 
-from business_model.model import Paper, PaperChunk, PaperStatus, User
-from business_model.model import PaperUploadResponse
+# 导入 Business Models / DTOs
+from service.papers.schema import PaperUploadResponse, PaperDTO, PaperInfo
+from common.model.enums import PaperStatus
+
+# 导入 Entities (仅用于与 Repository 交互)
+from base.pg.entity import Paper, PaperChunk, User
+
 from base.config import settings
-# 使用新的Service层连接和Repository
 from base.pg.service import get_db_session, PaperRepository
-from base.redis.connection import get_redis_client
 from base.pdf_parser.parser import PDFParseResult, parse_pdf, extract_pdf_text
 from base.embedding.embedding_service import EmbeddingService, embed_batch
 from base.embedding.text_splitter import SemanticTextSplitter
@@ -43,6 +47,23 @@ class PaperService:
         self.upload_dir = Path(settings.upload_dir)
         self.upload_dir.mkdir(exist_ok=True)
         logger.info(f"PaperService 初始化完成，上传目录: {self.upload_dir}")
+
+    def _entity_to_dto(self, paper: Paper) -> PaperDTO:
+        """
+        将 Paper 实体转换为 PaperDTO
+        """
+        return PaperDTO(
+            id=paper.id,
+            user_id=paper.user_id,
+            title=paper.title,
+            authors=paper.authors,
+            abstract=paper.abstract,
+            file_key=paper.file_key,
+            file_url=paper.file_url,
+            status=paper.status,
+            error_message=paper.error_message,
+            created_at=paper.created_at
+        )
 
     async def upload_paper(
         self,
@@ -136,7 +157,7 @@ class PaperService:
         file_url: Optional[str] = None
     ) -> Paper:
         """
-        创建论文记录
+        创建论文记录 (返回 Entity 供内部使用)
         """
         async with get_db_session() as session:
             paper = Paper(
@@ -149,14 +170,14 @@ class PaperService:
             )
             return await PaperRepository.create_paper(session, paper)
 
-    async def get_paper_status(self, paper_id: UUID, user_id: UUID) -> Optional[Paper]:
+    async def get_paper_status(self, paper_id: UUID, user_id: UUID) -> Optional[PaperDTO]:
         """
-        获取论文处理状态
+        获取论文处理状态 (返回 DTO)
         """
         async with get_db_session() as session:
             paper = await PaperRepository.get_paper_by_id(session, paper_id)
             if paper and paper.user_id == user_id:
-                return paper
+                return self._entity_to_dto(paper)
             return None
 
     async def update_paper_status(
@@ -188,14 +209,15 @@ class PaperService:
         user_id: UUID,
         limit: int = 10,
         offset: int = 0
-    ) -> List[Paper]:
+    ) -> List[PaperDTO]:
         """
-        获取用户的论文列表
+        获取用户的论文列表 (返回 DTO 列表)
         """
         async with get_db_session() as session:
-            return await PaperRepository.get_user_papers(session, user_id, limit, offset)
+            papers = await PaperRepository.get_user_papers(session, user_id, limit, offset)
+            return [self._entity_to_dto(p) for p in papers]
 
-    async def get_file_path(self, paper: Paper) -> Optional[Path]:
+    async def get_file_path(self, paper: PaperDTO) -> Optional[Path]:
         """
         获取论文文件的本地路径
         """

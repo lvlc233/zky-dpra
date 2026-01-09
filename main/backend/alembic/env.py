@@ -15,7 +15,7 @@ src_dir = backend_dir / "src"
 sys.path.insert(0, str(src_dir))
 
 # 导入模型
-from business_model.database_models import SQLModel
+from base.pg.entity import SQLModel
 from pgvector.sqlalchemy import Vector
 
 # 设置目标metadata

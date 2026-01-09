@@ -1,21 +1,27 @@
 '''
 开发者: BackendAgent
-当前版本: v0.1_papers
+当前版本: v0.2_papers_upload_status
 创建时间: 2026年01月02日 10:16
-更新时间: 2026年01月02日 10:16
+更新时间: 2026年01月09日 10:19
 更新记录:
+    [2026年01月09日 10:19:v0.2_papers_upload_status:补齐论文上传、状态查询、触发处理与列表接口，避免与动态路由冲突]
     [2026年01月02日 10:16:v0.1_papers:修复依赖注入和安全问题，使用Depends注入服务]
     [2026年01月02日 08:54:v0.1_paper_router:全局实例化服务，违反依赖注入原则]
 '''
 
-from fastapi import APIRouter, HTTPException, status, Depends
+import asyncio
+from uuid import UUID
+
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Header
 import logging
 
-from controller.api.papers.requests import PaperFetchRequest
-from business_model.model import PaperListResponse, PaperInfo
+from controller.api.papers.schema import PaperFetchRequest, PaperStatusResponse
+from service.papers.schema import PaperListResponse, PaperInfo, PaperUploadResponse
 from service.papers.arxiv_service import ArxivService
+from service.papers.paper_service import PaperService, PaperProcessingService
 from base.arxiv.client import ArxivClient
 from base.arxiv.parser import ArxivXmlParser
+from common.model.enums import PaperStatus
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -41,6 +47,37 @@ def get_arxiv_service() -> ArxivService:
     client = ArxivClient()
     parser = ArxivXmlParser()
     return ArxivService(client=client, parser=parser)
+
+
+def get_paper_service() -> PaperService:
+    return PaperService()
+
+
+def get_paper_processing_service() -> PaperProcessingService:
+    return PaperProcessingService()
+
+
+def get_current_user_id(x_user_id: str | None = Header(default=None)) -> UUID:
+    if not x_user_id:
+        return UUID("12345678-1234-5678-1234-567812345678")
+    return UUID(x_user_id)
+
+
+def calculate_progress(status_value: PaperStatus) -> int:
+    progress_map = {
+        PaperStatus.PENDING: 10,
+        PaperStatus.PROCESSING: 50,
+        PaperStatus.COMPLETED: 100,
+        PaperStatus.FAILED: 0,
+    }
+    return progress_map.get(status_value, 0)
+
+
+def _log_background_task_result(task: asyncio.Task) -> None:
+    try:
+        task.result()
+    except Exception:
+        logger.exception("论文处理后台任务失败")
 
 
 @router.post("/fetch", response_model=PaperListResponse)
@@ -103,8 +140,6 @@ async def fetch_papers(
     - Infrastructure层：处理HTTP和XML解析（ArxivClient, ArxivXmlParser）
 
     TODO:
-    - 支持批量URL提交
-    - 添加请求速率限制
     - 添加缓存机制（Redis）
     - 支持更多学术网站（IEEE, ACM, PubMed等）
     '''
@@ -145,7 +180,7 @@ async def fetch_papers(
 
         logger.info("论文获取完成，返回响应")
         return response
-
+    # TODO: 最好还是要有个全局异常处理器。
     except HTTPException:
         # 已定义的HTTP异常，直接抛出
         raise
@@ -159,55 +194,185 @@ async def fetch_papers(
         )
 
 
-@router.get("/{arxiv_id}", response_model=PaperInfo)
-async def get_paper_by_id(arxiv_id: str):
-    '''
-    根据arXiv ID获取单篇论文详情
+@router.post("/upload", response_model=PaperUploadResponse)
+async def upload_paper(
+    file: UploadFile = File(...),
+    user_id: UUID = Depends(get_current_user_id),
+    paper_service: PaperService = Depends(get_paper_service),
+):
+    logger.info(f"接收到论文上传请求: filename={file.filename}, user_id={user_id}")
 
-    接口说明:
-    - 直接通过arXiv ID获取论文详细信息
-    - 不需要完整的URL
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="缺少文件名",
+        )
 
-    参数:
-    - arxiv_id: arXiv论文ID（例如: 2101.12345）
+    try:
+        file_content = await file.read()
+        response = await paper_service.upload_paper(
+            file_content=file_content,
+            filename=file.filename,
+            user_id=user_id,
+            content_type=file.content_type or "application/pdf",
+        )
+        return response
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"论文上传失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="上传失败，请稍后重试",
+        )
 
-    返回:
-    - PaperInfo对象，包含完整论文信息
 
-    TODO:
-    - 实现此接口
-    - 支持批量ID查询（query参数格式: ids=id1,id2,id3）
-    '''
+@router.get("/{paper_id}/status", response_model=PaperStatusResponse)
+async def get_paper_status(
+    paper_id: str,
+    user_id: UUID = Depends(get_current_user_id),
+    paper_service: PaperService = Depends(get_paper_service),
+):
+    logger.info(f"接收到论文状态查询请求: paper_id={paper_id}, user_id={user_id}")
 
-    logger.info(f"接收到获取单篇论文请求: arxiv_id={arxiv_id}")
+    try:
+        paper_uuid = UUID(paper_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的论文ID格式",
+        )
 
-    # TODO: 实现单篇论文查询逻辑
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="该接口尚未实现"
+    paper = await paper_service.get_paper_status(paper_uuid, user_id)
+    if not paper:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="论文不存在或无访问权限",
+        )
+
+    return PaperStatusResponse(
+        paper_id=str(paper.id),
+        status=paper.status.value,
+        title=paper.title,
+        authors=paper.authors,
+        abstract=paper.abstract,
+        progress=calculate_progress(paper.status),
+        error_message=paper.error_message,
+        created_at=paper.created_at,
+        updated_at=paper.created_at,
     )
 
 
-@router.get("/search/test")
-async def test_arxiv_search():
+@router.post("/{paper_id}/process", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_paper_processing(
+    paper_id: str,
+    user_id: UUID = Depends(get_current_user_id),
+    paper_service: PaperService = Depends(get_paper_service),
+    processing_service: PaperProcessingService = Depends(get_paper_processing_service),
+):
+    # 解析
+    logger.info(f"接收到论文处理触发请求: paper_id={paper_id}, user_id={user_id}")
+
+    try:
+        paper_uuid = UUID(paper_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的论文ID格式",
+        )
+
+    paper = await paper_service.get_paper_status(paper_uuid, user_id)
+    if not paper:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="论文不存在或无访问权限",
+        )
+
+    task = asyncio.create_task(processing_service.process_pdf(paper_uuid))
+    task.add_done_callback(_log_background_task_result)
+    return {"paper_id": str(paper_uuid), "status": "accepted"}
+
+
+@router.get("/list", response_model=list[PaperStatusResponse])
+async def list_user_papers(
+    limit: int = 10,
+    offset: int = 0,
+    user_id: UUID = Depends(get_current_user_id),
+    paper_service: PaperService = Depends(get_paper_service),
+):
+    papers = await paper_service.get_user_papers(user_id=user_id, limit=limit, offset=offset)
+    return [
+        PaperStatusResponse(
+            paper_id=str(p.id),
+            status=p.status.value,
+            title=p.title,
+            authors=p.authors,
+            abstract=p.abstract,
+            progress=calculate_progress(p.status),
+            error_message=p.error_message,
+            created_at=p.created_at,
+            updated_at=p.created_at,
+        )
+        for p in papers
+    ]
+
+
+@router.delete("/{paper_id}")
+async def delete_paper(
+    paper_id: str,
+    user_id: UUID = Depends(get_current_user_id),
+    paper_service: PaperService = Depends(get_paper_service),
+):
+    try:
+        paper_uuid = UUID(paper_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的论文ID格式",
+        )
+
+    ok = await paper_service.delete_paper(paper_uuid, user_id)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="论文不存在或无访问权限",
+        )
+    return {"paper_id": paper_id, "deleted": True}
+
+
+@router.get("/search/test", response_model=PaperListResponse)
+async def test_arxiv_search(
+    service: ArxivService = Depends(get_arxiv_service)
+):
     '''
     测试接口：获取arXiv最近几篇论文用于测试
-
+    
     使用场景:
     - 前端开发测试
     - API连通性测试
     - 演示功能
-
-    TODO:
-    - 实现此接口
-    - 添加参数控制返回数量（默认10篇）
-    - 添加分类过滤参数
     '''
 
     logger.info("接收到测试请求: 获取arXiv最新论文")
 
-    # TODO: 实现测试接口
+    query = "AI Agent"
+    papers = await service.search_papers(query=query, max_results=5)
+    
+    return PaperListResponse(
+        papers=papers,
+        total_count=len(papers),
+        source="arXiv",
+        fetch_url=f"search: {query}"
+    )
+
+
+@router.get("/{arxiv_id}", response_model=PaperInfo)
+async def get_paper_by_id(arxiv_id: str):
+    logger.info(f"接收到获取单篇论文请求: arxiv_id={arxiv_id}")
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="测试接口尚未实现"
+        detail="该接口尚未实现"
     )

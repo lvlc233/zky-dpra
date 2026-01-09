@@ -15,6 +15,7 @@ from typing import List
 logger = logging.getLogger(__name__)
 
 
+# 备注: 网络相关和pdf解析无关
 class ArxivClient:
     '''
     arXiv API 客户端（Base层）
@@ -51,28 +52,27 @@ class ArxivClient:
         logger.info(f"ArxivClient 初始化完成，基础URL: {self.base_url}")
 
     
-    # TODO: 或需要考虑更多的筛选查询条件
     async def query_by_ids(self, arxiv_ids: List[str]) -> str:
         '''
         通过arXiv ID列表查询论文元数据
-
+        
         参数:
         - arxiv_ids: arXiv ID列表，如 ["2101.12345", "2102.67890"]
-
+        
         返回:
         - 原始XML字符串（arXiv API返回的原始响应）
-
+        
         异常:
         - HTTPError: 当arXiv API返回错误状态码时
         - TimeoutError: 当请求超时时
         - RequestError: 网络连接等其他错误
-
+        
         实现逻辑:
         1. 构建查询参数（id_list）
         2. 发送异步HTTP GET请求
         3. 检查响应状态码
         4. 返回原始响应文本
-
+        
         TODO:
         - 添加重试机制（指数退避）
         - 添加请求缓存（Redis）
@@ -92,6 +92,36 @@ class ArxivClient:
             "max_results": len(arxiv_ids)
         }
 
+        return await self._execute_query(params)
+
+    async def search(self, query: str, start: int = 0, max_results: int = 10) -> str:
+        '''
+        根据关键词搜索arXiv论文
+        
+        参数:
+        - query: 搜索关键词 (如 "machine learning")
+        - start: 分页起始位置
+        - max_results: 返回结果数量
+        
+        返回:
+        - 原始XML字符串
+        '''
+        logger.info(f"开始搜索arXiv: query='{query}', start={start}, max={max_results}")
+        
+        params = {
+            "search_query": f"all:{query}",
+            "start": start,
+            "max_results": max_results,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending"
+        }
+        
+        return await self._execute_query(params)
+
+    async def _execute_query(self, params: dict) -> str:
+        '''
+        执行arXiv API查询的通用方法
+        '''
         try:
             # 发送HTTP请求
             logger.debug(f"发送HTTP请求: {self.base_url}, 参数: {params}")

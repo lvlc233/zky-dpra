@@ -12,25 +12,26 @@ import re
 import xml.etree.ElementTree as ET
 from typing import List
 
-from business_model.model import PaperInfo
+from base.arxiv.schema import ArxivPaperInfo
 
 # 配置日志
 logger = logging.getLogger(__name__)
 
 
+# pdf解析
 class ArxivXmlParser:
     '''
     arXiv XML 解析器（Infrastructure层）
 
     职责说明:
     - 解析arXiv API返回的XML格式数据
-    - 提取论文元数据并转换为业务模型（PaperInfo）
+    - 提取论文元数据并转换为业务模型（ArxivPaperInfo）
     - 仅处理数据格式转换，不包含业务逻辑
 
     设计原则:
     - 符合Infrastructure层职责，专门处理数据格式
     - 输入：原始XML字符串
-    - 输出：标准化的PaperInfo对象列表
+    - 输出：标准化的ArxivPaperInfo对象列表
     - 异常处理：解析错误时返回空列表，而不是抛出异常
 
     使用场景:
@@ -43,7 +44,7 @@ class ArxivXmlParser:
         logger.info("ArxivXmlParser 初始化完成")
 
 
-    def parse(self, xml_content: str) -> List[PaperInfo]:
+    def parse(self, xml_content: str) -> List[ArxivPaperInfo]:
         '''
         解析arXiv API返回的XML数据
 
@@ -51,7 +52,7 @@ class ArxivXmlParser:
         - xml_content: arXiv API返回的原始XML字符串
 
         返回:
-        - PaperInfo对象列表
+        - ArxivPaperInfo对象列表
 
         实现逻辑:
         1. 解析XML命名空间
@@ -111,7 +112,7 @@ class ArxivXmlParser:
         return papers
 
 
-    def _parse_entry(self, entry, namespace) -> PaperInfo:
+    def _parse_entry(self, entry, namespace) -> ArxivPaperInfo:
         '''
         解析单个论文条目
 
@@ -120,7 +121,7 @@ class ArxivXmlParser:
         - namespace: XML命名空间字典
 
         返回:
-        - PaperInfo对象，如果解析失败返回None
+        - ArxivPaperInfo对象，如果解析失败返回None
         '''
 
         # 提取标题
@@ -161,7 +162,7 @@ class ArxivXmlParser:
             if term:
                 categories.append(term)
 
-        # 创建PaperInfo对象
+        # 创建ArxivPaperInfo对象
         # 必填字段必须有值（title, authors, abstract）
         if not title:
             logger.warning("论文标题为空，可能数据不完整")
@@ -172,7 +173,7 @@ class ArxivXmlParser:
         if not summary:
             logger.warning("摘要为空，可能数据不完整")
 
-        paper = PaperInfo(
+        paper = ArxivPaperInfo(
             title=title,
             authors=authors,
             abstract=summary,

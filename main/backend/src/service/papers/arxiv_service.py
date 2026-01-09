@@ -12,21 +12,24 @@ import logging
 import re
 from typing import List
 
-from ...base.arxiv.client import ArxivClient
-from ...base.arxiv.parser import ArxivXmlParser
-from ...business_model.model import PaperInfo
+# TODO: 或可统一暴露
+from base.arxiv.client import ArxivClient
+from base.arxiv.schema import ArxivPaperInfo
+
+from base.arxiv.parser import ArxivXmlParser
+from service.papers.schema import PaperInfo
 
 # 配置日志
 logger = logging.getLogger(__name__)
 
-
+# TODO:后续可能需要扩展为不同类型的通用的URL获取
 class ArxivService:
     '''
     arXiv论文获取服务（Service层）
 
     职责说明:
     - 接收论文URL，提取arXiv ID
-    - 调用Infrastructure层获取论文元数据
+    - 调用Base层获取论文元数据
     - 核心业务逻辑：从URL到PaperInfo对象的转换
 
     设计原则:
@@ -130,21 +133,20 @@ class ArxivService:
 
         工作流程:
         1. 从URL提取arXiv ID（extract_arxiv_ids_from_url）
-        2. 如果提取到ID，调用Infrastructure层获取详细数据
+        2. 如果提取到ID，调用Base层获取详细数据
         3. 如果没有提取到ID，返回空列表
 
         架构说明:
         - Service层: 协调处理流程（本方法）
-        - Infrastructure层: 实际的数据获取（client）和解析（parser）
+        - Base: 实际的数据获取（client）和解析（parser）
 
         异常处理:
-        - 捕获Infrastructure层抛出的异常
+        - 捕获Base层抛出的异常
         - 记录错误日志，返回空列表（优雅降级）
 
         TODO:
         - 添加重试机制
         - 添加缓存（Redis）
-        - 支持从搜索页面URL爬取所有论文ID
         '''
 
         logger.info(f"开始从URL获取论文信息: {url}")
@@ -159,22 +161,85 @@ class ArxivService:
         # 步骤2: 获取论文详细信息
         try:
             # 调用Infrastructure层获取原始XML
-            logger.info("调用Infrastructure层（ArxivClient）获取原始XML数据")
+            logger.info("调用Base层（ArxivClient）获取原始XML数据")
             xml_content = await self.client.query_by_ids(arxiv_ids)
 
             if not xml_content:
                 logger.warning("获取到的XML内容为空，返回空列表")
                 return []
 
-            # 调用Infrastructure层解析XML
-            logger.info("调用Infrastructure层（ArxivXmlParser）解析XML")
-            papers = self.parser.parse(xml_content)
+            # 调用Base层解析XML
+            logger.info("调用Base层（ArxivXmlParser）解析XML")
+            arxiv_papers: List[ArxivPaperInfo] = self.parser.parse(xml_content)
 
-            logger.info(f"成功获取并解析 {len(papers)} 篇论文")
+            logger.info(f"成功获取并解析 {len(arxiv_papers)} 篇论文")
+
+            # 转换为 Service 层 PaperInfo 模型
+            # 数据模型转换的那一套避免不了
+            papers: List[PaperInfo] = [
+                PaperInfo(
+                    title=p.title,
+                    authors=p.authors,
+                    abstract=p.abstract,
+                    paper_url=p.paper_url,
+                    pdf_url=p.pdf_url,
+                    published_date=p.published_date,
+                    categories=p.categories,
+                    source_id=p.source_id
+                ) for p in arxiv_papers
+            ]
+            
             return papers
 
         except Exception as e:
             # 捕获所有异常，记录日志，返回空列表（优雅降级）
             logger.error(f"获取或解析论文数据失败: {e}", exc_info=True)
             logger.warning("返回空列表作为降级方案")
+            return []
+
+
+    async def search_papers(self, query: str, start: int = 0, max_results: int = 10) -> List[PaperInfo]:
+        '''
+        根据关键词搜索arXiv论文 (Service层)
+
+        参数:
+        - query: 搜索关键词
+        - start: 起始位置
+        - max_results: 返回数量
+
+        返回:
+        - PaperInfo对象列表
+        '''
+        logger.info(f"搜索arXiv论文: query='{query}', start={start}, max={max_results}")
+
+        try:
+            # 调用Infrastructure层搜索
+            xml_content = await self.client.search(query, start, max_results)
+
+            if not xml_content:
+                logger.warning("搜索结果为空")
+                return []
+
+            # 解析XML
+            arxiv_papers: List[ArxivPaperInfo] = self.parser.parse(xml_content)
+            logger.info(f"搜索到 {len(arxiv_papers)} 篇论文")
+
+            # 转换为 Service 层 PaperInfo 模型
+            papers: List[PaperInfo] = [
+                PaperInfo(
+                    title=p.title,
+                    authors=p.authors,
+                    abstract=p.abstract,
+                    paper_url=p.paper_url,
+                    pdf_url=p.pdf_url,
+                    published_date=p.published_date,
+                    categories=p.categories,
+                    source_id=p.source_id
+                ) for p in arxiv_papers
+            ]
+
+            return papers
+
+        except Exception as e:
+            logger.error(f"搜索论文失败: {e}", exc_info=True)
             return []

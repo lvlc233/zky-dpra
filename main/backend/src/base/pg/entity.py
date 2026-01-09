@@ -20,14 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from pgvector.sqlalchemy import Vector
 from sqlmodel import Field, Relationship, SQLModel
 
-
-# 枚举定义
-class PaperStatus(str, Enum):
-    """论文处理状态枚举"""
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
+from common.model.enums import PaperStatus
 
 
 class User(SQLModel, table=True):

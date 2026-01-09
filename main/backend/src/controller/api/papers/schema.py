@@ -1,9 +1,10 @@
 '''
 开发者: BackendAgent
-当前版本: v0.2_papers_upload
+当前版本: v0.3_papers_status_optional
 创建时间: 2026年01月02日 10:16
-更新时间: 2026年01月08日 17:30
+更新时间: 2026年01月09日 10:19
 更新记录:
+    [2026年01月09日 10:19:v0.3_papers_status_optional:PaperStatusResponse的updated_at改为可选，适配当前实体模型]
     [2026年01月08日 17:30:v0.2_papers_upload:添加论文上传相关请求模型]
     [2026年01月02日 10:16:v0.1_papers:重新定义PaperFetchRequest，符合Controller层职责]
     [2026年01月02日 08:54:v0.1_paper_requests:直接导入business_model，不符合规范]
@@ -83,7 +84,7 @@ class PaperStatusResponse(BaseModel):
     progress: int = Field(default=0, ge=0, le=100, description="处理进度百分比")
     error_message: Optional[str] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
 
 __all__ = ["PaperFetchRequest", "PaperUploadRequest", "PaperStatusResponse"]

@@ -9,11 +9,16 @@
 '''
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import logging
 
 # 导入papers路由
-from .papers.router import router as papers_router
+from controller.api.papers.router import router as papers_router
+
+# 导入异常处理器
+from controller.response import global_exception_handler
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +39,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
         description="基于 LangGraph 的 AI 辅助论文研究与管理平台 API"
     )
+
+    # 注册全局异常处理器
+    app.add_exception_handler(Exception, global_exception_handler)
+    app.add_exception_handler(StarletteHTTPException, global_exception_handler)
+    app.add_exception_handler(RequestValidationError, global_exception_handler)
 
     # 注册papers路由
     logger.info("注册papers路由")

@@ -169,3 +169,4 @@ class UserRepository:
         statement = select(User).where(User.id == user_id)
         result = await session.execute(statement)
         return result.scalar_one_or_none()
+
