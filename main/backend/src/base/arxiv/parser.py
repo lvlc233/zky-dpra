@@ -12,7 +12,7 @@ import re
 import xml.etree.ElementTree as ET
 from typing import List
 
-from ...business_model.model import PaperInfo
+from business_model.model import PaperInfo
 
 # 配置日志
 logger = logging.getLogger(__name__)

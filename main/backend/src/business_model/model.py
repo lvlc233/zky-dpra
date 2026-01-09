@@ -64,7 +64,46 @@ class PaperListResponse(BaseModel):
     fetch_url: Optional[str] = None
 
 
-# TODO: 根据实际业务需求扩展，例如：
-# - 添加搜索参数模型（支持按标题、作者、关键词搜索）
-# - 添加筛选模型（按日期范围、分类筛选）
-# - 添加分页模型（支持大量结果的翻页展示）
+# 数据库模型（用于内部引用）
+from base.pg.entity import (
+    User,
+    Paper,
+    PaperChunk,
+    PaperSummary,
+    ChatSession,
+    ChatMessage,
+    PaperStatus
+)
+
+# 新增请求/响应模型
+class PaperUploadResponse(BaseModel):
+    """论文上传响应模型"""
+    paper_id: str
+    status: str
+    message: str
+
+
+class ChatRequest(BaseModel):
+    """聊天请求模型"""
+    message: str
+    session_id: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    """聊天响应模型"""
+    message: str
+    sources: Optional[List[dict]] = None
+
+
+class SearchRequest(BaseModel):
+    """搜索请求模型"""
+    query: str
+    limit: int = 10
+    offset: int = 0
+
+
+class SearchResponse(BaseModel):
+    """搜索响应模型"""
+    papers: List[PaperInfo]
+    total_count: int
+    query: str

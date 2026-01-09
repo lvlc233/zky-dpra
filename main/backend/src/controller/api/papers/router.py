@@ -11,11 +11,11 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 import logging
 
-from .requests import PaperFetchRequest
-from ....business_model.model import PaperListResponse, PaperInfo
-from ....service.papers.arxiv_service import ArxivService
-from ....base.arxiv.client import ArxivClient
-from ....base.arxiv.parser import ArxivXmlParser
+from controller.api.papers.requests import PaperFetchRequest
+from business_model.model import PaperListResponse, PaperInfo
+from service.papers.arxiv_service import ArxivService
+from base.arxiv.client import ArxivClient
+from base.arxiv.parser import ArxivXmlParser
 
 # 配置日志
 logger = logging.getLogger(__name__)
