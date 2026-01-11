@@ -15,3 +15,8 @@
 | 2026-01-10 18:10 | FrontendAgent | 升级 Auth 为全局弹窗模式 | 实现 AuthModalContext, AuthModal, Register/Forgot 组件 | 交互验证 | 成功 |
 | 2026-01-10 18:15 | FrontendAgent | 修复 Navbar 运行时错误 | 添加 'use client' 指令以支持 Hooks | 编译通过 | 成功 |
 | 2026-01-10 18:25 | FrontendAgent | 完成任务 T-027 | 实现检索页 SearchBar, Filters, SearchSection | 视觉验收 | 成功 |
+| 2026-01-11 13:00 | FrontendAgent | 优化 Sidebar 交互 | 实现收藏夹重命名、新建样式优化、全局搜索重置 | 交互验证 | 成功 |
+| 2026-01-11 13:15 | FrontendAgent | 增强 Search 逻辑 | 实现集合内搜索与全局搜索区分、AI 搜索模拟 | 逻辑验证 | 成功 |
+| 2026-01-11 13:30 | FrontendAgent | 完善 SearchResults | 增加收藏/取消收藏功能、AI 评分与推荐理由展示 | 视觉验证 | 成功 |
+| 2026-01-11 13:45 | FrontendAgent | 修复布局滚动问题 | 调整 DashboardPage 容器为 h-screen overflow-hidden | 交互验证 | 成功 |
+| 2026-01-11 13:55 | FrontendAgent | 更新组件文档 | 同步 Sidebar 与 SearchResults 的最新 API 变更 | 文档检查 | 成功 |
