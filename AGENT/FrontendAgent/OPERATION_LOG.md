@@ -1,22 +1,4 @@
-| 2026-01-06 07:50 | FrontendAgent | 初始化 Agent 状态 | 创建 AGENT/FrontendAgent 目录及基础文档 | 检查文件是否存在 | 成功 |
-| 2026-01-06 07:55 | FrontendAgent | 记录项目深度理解 | 更新 AGENT/FrontendAgent/MEMORY.md | 人工审核内容覆盖度 | 成功 |
-| 2026-01-06 08:03 | FrontendAgent | T-006 技术调研 | 创建 AGENT/FrontendAgent/TECHNOLOGY_RESEARCH.md | 检查文档完整性 | 成功 |
-| 2026-01-06 09:13 | FrontendAgent | T-008 生成实现规范 | 创建 AGENT/FrontendAgent/IMPLEMENTATION_SPEC.md | 检查文档完整性 | 成功 |
-| 2026-01-08 09:45 | FrontendAgent | 领取任务 T-021 | 更新 PROJECT/TASK_METRICS.md | 检查文件内容 | 成功 |
-| 2026-01-08 10:00 | FrontendAgent | 完成任务 T-021 | 实现 PDFViewer 组件及 Demo 页面 | npm run lint 通过 | 成功 |
-| 2026-01-08 10:05 | FrontendAgent | 领取任务 T-022 | 更新 PROJECT/TASK_METRICS.md | 检查文件内容 | 成功 |
-| 2026-01-08 10:15 | FrontendAgent | 完成任务 T-022 | 实现 useUnifiedChat 及 ChatBox 组件 | npm run lint 通过 | 成功 |
-| 2026-01-08 10:20 | FrontendAgent | 领取任务 T-023 | 更新 PROJECT/TASK_METRICS.md | 检查文件内容 | 成功 |
-| 2026-01-08 10:35 | FrontendAgent | 完成任务 T-023 | 实现 GraphView 组件及 Demo 集成 | npm run lint 通过 | 成功 |
-| 2026-01-10 17:14 | FrontendAgent | 重置前端并重做 Navbar | 清理 page.tsx, globals.css, 新增 Navbar.tsx | 人工验收 | 成功 |
-| 2026-01-10 17:20 | FrontendAgent | 完成任务 T-025 | 优化 Navbar 组件样式，实现现代化 UI | 人工验收 | 成功 |
-| 2026-01-10 17:25 | FrontendAgent | 修复 Navbar 居中问题 | 使用 absolute positioning 绝对居中中间导航 | 人工验收 | 成功 |
-| 2026-01-10 17:50 | FrontendAgent | 完成任务 T-026 | 实现登录页面 /login 及 LoginForm 组件 | 人工验收 | 成功 |
-| 2026-01-10 18:10 | FrontendAgent | 升级 Auth 为全局弹窗模式 | 实现 AuthModalContext, AuthModal, Register/Forgot 组件 | 交互验证 | 成功 |
-| 2026-01-10 18:15 | FrontendAgent | 修复 Navbar 运行时错误 | 添加 'use client' 指令以支持 Hooks | 编译通过 | 成功 |
-| 2026-01-10 18:25 | FrontendAgent | 完成任务 T-027 | 实现检索页 SearchBar, Filters, SearchSection | 视觉验收 | 成功 |
-| 2026-01-11 13:00 | FrontendAgent | 优化 Sidebar 交互 | 实现收藏夹重命名、新建样式优化、全局搜索重置 | 交互验证 | 成功 |
-| 2026-01-11 13:15 | FrontendAgent | 增强 Search 逻辑 | 实现集合内搜索与全局搜索区分、AI 搜索模拟 | 逻辑验证 | 成功 |
-| 2026-01-11 13:30 | FrontendAgent | 完善 SearchResults | 增加收藏/取消收藏功能、AI 评分与推荐理由展示 | 视觉验证 | 成功 |
-| 2026-01-11 13:45 | FrontendAgent | 修复布局滚动问题 | 调整 DashboardPage 容器为 h-screen overflow-hidden | 交互验证 | 成功 |
-| 2026-01-11 13:55 | FrontendAgent | 更新组件文档 | 同步 Sidebar 与 SearchResults 的最新 API 变更 | 文档检查 | 成功 |
+| 2026-01-11 18:10 | FrontendAgent | 增强 ReportTab 交互 | 新增取消、恢复、删除功能，并为列表项和视图切换添加了过渡动画 | 功能增强 | - |
+| 2026-01-11 18:30 | FrontendAgent | 重构阅读器视图管理与修复PDF渲染 | 1. 修复 PDFViewer 因回滚导致的 worker 加载失败问题；2. 重构 ReaderNavbar，移除视图管理按钮，将收藏移至右侧；3. 重构 ReaderSidebar，在 LayersView 中实现长图视图管理（增删显隐） | 界面重构与Bug修复 | 验证 PDF 渲染恢复，侧边栏视图管理功能正常 |
+| 2026-01-11 17:22 | FrontendAgent | 实现基于视图的操作组件 | 1. 创建 PDFPageOverlay 组件，实现基于视图的高亮/标注/翻译操作；2. 集成 PDFViewer 与图层系统，支持多视图叠加显示；3. 实现文本选择触发操作工具栏 | 功能开发 | 验证文本选择后弹出工具栏，点击可创建对应类型标注，且受视图显隐控制 |
+| 2026-01-11 18:53 | FrontendAgent | 状态自检与任务指标修正 | 1. 验证 PDFPageOverlay 及 ReaderRightPanel 代码完整性；2. 修复 PROJECT/TASK_METRICS.md 中的重复 ID (T-038) 及乱码状态 | 维护/验证 | 确认代码逻辑符合设计，任务指标表无重复 ID |
