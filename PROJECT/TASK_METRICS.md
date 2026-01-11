@@ -7,6 +7,7 @@
 - 🟡 **In Progress**: 进行中
 - 🟢 **Completed**: 已完成
 - ⚪ **Depreciated**: 已废弃
+- 🔵 Review & Rework: 审核重做
 
 ## 任务列表
 
@@ -27,6 +28,22 @@
 | T-013 | Infra | 后端技术分析 | BackendAgent | P2 | 🟢 | 2026-01-07 08:00 | 2026-01-07 08:05 | 生成后端技术分析文档 |
 | T-014 | Infra | 后端数据库设计和接口设计 | BackendAgent | P2 | 🟢 | 2026-01-07 07:58 | 2026-01-07 08:08 | 生成后端实现细节文档 |
 | T-015 | Infra | 项目梳理和整合 | MasterAgent | P2 | 🟢 | 2026-01-07 08:03 | 2026-01-07 08:08 | 生成统一技术说明文档更新规格说明和项目需求 |
+| T-016 | Backend | 数据库迁移与模型实现 | BackendAgent(管理员介入) | P0 | 🔵 | 2026-01-08 11:00 |  | 根据 TECHNICAL_ARCHITECTURE.md 实现 Users, Papers, Chunks, ChatSession 等 SQLModel |
+| T-017 | Backend | 实现论文上传与解析服务 (Service Layer) | BackendAgent(管理员介入) | P0 | 🔵 |  |  | 实现 Arq 异步任务，集成 Marker 解析 PDF，pgvector 向量化 |
+| T-018 | Backend | 实现 RESTful API 接口 | BackendAgent(管理员介入) | P1 | 🔵 |  |  | 实现 /auth, /papers, /chat 路由，集成 SSE 流式响应 |
+| T-019 | Agent | 实现基础 Agent 框架与工具 | LangGraphAgent | P1 | 🟡 | 2026-01-08 17:45 |  | 实现 BaseAgentState，MemorySaver，以及 search_local_papers 等核心工具 |
+| T-020 | Agent | 实现 SearchAgent & InPaperChatAgent | LangGraphAgent | P1 | 🟡 | 2026-01-08 17:45 |  | 编排混合检索与单篇论文问答图结构，对接 SSE 协议 |
+| T-021 | Frontend | 实现 PDF 阅读器核心组件 | FrontendAgent | P1 | ⚪ | 2026-01-08 09:45 | 2026-01-08 10:00 | 基于 react-pdf 实现 PDF 渲染与 View Layer (高亮/划线) |
+| T-022 | Frontend | 实现 Chat UI 与 SSE 适配 | FrontendAgent | P1 | ⚪ | 2026-01-08 10:05 | 2026-01-08 10:15 | 基于 Vercel AI SDK 适配统一 SSE 协议 (token, tool_call) |
+| T-023 | Frontend | 集成知识图谱组件 | FrontendAgent | P2 | ⚪ | 2026-01-08 10:20 | 2026-01-08 10:35 | 基于 reagraph 实现图谱可视化，对接后端图数据接口 |
+| T-024 | Integration | 端到端联调 (Upload -> Process -> Chat) | MasterAgent | P0 | 🔴 |  |  | 验证从上传 PDF 到 Agent 问答的完整链路 |
+| T-025 | Frontend | 开始逐步实现组件:首页:顶部栏 | FrontendAgent | P1 | 🟢 | 2026-01-10 17:15 | 2026-01-10 17:20 | 组件使用文档和组件代码 |
+| T-026 | Frontend | 开始逐步实现组件:登录/注册/找回密码 (弹窗模式) | FrontendAgent | P1 | 🟢 | 2026-01-10 17:15 | 2026-01-10 18:10 | 组件使用文档和组件代码 |
+| T-027 | Frontend | 开始逐步实现组件:检索页面:搜索栏相关组件 | FrontendAgent | P1 | 🟢 | 2026-01-10 17:15 | 2026-01-10 18:25 | 组件使用文档和组件代码 |
+| T-028 | Frontend | 开始逐步实现组件:检索页面: | FrontendAgent | P1 | 🟢 | 2026-01-10 17:15 | 2026-01-10 18:25 | 组件使用文档和组件代码 |
+
+
+
 ## 任务详情说明
 
 ### T-001: 项目初始化与资源结构梳理
@@ -94,9 +111,57 @@
 ### T-014: 后端细节初步设计
 - **背景**: 现在已经完成的所有的基本准备工作，开始设计后端系统的中设计的代码实现设计思路
 - **输入**: AGENT/BackendAgent/*，项目需求文档、README.md,规格文档。后端系统架构分析文档。后端系统架构分析文档
-- **产出**: 后端细节设计(sql表结构，接口设计等)
 
 ### T-015: 最终设计分析
 - **背景**: 现在已经完成项目内的所有准备工作，所有Agent都以准备就绪开始,在最后校验所有Agent的设计，并且消除不同设计之间的差异理解。为下一步具体代码实现做准备
 - **输入**: 所有文档
 - **产出**: 列出潜在的业务差异,生成统一技术说明文档,更新规格说明和项目需求
+
+### T-016: 数据库迁移与模型实现
+- **背景**: 根据统一架构文档，后端需率先建立数据底座。
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 2)，`/AGENT/BackendAgent `
+- **产出**: `backend/src/base/pg/entity.py`, `alembic` 迁移脚本。确保 pgvector 扩展已启用。
+
+### T-017: 实现论文上传与解析服务
+- **背景**: 论文处理是核心业务，涉及 IO 密集型操作，需通过 Arq 异步化。
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 1.1, 3.1),`/AGENT/BackendAgent `
+- **产出**: `backend/src/service/paper_service.py`, `backend/src/worker/tasks.py` (Arq Tasks)。
+
+### T-018: 实现 RESTful API 接口
+- **背景**: 为前端和 Agent 提供统一的数据访问层。
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 3) `/AGENT/BackendAgent `
+- **产出**: FastAPI Routers (`/auth`, `/papers`, `/chat`), SSE Event Generator。
+
+### T-019: 实现基础 Agent 框架与工具
+- **背景**: Agent 开发需依赖统一的状态定义和工具集。
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 4)
+- **产出**: `backend/src/agent/base/state.py`, `backend/src/agent/common/tools.py`。
+
+### T-020: 实现 SearchAgent & InPaperChatAgent
+- **背景**: 实现最核心的两个 Agent 能力：搜论文和问论文。
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 4.1)
+- **产出**: `backend/src/agent/search_agent/`, `backend/src/agent/paper_chat_agent/`。
+
+### T-021: 实现 PDF 阅读器核心组件
+- **背景**: 前端核心体验组件。
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 5)
+- **产出**: `frontend/src/components/business/pdf-viewer.tsx`。
+
+### T-022: 实现 Chat UI 与 SSE 适配
+- **背景**: 需处理自定义 SSE 事件以展示工具调用过程。
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 3.2, 5)
+- **产出**: `frontend/src/components/business/chat-box.tsx`, `frontend/src/hooks/use-unified-chat.ts`。
+
+### T-023: 集成知识图谱组件
+- **背景**: 展示论文间关系。
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 5)
+- **产出**: `frontend/src/components/business/graph-view.tsx`。
+
+### T-024: 端到端联调
+- **背景**: 确保各模块协同工作。
+- **输入**: 完整的 Backend 和 Frontend 环境。
+- **产出**: 验收报告，修复 Bug。
+- **产出**: 后端细节设计(sql表结构，接口设计等)
+
+### T-025: 开始逐步实现组件:首页:顶部栏
+| T-025 | Frontend | 开始逐步实现组件:首页:顶部栏 | FrontendAgent | P1 | 🔴 | 2026-01-08 10:05 | 2026-01-08 10:15 | 组件使用文档和组件代码 |

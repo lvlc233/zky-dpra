@@ -197,6 +197,25 @@ TODO: 前端内容不了解，需要一定的调研。
 9. 如果一个模块打算废弃，使用 废弃的注解标志，并提交废弃申请记录，供MasterAgent或人类审核。 
 10. 后端项目始终使用模块化导包而非相对位置导包，若不清楚模块内容，查看pyproject.toml
 
+## 数据模型设计规范（SaaS化哲学）
+> 核心原则：数据模型即业务边界。模型是模块间交互的契约，而非全局共享的数据容器。
+
+1. **显式契约 (Explicit Contracts)**
+   - 任何功能模块（Module/Service/Function）必须显式定义其 `Input` 和 `Output` 模型（通常使用 Pydantic BaseModel 或 TypedDict）。
+   - 禁止使用 `dict` 或 `Any` 作为公开接口的参数或返回值，必须强类型化。
+
+2. **禁止透传 (No Pass-through)**
+   - **数据库实体隔离**：Dao 层的数据库实体（Entity, 如 `UserORM`）**严禁**直接作为 Controller 层的 Response 输出。必须在 Service 层转换为业务模型（DTO）。
+   - **层级解耦**：Web 层的 Request/Response 模型仅在 Controller 层可见。Service 层的 Input/Output 模型仅在 Service 层及调用者间可见。
+
+3. **模型下沉 (Colocation)**
+   - 推荐将特定模块使用的模型定义在模块内部（如 `modules/paper/schema.py`），而非全部堆积在全局的 `common/models`。
+   - 仅当模型在多个完全不相关的模块间复用时，才放入 `common` 包。
+
+4. **SaaS 化思维**
+   - 开发任何模块时，将其视为一个独立的 SaaS 服务。
+   - 问自己：如果我要把这个模块拆分成微服务，我的输入输出是否足够清晰？
+
 ## 代码结构
 main
 └── backend/                                  # 后端（基于 FastAPI + Python）
