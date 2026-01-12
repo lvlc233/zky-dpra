@@ -16,10 +16,15 @@ from loguru import logger
 
 # 导入papers路由
 from controller.api.papers.router import router as papers_router
+from controller.api.auth.router import router as auth_router, users_router
+from controller.api.reader.router import router as reader_router
+from controller.api.chat.router import router as chat_router
+from controller.api.reports.router import router as reports_router
 
 # 导入异常处理器
 from controller.response import global_exception_handler
 from common.logger import setup_logging
+from base.pg.service import engine
 
 # 配置日志
 setup_logging()
@@ -28,9 +33,13 @@ setup_logging()
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("System starting up...")
+   
     yield
     # Shutdown
     logger.info("System shutting down...")
+
+    await engine.dispose()
+    logger.info("Database connection pool disposed")
 
 def create_app() -> FastAPI:
     app = FastAPI(

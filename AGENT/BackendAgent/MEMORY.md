@@ -75,6 +75,10 @@
     - `base/pdf_parser`: 封装 Marker/PyMuPDF
     - `base/embedding`: 封装 OpenAI/Ollama
 
+### 阶段四：用户与认证模块 (2026-01-12)
+- **Auth Module**: 完成登录、注册、JWT认证 (Controller, Service, Infra)
+- **测试覆盖**: 完成 Auth 模块集成测试 (Mock Service)
+
 ## 关键经验与教训 (最新)
 
 ### 架构与路径修正 (2026-01-08)
@@ -86,9 +90,25 @@
 - 耗时操作（PDF解析、Embedding）必须通过 Arq 异步化，避免阻塞 Web 线程。
 - 任务状态需要持久化到数据库，以便前端轮询或 SSE 推送。
 
+### 统一响应规范 (2026-01-12)
+- Controller 层统一使用 `Response.success(data=...)` 返回数据，而非直接返回字典。
+- 异常处理统一通过 `Response.fail` 或抛出业务异常。
+
+### 依赖注入 (2026-01-12)
+- FastAPI Dependency (`Depends`) 函数应返回具体的业务对象（如 `User` 实体），而非封装好的 `Response` 对象。
+- `Response` 封装应仅在最终的 Endpoint Handler 中进行，避免在中间层导致类型校验失败。
+
+### 操作日志规范 (2026-01-12)
+- **严禁覆盖**: `OPERATION_LOG.md` 必须使用追加模式更新。
+- **历史保留**: 所有的操作记录都是项目演进的重要依据，不得删除。
+
+### 数据库会话管理 (2026-01-12 新增)
+- **分离依赖与上下文管理器**: 
+    - `get_session_dependency`: 仅作为 Generator 用于 FastAPI `Depends`，由框架管理生命周期。
+    - `get_db_session`: 被 `@asynccontextmanager` 装饰，用于 Service 层 `async with`。
+- **显式资源释放**: 在 Generator 中使用 `try...except...finally` 结构，确保 `session.close()` 即使在异常时也能执行，防止 `ConnectionDoesNotExistError`。
+- **避免混合使用**: 不要在 Generator 内部再使用 `async with session_factory()`，而是显式创建和关闭，避免双重 Context Manager 导致的逻辑混乱。
+
 ---
-**最后更新**: 2026年01月08日 17:00
-**记忆版本**: v1.2
-
-
-管理员补充: 业务模型已下层到common中命名为model了
+**最后更新**: 2026年01月12日 15:00
+**记忆版本**: v1.6

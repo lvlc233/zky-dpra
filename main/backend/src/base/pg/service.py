@@ -7,19 +7,19 @@
     [2026年01月09日 16:00:v1.0_pg_service:实现数据库连接管理和Repository模式，封装Paper和Chunk的CRUD操作]
 '''
 
-import logging
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator, List, Optional
+from typing import  List, Optional, Annotated
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlmodel import select
+from fastapi import Depends
+
+
 
 from base.config import settings
 from base.pg.entity import Paper, PaperChunk, PaperStatus, User
 
-from loguru import logger
 
 # Database Connection Management
 # Ensure the database URL is async compatible (postgresql+asyncpg)
@@ -29,24 +29,20 @@ engine = create_async_engine(
     DB_URL,
     echo=False,
     future=True,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    pool_recycle=3600,
 )
 
-async_session_factory = sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
+async_session_factory = async_sessionmaker(
+    engine, expire_on_commit=False
 )
 
-@asynccontextmanager
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """获取数据库会话的异步上下文管理器"""
+
+async def get_db():
     async with async_session_factory() as session:
-        try:
-            yield session
-        except Exception as e:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        yield session
+# 定义 SessionDep 类型别名
+SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
 
 class PaperRepository:
@@ -163,10 +159,25 @@ class PaperRepository:
 
 class UserRepository:
     """用户相关的数据访问层"""
+
+    @staticmethod
+    async def get_user_by_email(session: AsyncSession, email: str) -> Optional[User]:
+        """根据邮箱获取用户"""
+        statement = select(User).where(User.email == email)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
     
     @staticmethod
     async def get_user_by_id(session: AsyncSession, user_id: UUID) -> Optional[User]:
+        """根据ID获取用户"""
         statement = select(User).where(User.id == user_id)
         result = await session.execute(statement)
         return result.scalar_one_or_none()
 
+    @staticmethod
+    async def create_user(session: AsyncSession, user: User) -> User:
+        """创建用户"""
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user

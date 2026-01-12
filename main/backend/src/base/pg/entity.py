@@ -13,7 +13,6 @@
 '''
 
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional
 from uuid import UUID, uuid4
 
@@ -76,7 +75,7 @@ class User(SQLModel, table=True):
         sa_column_kwargs={"comment": "账号是否激活(True:激活, False:禁用/删除)"}
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=datetime.now,
         sa_column_kwargs={"comment": "账号创建时间"}
     )
 
@@ -160,7 +159,7 @@ class Paper(SQLModel, table=True):
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=datetime.now,
         sa_column_kwargs={"comment": "上传/创建时间"}
     )
 
@@ -274,7 +273,7 @@ class PaperSummary(SQLModel, table=True):
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=datetime.now,
         sa_column_kwargs={"comment": "生成时间"}
     )
 
@@ -327,7 +326,7 @@ class ChatSession(SQLModel, table=True):
         sa_column_kwargs={"comment": "Agent类型(chat/search/summary)"}
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=datetime.now,
         sa_column_kwargs={"comment": "创建时间"}
     )
 
@@ -387,7 +386,7 @@ class ChatMessage(SQLModel, table=True):
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=datetime.now,
         sa_column_kwargs={"comment": "发送时间"}
     )
 
@@ -451,7 +450,7 @@ class Layer(SQLModel, table=True):
         sa_column_kwargs={"comment": "是否可见"}
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=datetime.now, 
         sa_column_kwargs={"comment": "创建时间"}
     )
 
