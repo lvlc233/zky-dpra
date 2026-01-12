@@ -54,6 +54,7 @@
 | T-039 | Frontend | 开始逐步实现组件:详情页面: 右侧对话栏:设置| FrontendAgent | P1 | 🟢 | 2026-01-11 15:00 | 2026-01-11 15:00 | 组件使用文档和组件代码 |
 | T-040 | Frontend | 开始逐步实现组件:详情页面: 视图| FrontendAgent | P1 | 🟢 | 2026-01-11 15:00 | 2026-01-11 18:30 | 组件使用文档和组件代码 |
 | T-041 | Frontend | 开始逐步实现组件:详情页面: 操作组件| FrontendAgent | P1 | 🟢 | 2026-01-11 16:30 | 2026-01-11 18:40 | 组件使用文档和组件代码 |
+| T-042 | Backend | 开始逐步实现登录模块:| Backend | P1 | 🟢 | 2026-01-11 16:30 | 2026-01-11 18:40 | 组件使用文档和组件代码 |
 
 ## 任务详情说
 
@@ -130,17 +131,17 @@
 
 ### T-016: 数据库迁移与模型实现
 - **背景**: 根据统一架构文档，后端需率先建立数据底座。
-- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 2)，`/AGENT/BackendAgent `
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 2)，`PROJECT/DOCUMENTS/FRONTEND_TO_BACKEND_API_REQ.md` (Sec 5), `/AGENT/BackendAgent`
 - **产出**: `backend/src/base/pg/entity.py`, `alembic` 迁移脚本。确保 pgvector 扩展已启用。
 
 ### T-017: 实现论文上传与解析服务
 - **背景**: 论文处理是核心业务，涉及 IO 密集型操作，需通过 Arq 异步化。
-- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 1.1, 3.1),`/AGENT/BackendAgent `
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 1.1, 3.1), `/AGENT/BackendAgent`
 - **产出**: `backend/src/service/paper_service.py`, `backend/src/worker/tasks.py` (Arq Tasks)。
 
 ### T-018: 实现 RESTful API 接口
 - **背景**: 为前端和 Agent 提供统一的数据访问层。
-- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 3) `/AGENT/BackendAgent `
+- **输入**: `PROJECT/TECHNICAL_ARCHITECTURE.md` (Sec 3), `PROJECT/DOCUMENTS/FRONTEND_TO_BACKEND_API_REQ.md` (Sec 1-4), `/AGENT/BackendAgent`
 - **产出**: FastAPI Routers (`/auth`, `/papers`, `/chat`), SSE Event Generator。
 
 ### T-019: 实现基础 Agent 框架与工具

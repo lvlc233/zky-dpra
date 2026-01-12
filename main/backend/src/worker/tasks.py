@@ -21,7 +21,7 @@ from base.config import settings
 from service.papers.paper_service import PaperProcessingService
 
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class ArqRedisSettings(RedisSettings):

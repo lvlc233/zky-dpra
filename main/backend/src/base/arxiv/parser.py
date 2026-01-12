@@ -7,7 +7,6 @@
     [2026年01月02日 10:16:v0.1_papers:创建arXiv XML解析器（Infrastructure层），负责解析arXiv返回的XML数据]
 '''
 
-import logging
 import re
 import xml.etree.ElementTree as ET
 from typing import List
@@ -15,7 +14,7 @@ from typing import List
 from base.arxiv.schema import ArxivPaperInfo
 
 # 配置日志
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 # pdf解析
@@ -77,15 +76,17 @@ class ArxivXmlParser:
             return []
 
         papers = []
-
+ 
         try:
+          
             # 解析XML，处理命名空间
             root = ET.fromstring(xml_content)
             namespace = {
                 'atom': 'http://www.w3.org/2005/Atom',
                 'arxiv': 'http://arxiv.org/schemas/atom'
             }
-
+            # debug
+            logger.info(f"XML命名空间: {xml_content}")
             logger.info("开始解析XML，查找论文条目")
 
             # 遍历所有论文条目

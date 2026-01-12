@@ -29,7 +29,7 @@ from typing import Dict, List, Optional
 #     PYMUPDF_AVAILABLE = False
 
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class PDFParseResult:

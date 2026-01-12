@@ -1,9 +1,10 @@
 # 项目统一技术架构文档 (Unified Technical Architecture)
 
-> **版本**: v1.0
-> **日期**: 2026-01-07
+> **版本**: v1.1
+> **日期**: 2026-01-12
+> **提交方**: BackendAgent
 > **状态**: 正式 (Official)
-> **说明**: 本文档作为项目开发的唯一技术事实来源 (Single Source of Truth)，消除了 Frontend、Backend 和 Agent 设计文档中的差异。
+> **说明**: 本文档作为项目开发的唯一技术事实来源 (Single Source of Truth)，消除了 Frontend、Backend 和 Agent 设计文档中的差异。已同步 v1.0 前端 API 需求。
 
 ---
 
@@ -124,12 +125,24 @@ class ChatMessage(SQLModel, table=True):
 
 采用 RESTful 风格，URL 前缀 `/api/v1`。
 
-### 3.1 核心流程
-1.  **上传**: `POST /papers/upload` -> 触发 Arq 任务 (PDF -> Markdown -> Vector) -> 返回 `PaperRead` (Status: PROCESSING)。
-2.  **查询状态**: `GET /papers/{id}` -> 前端轮询直到 Status: COMPLETED。
-3.  **对话**: 
-    *   `POST /chat/sessions` (创建一个新的对话上下文)
-    *   `POST /chat/sessions/{id}/message` (发送消息，流式返回)
+### 3.1 接口概览
+详细定义请参考 `FRONTEND_TO_BACKEND_API_REQ.md`。
+
+| 模块 | Method | Path | 说明 |
+| :--- | :--- | :--- | :--- |
+| **Auth** | `POST` | `/api/v1/auth/login` | 登录 (JWT) |
+| | `POST` | `/api/v1/auth/register` | 注册 |
+| | `GET` | `/api/v1/users/me` | 获取当前用户信息 |
+| **Papers** | `POST` | `/api/v1/papers/upload` | 上传论文 |
+| | `GET` | `/api/v1/papers` | 列表 |
+| | `GET` | `/api/v1/papers/{id}` | 详情 |
+| | `GET` | `/api/v1/papers/{id}/status` | 状态轮询 |
+| **Reader** | `GET` | `/api/v1/papers/{id}/layers` | 获取图层 |
+| | `POST` | `/api/v1/layers/{layerId}/annotations` | 添加标注 |
+| **Chat** | `POST` | `/api/v1/chat/sessions` | 创建会话 |
+| | `POST` | `/api/v1/chat/sessions/{id}/message` | 发送消息 (SSE) |
+| **Reports** | `POST` | `/api/v1/papers/{id}/reports` | 生成报告 |
+| | `GET` | `/api/v1/reports/{id}` | 获取报告 |
 
 ### 3.2 SSE 交互协议 (Unified SSE Protocol)
 前端与 Agent 的流式交互必须遵循以下事件定义：

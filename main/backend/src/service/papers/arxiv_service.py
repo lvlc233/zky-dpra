@@ -8,7 +8,7 @@
     [2026年01月02日 08:54:v0.1_arxiv_service:直接调用HTTP和XML解析，违反架构规范]
 '''
 
-import logging
+from loguru import logger
 import re
 from typing import List
 
@@ -18,9 +18,6 @@ from base.arxiv.schema import ArxivPaperInfo
 
 from base.arxiv.parser import ArxivXmlParser
 from service.papers.schema import PaperInfo
-
-# 配置日志
-logger = logging.getLogger(__name__)
 
 # TODO:后续可能需要扩展为不同类型的通用的URL获取
 class ArxivService:

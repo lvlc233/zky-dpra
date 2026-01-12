@@ -7,13 +7,9 @@
     [2026年01月02日 10:16:v0.1_papers:创建arXiv客户端，负责与arXiv API通信（Infrastructure层）]
 '''
 
-import logging
 import httpx
 from typing import List
-
-# 配置日志
-logger = logging.getLogger(__name__)
-
+from loguru import logger
 
 # 备注: 网络相关和pdf解析无关
 class ArxivClient:
@@ -36,7 +32,7 @@ class ArxivClient:
     - 所有与arXiv的网络交互都经过此客户端
     '''
 
-    def __init__(self, base_url: str = "http://export.arxiv.org/api/query"):
+    def __init__(self, base_url: str = "https://export.arxiv.org/api/query"):
         '''
         初始化arXiv客户端
 

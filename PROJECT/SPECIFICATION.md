@@ -2,7 +2,11 @@
 ## 介绍
 这是一个基于Langgraph的DeepAgent项目，该项目旨在利用强大的Agent编排，上下文工程和资源管理技术，为任意的研究人员提供更好的Agent服务，降低研究人员的研发过程中的心智负担，全身心的投入在有价值的内容产出中。
 
-> **注意**: 本文档提供高层次的项目指导。详细的技术实现、API 契约和数据库模型，请参考 [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md)。所有开发工作应以 TECHNICAL_ARCHITECTURE.md 为最终事实来源。
+> **注意**: 本文档提供高层次的项目指导。
+> - 详细的技术实现、架构设计，请参考 [TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md)。
+> - 前后端交互的 API 契约，请参考 [FRONTEND_TO_BACKEND_API_REQ.md](DOCUMENTS/FRONTEND_TO_BACKEND_API_REQ.md)。
+>
+> 所有开发工作应以这些文档为事实来源。
 
 补充: 这是一个毕设，给一个不太懂代码的人代写的，尽量简单些。
 

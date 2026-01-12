@@ -19,7 +19,7 @@ from sqlmodel import select
 from base.config import settings
 from base.pg.entity import Paper, PaperChunk, PaperStatus, User
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 # Database Connection Management
 # Ensure the database URL is async compatible (postgresql+asyncpg)

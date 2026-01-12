@@ -12,17 +12,17 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
-import logging
+from loguru import logger
 
 # 导入papers路由
 from controller.api.papers.router import router as papers_router
 
 # 导入异常处理器
 from controller.response import global_exception_handler
+from common.logger import setup_logging
 
 # 配置日志
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,7 +47,12 @@ def create_app() -> FastAPI:
 
     # 注册papers路由
     logger.info("注册papers路由")
-    app.include_router(papers_router)
+    app.include_router(papers_router, prefix="/api/v1")
+    app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(users_router, prefix="/api/v1")
+    app.include_router(reader_router, prefix="/api/v1")
+    app.include_router(chat_router, prefix="/api/v1")
+    app.include_router(reports_router, prefix="/api/v1")
 
     @app.get("/")
     async def root():

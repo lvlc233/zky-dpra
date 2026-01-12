@@ -35,7 +35,7 @@ from base.pdf_parser.parser import PDFParseResult, parse_pdf, extract_pdf_text
 from base.embedding.embedding_service import EmbeddingService, embed_batch
 from base.embedding.text_splitter import SemanticTextSplitter
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class PaperService:
@@ -172,13 +172,20 @@ class PaperService:
 
     async def get_paper_status(self, paper_id: UUID, user_id: UUID) -> Optional[PaperDTO]:
         """
-        获取论文处理状态 (返回 DTO)
+        获取论文处理状态/详情 (返回 DTO)
         """
         async with get_db_session() as session:
             paper = await PaperRepository.get_paper_by_id(session, paper_id)
             if paper and paper.user_id == user_id:
                 return self._entity_to_dto(paper)
             return None
+
+    async def get_paper_detail(self, paper_id: UUID, user_id: UUID) -> Optional[PaperDTO]:
+        """
+        获取论文详情 (别名方法，供Router调用)
+        """
+        return await self.get_paper_status(paper_id, user_id)
+
 
     async def update_paper_status(
         self,

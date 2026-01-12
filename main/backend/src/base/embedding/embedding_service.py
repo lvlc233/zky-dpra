@@ -19,7 +19,7 @@ from openai import AsyncOpenAI
 
 from base.config import settings
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class BaseEmbeddingModel(ABC):

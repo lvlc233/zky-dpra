@@ -15,7 +15,7 @@ import logging
 from common.utils import get_now_time_china
 from common.model.errors import BaseAppException
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 T = TypeVar("T")
 

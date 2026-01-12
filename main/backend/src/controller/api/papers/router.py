@@ -24,7 +24,7 @@ from base.arxiv.parser import ArxivXmlParser
 from common.model.enums import PaperStatus
 
 # 配置日志
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 # 创建路由
 router = APIRouter(prefix="/papers", tags=["papers"])
@@ -108,7 +108,7 @@ async def fetch_papers(
     使用示例:
     ```json
     {
-        "url": "https://arxiv.org/abs/2101.12345",
+        "url": "https://arxiv.org/pdf/2101.12345",
         "source": "arXiv"
     }
     ```
@@ -369,10 +369,37 @@ async def test_arxiv_search(
     )
 
 
-@router.get("/{arxiv_id}", response_model=PaperInfo)
-async def get_paper_by_id(arxiv_id: str):
-    logger.info(f"接收到获取单篇论文请求: arxiv_id={arxiv_id}")
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="该接口尚未实现"
+@router.get("/{paper_id}", response_model=PaperStatusResponse)
+async def get_paper_by_id(
+    paper_id: str,
+    user_id: UUID = Depends(get_current_user_id),
+    paper_service: PaperService = Depends(get_paper_service),
+):
+    logger.info(f"接收到获取单篇论文请求: paper_id={paper_id}, user_id={user_id}")
+
+    try:
+        paper_uuid = UUID(paper_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的论文ID格式",
+        )
+
+    paper = await paper_service.get_paper_status(paper_uuid, user_id)
+    if not paper:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="论文不存在或无访问权限",
+        )
+
+    return PaperStatusResponse(
+        paper_id=str(paper.id),
+        status=paper.status.value,
+        title=paper.title,
+        authors=paper.authors,
+        abstract=paper.abstract,
+        progress=calculate_progress(paper.status),
+        error_message=paper.error_message,
+        created_at=paper.created_at,
+        updated_at=paper.created_at,
     )

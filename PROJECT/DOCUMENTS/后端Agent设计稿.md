@@ -136,4 +136,22 @@ create_time: 2026-01-07
 5. Tool?(rag_node,web_search_node)->chat_node
 
 ## 深度研究Agent
-交给DeepAgent吧()
+### 介绍
+负责执行深度研究任务，生成长篇报告。
+### 核心逻辑
+1. **任务分解**: 将用户的大问题分解为多个子问题。
+2. **迭代检索**: 针对每个子问题进行多轮检索 (Web/Local)。
+3. **信息综合**: 汇总检索结果，生成中间摘要。
+4. **报告生成**: 最终合成完整报告。
+
+## Agent 统一接口适配 (SSE Adapter)
+为了满足前端 `Unified Chat Service` 的需求，所有 Agent 的输出需通过适配器转换为 SSE 事件流。
+
+### 事件映射
+- **思考过程 (CoT)** -> `token` (或内部日志，视配置而定)
+- **工具调用** -> `tool_call` (包含 `tool_name`, `args`)
+- **工具结果** -> `tool_result`
+- **文本输出** -> `token`
+- **引用来源** -> `citation` (在 RAG 节点或推理节点输出时附带)
+- **异常** -> `error`
+- **结束** -> `finish`
