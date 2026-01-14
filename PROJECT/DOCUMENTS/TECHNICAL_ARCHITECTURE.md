@@ -87,9 +87,32 @@ class PaperChunk(SQLModel, table=True):
     embedding: List[float] = Field(sa_column=Column(Vector(1536)))
     
     paper: Paper = Relationship(back_populates="chunks")
+
+### 2.4 收藏夹 (Collections)
+```python
+class Collection(SQLModel, table=True):
+    __tablename__ = "collections"
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True)
+    name: str = Field(index=True)
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # 关联
+    # papers: 通过 CollectionPaper 中间表关联
 ```
 
-### 2.4 会话与消息 (Chat)
+```python
+class CollectionPaper(SQLModel, table=True):
+    __tablename__ = "collection_papers"
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    collection_id: UUID = Field(foreign_key="collections.id")
+    paper_id: UUID = Field(foreign_key="papers.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+```
+
+### 2.5 会话与消息 (Chat)
 用于持久化对话记录。LangGraph 的 Checkpoint 可选择存储在 Postgres 的独立表中，但业务层查询历史使用此表。
 
 ```python

@@ -79,6 +79,11 @@
 - **Auth Module**: 完成登录、注册、JWT认证 (Controller, Service, Infra)
 - **测试覆盖**: 完成 Auth 模块集成测试 (Mock Service)
 
+### 阶段五：搜索与收藏模块 (2026-01-14)
+- **Search Module**: 实现论文上传、PDF解析 (PyMuPDF)、TOC提取、异步向量化 (Arq)。
+- **Collection Module**: 实现收藏夹 CRUD 及论文关联功能。
+- **Reading Module**: 实现目录 (TOC) 加载与文件流服务。
+
 ## 关键经验与教训 (最新)
 
 ### 架构与路径修正 (2026-01-08)
@@ -89,6 +94,7 @@
 ### 异步任务处理
 - 耗时操作（PDF解析、Embedding）必须通过 Arq 异步化，避免阻塞 Web 线程。
 - 任务状态需要持久化到数据库，以便前端轮询或 SSE 推送。
+- **PDF处理流**: Upload -> Temp Storage -> Async Parse (Marker/PyMuPDF) -> Persistent Storage (MinIO/Local) -> Vector DB.
 
 ### 统一响应规范 (2026-01-12)
 - Controller 层统一使用 `Response.success(data=...)` 返回数据，而非直接返回字典。
@@ -97,10 +103,18 @@
 ### 依赖注入 (2026-01-12)
 - FastAPI Dependency (`Depends`) 函数应返回具体的业务对象（如 `User` 实体），而非封装好的 `Response` 对象。
 - `Response` 封装应仅在最终的 Endpoint Handler 中进行，避免在中间层导致类型校验失败。
+- **Service依赖标准化**: 所有 Service 应该提供 `get_service` 工厂函数和 `ServiceDep` 类型别名 (使用 `Annotated`)。
+  - 示例: `PaperServiceDep = Annotated[PaperService, Depends(get_paper_service)]`
+  - 目的: 统一管理 Session 生命周期，避免 Controller 层重复编写 `Depends(get_service)`。
 
-### 操作日志规范 (2026-01-12)
+### 操作日志规范 (2026-01-14 强调)
 - **严禁覆盖**: `OPERATION_LOG.md` 必须使用追加模式更新。
 - **历史保留**: 所有的操作记录都是项目演进的重要依据，不得删除。
+- **日志恢复**: 若发生覆盖，需立即根据 Git 记录或上下文恢复。
+
+### 任务状态管理 (2026-01-14)
+- **Review First**: 完成开发后，任务状态应先标记为 `🔵` (Review)，待 User 确认或自动化测试通过后再转为 `🟢` (Completed)。
+- **Status Correction**: 若未经过审核直接标记为 Completed，需回退状态至 Review。
 
 ### 数据库会话管理 (2026-01-12 新增)
 - **分离依赖与上下文管理器**: 
@@ -110,5 +124,5 @@
 - **避免混合使用**: 不要在 Generator 内部再使用 `async with session_factory()`，而是显式创建和关闭，避免双重 Context Manager 导致的逻辑混乱。
 
 ---
-**最后更新**: 2026年01月12日 15:00
-**记忆版本**: v1.6
+**最后更新**: 2026年01月14日 14:15
+**记忆版本**: v1.7

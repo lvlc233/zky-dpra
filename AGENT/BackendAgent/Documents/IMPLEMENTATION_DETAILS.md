@@ -138,6 +138,36 @@ class ChatMessage(SQLModel, table=True):
     session: ChatSession = Relationship(back_populates="messages")
 ```
 
+### 1.5 收藏夹模块 (Collection Module)
+
+用于管理用户的论文收藏夹。
+
+```python
+# src/base/pg/entity.py
+
+class Collection(SQLModel, table=True):
+    __tablename__ = "collections"
+    
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True)
+    name: str = Field(index=True)
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Relationships
+    user: User = Relationship(back_populates="collections")
+    # papers: Link through CollectionPaper
+
+class CollectionPaper(SQLModel, table=True):
+    __tablename__ = "collection_papers"
+    
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    collection_id: UUID = Field(foreign_key="collections.id")
+    paper_id: UUID = Field(foreign_key="papers.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+```
+
 ---
 
 ## 2. 接口设计 (API Interface Design)
@@ -165,11 +195,24 @@ class ChatMessage(SQLModel, table=True):
 | :--- | :--- | :--- | :--- | :--- |
 | POST | `/papers/upload` | 上传并解析论文 | `UploadFile` | `PaperRead` (Status: Pending) |
 | GET | `/papers/` | 获取论文列表 (分页) | `Query(page, size, keyword)` | `Paginated[PaperRead]` |
-| GET | `/papers/{id}` | 获取论文详情 | - | `PaperReadWithChunks` |
+| GET | `/papers/{id}` | 获取论文详情 | - | `PaperReadWithChunks` (含 TOC, FileURL) |
 | POST | `/papers/{id}/reprocess` | 重试解析/向量化 | - | `Message` |
 | DELETE | `/papers/{id}` | 删除论文 | - | `Message` |
+| GET | `/papers/{id}/file` | 获取论文PDF文件流 | - | `FileResponse` |
 
-### 2.4 对话 (Chat) - Tags: `Chat`
+### 2.4 收藏夹 (Collections) - Tags: `Collections`
+
+| Method | Path | Summary | Request | Response |
+| :--- | :--- | :--- | :--- | :--- |
+| POST | `/collections` | 创建收藏夹 | `CollectionCreate` | `CollectionResponse` |
+| GET | `/collections` | 获取收藏夹列表 | `Query(limit, offset)` | `List[CollectionResponse]` |
+| GET | `/collections/{id}` | 获取收藏夹详情 | - | `CollectionDetailResponse` |
+| PUT | `/collections/{id}` | 更新收藏夹 | `CollectionUpdate` | `CollectionResponse` |
+| DELETE | `/collections/{id}` | 删除收藏夹 | - | `204 No Content` |
+| POST | `/collections/{id}/papers` | 添加论文到收藏夹 | `AddPaperRequest` | `Message` |
+| DELETE | `/collections/{id}/papers/{paper_id}` | 从收藏夹移除论文 | - | `204 No Content` |
+
+### 2.5 对话 (Chat) - Tags: `Chat`
 
 | Method | Path | Summary | Request | Response |
 | :--- | :--- | :--- | :--- | :--- |

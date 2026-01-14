@@ -67,15 +67,17 @@ main/backend/src/
 │           └── endpoints/      # 具体业务接口
 │               ├── auth.py
 │               ├── papers.py
+│               ├── collections.py  # 收藏夹管理
 │               └── agent.py
 ├── service/                    # 业务逻辑层 (Service Layer)
 │   ├── paper_service.py        # 论文管理 (CRUD, 调度解析)
+│   ├── collection_service.py   # 收藏夹逻辑
 │   ├── agent_service.py        # Agent 调用与流式处理
 │   └── auth_service.py         # 用户认证
 ├── worker/                     # 异步任务消费者
 │   ├── main.py                 # Arq Worker 入口
 │   └── tasks/                  # 具体任务函数
-│       ├── paper_tasks.py      # PDF 解析, 向量化
+│       ├── paper_tasks.py      # PDF 解析 (PyMuPDF), 向量化
 │       └── email_tasks.py      # (可选) 邮件发送
 ├── data/                       # 数据访问层 (Data Layer)
 │   ├── db.py                   # 数据库连接 (AsyncEngine)
@@ -83,11 +85,11 @@ main/backend/src/
 │   └── models/                 # SQLModel 模型
 │       ├── user.py
 │       ├── paper.py            # Paper, PaperChunk (含 Vector)
-│       └── graph.py            # (可选) 图数据缓存
+│       └── entity.py           # 统一实体定义 (Collection, etc.)
 ├── infra/                      # 基础设施/第三方客户端
 │   ├── storage/                # MinIO/S3 客户端
 │   ├── llm/                    # LLM Client (OpenAI/SiliconFlow)
-│   └── parser/                 # Marker PDF Parser 封装
+│   └── parser/                 # PDF Parser (Marker/PyMuPDF) 封装
 └── utils/                      # 通用工具
     ├── security.py             # JWT, Password Hash
     └── common.py

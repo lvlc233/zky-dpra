@@ -64,10 +64,10 @@ sequenceDiagram
     participant S as 存储
 
     U->>F: 选择PDF文件
-    F->>B: POST /api/papers/upload
+    F->>B: POST /api/v1/papers/upload
     B->>S: 临时存储文件
     B-->>F: 返回处理状态
-    B->>B: 异步解析处理
+    B->>B: 异步解析处理 (PyMuPDF)
     B->>S: 持久化存储
     B->>U: 更新处理状态
 ```
@@ -76,7 +76,7 @@ sequenceDiagram
 2. 前端使用FormData上传文件到后端
 3. 后端接收文件并进行初步验证
 4. 文件临时存储并返回初始响应
-5. 后台异步进行内容解析和处理
+5. 后台异步进行内容解析 (TOC提取、文本解析)
 6. 处理完成后更新状态通知用户
 
 #### 1.3.2 文件存储策略
@@ -89,7 +89,7 @@ sequenceDiagram
 │   │   ├── original.pdf          # 原始文件
 │   │   ├── processed/            # 处理后文件
 │   │   │   ├── text.txt          # 提取文本
-│   │   │   ├── metadata.json     # 元数据
+│   │   │   ├── toc.json          # 目录结构
 │   │   │   └── thumbnails/       # 缩略图
 │   │   └── versions/             # 版本管理
 └── tmp/                          # 临时文件
@@ -111,27 +111,22 @@ s3://your-bucket/
 ```python
 async def process_paper_content(file_path: str, paper_id: str):
     """PDF内容解析处理"""
-    # 1. 文本提取
+    # 1. 文本提取 (PyMuPDF)
     text_content = extract_text_from_pdf(file_path)
     
-    # 2. 元数据提取
-    metadata = extract_metadata(file_path)
+    # 2. 目录提取 (TOC)
+    toc = extract_toc_from_pdf(file_path)
     
-    # 3. OCR处理（针对扫描版PDF）
-    if is_scanned_pdf(file_path):
-        ocr_text = perform_ocr(file_path)
-        text_content += ocr_text
-    
-    # 4. 章节分割
+    # 3. 章节分割
     sections = split_into_sections(text_content)
     
-    # 5. 关键词提取
+    # 4. 关键词提取
     keywords = extract_keywords(text_content)
     
-    # 6. 保存处理结果
+    # 5. 保存处理结果
     save_processed_data(paper_id, {
         'text': text_content,
-        'metadata': metadata,
+        'toc': toc,
         'sections': sections,
         'keywords': keywords
     })
@@ -140,8 +135,8 @@ async def process_paper_content(file_path: str, paper_id: str):
 #### 1.3.4 访问URL生成
 ##### 后端直提供问方案
 ```python
-@app.get("/api/papers/files/{paper_id}")
-async def serve_paper_file(paper_id: str, request: Request):
+@app.get("/api/v1/papers/{paper_id}/file")
+async def serve_paper_file(paper_id: UUID, request: Request):
     """提供PDF文件访问"""
     # 权限验证
     user = await get_current_user(request)

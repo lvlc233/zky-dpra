@@ -82,8 +82,27 @@
 *   `POST /register`
     *   **Request**: `UserCreate` (email, password, full_name)
     *   **Response**: `UserResponse`
-*   `GET /me`
+*   `GET /users/me`
     *   **Response**: `UserResponse`
+
+#### [Service] AuthService
+**路径**: `src/service/auth/auth_service.py`
+
+**依赖注入**:
+```python
+async def get_auth_service(session: SessionDep) -> AuthService: ...
+AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+```
+
+**Core Methods**:
+*   `authenticate_user(email, password) -> User`: 验证凭据，成功返回 User。
+*   `create_user(email, password, ...) -> User`: 注册新用户，包含密码哈希。
+*   `get_user_by_token(token) -> User`: JWT 解码并获取当前用户 (用于 `get_current_user` 依赖)。
+
+#### [Infrastructure] Security
+**路径**: `src/common/security.py`
+*   `verify_password(plain, hashed) -> bool`: 密码校验 (bcrypt)。
+*   `create_access_token(subject) -> str`: 生成 JWT Token。
 
 #### [Schema] Auth Models
 **路径**: `src/controller/api/auth/schema.py`
@@ -225,16 +244,56 @@ class ChatMessageRequest(BaseModel):
 
 ---
 
+### 3.6 收藏夹模块 (Collection Module)
+**职责**: 管理用户的论文收藏夹，支持创建、查询、更新、删除及论文的添加/移除。
+
+#### [Controller] CollectionRouter
+**路径**: `src/controller/api/collections/router.py`
+**接口前缀**: `/api/v1/collections`
+
+**Endpoints**:
+*   `POST /`
+    *   **Request**: `CollectionCreate` (name, description)
+    *   **Response**: `CollectionResponse`
+*   `GET /`
+    *   **Query**: limit, offset
+    *   **Response**: `List[CollectionResponse]`
+*   `GET /{collection_id}`
+    *   **Response**: `CollectionDetailResponse` (包含 papers 列表)
+*   `PUT /{collection_id}`
+    *   **Request**: `CollectionUpdate`
+    *   **Response**: `CollectionResponse`
+*   `DELETE /{collection_id}`
+    *   **Response**: 204 No Content
+*   `POST /{collection_id}/papers`
+    *   **Request**: `AddPaperRequest` (paper_id)
+    *   **Response**: Success Message
+
+#### [Service] CollectionService
+**路径**: `src/service/collections/collection_service.py`
+
+**Core Methods**:
+*   `create_collection(user_id, data) -> Collection`
+*   `get_user_collections(user_id, limit, offset) -> List[Collection]`
+*   `get_collection_detail(collection_id, user_id) -> CollectionDetailResponse`: 聚合查询收藏夹及其包含的论文信息。
+*   `add_paper_to_collection(collection_id, paper_id, user_id) -> bool`
+
+---
+
 ## 4. 开发规范 (Development Standards)
 
 ### 4.1 接口交互规范
 *   **统一前缀**: 所有 API 均挂载于 `/api/v1`。
-*   **依赖注入**: 必须使用 `Depends` 获取 Service 实例。
+*   **依赖注入**: 必须使用 `Annotated` + `Depends` 定义 Service 依赖。
     ```python
+    # Define in service.py
+    AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+    # Use in router.py
     @router.post("/login")
     async def login(
         form_data: UserLogin, 
-        service: UserService = Depends(get_user_service) # Good
+        service: AuthServiceDep # Standardized
     ): ...
     ```
 

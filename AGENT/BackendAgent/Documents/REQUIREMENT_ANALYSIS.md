@@ -33,12 +33,18 @@
 
 3.  **阅读器支持** (Core/Reader)
     *   **文件服务**: 提供 PDF 文件流访问。
+    *   **目录支持 (TOC)**: 提取 PDF 目录结构，支持跳转。
     *   **视图层 (View Layer)**:
         *   实现 "View" 概念，即用户对论文的个性化标注层。
         *   支持高亮 (Highlight)、笔记 (Note)、划线 (Underline) 的 CRUD。
         *   视图数据需与特定论文版本关联。
 
-4.  **知识图谱支持** (Core/Graph)
+4.  **收藏夹管理** (Core/Collection)
+    *   **创建与管理**: 用户可创建多个收藏夹，自定义名称和描述。
+    *   **论文关联**: 支持将论文添加到收藏夹，实现多对多管理。
+    *   **私有化**: 默认私有，仅创建者可见。
+
+5.  **知识图谱支持** (Core/Graph)
     *   提供图谱所需的节点 (Node) 和边 (Edge) 数据。
     *   支持基于引用的自动关联。
     *   支持基于内容的语义关联 (通过向量相似度计算)。
@@ -110,8 +116,9 @@
 基于 `LangGraphAgent` 的建议和业务需求，主要实体包括：
 
 *   **User**: `id`, `username`, `password_hash`, ...
-*   **Paper**: `id`, `title`, `url`, `local_path`, `authors` (JSON), `publish_date`, `status` (parsing/ready).
+*   **Paper**: `id`, `title`, `url`, `local_path`, `authors` (JSON), `publish_date`, `status` (parsing/ready), `toc` (JSON).
 *   **PaperChunk**: `id`, `paper_id`, `content`, `embedding` (Vector), `metadata` (page_num, section).
+*   **Collection**: `id`, `user_id`, `name`, `description`.
 *   **Annotation/View**: `id`, `paper_id`, `user_id`, `type` (highlight/note), `position` (JSON/percentage), `content`.
 *   **AgentSession**: `id`, `user_id`, `agent_type`, `history` (JSON/Pickle), `created_at`.
 

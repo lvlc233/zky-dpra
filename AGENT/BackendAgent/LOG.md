@@ -1,7 +1,6 @@
 ---
 name: Backend操作日记(旧)
 description: |
-    该文档定期将操作记录移动到这里来,仅做日志,在进行日志前已经将操作转为Agent记忆。
     [仅人类可读细节]
 author: "lxz"
 state: OK
