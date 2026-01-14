@@ -1,67 +1,111 @@
-'''
-开发者: BackendAgent
-当前版本: v1.0_pg_service
-创建时间: 2026年01月09日 16:00
-更新时间: 2026年01月09日 16:00
-更新记录:
-    [2026年01月09日 16:00:v1.0_pg_service:实现数据库连接管理和Repository模式，封装Paper和Chunk的CRUD操作]
-'''
 
-from typing import  List, Optional, Annotated
+import logging
+from typing import AsyncGenerator, Optional, List, Annotated
 from uuid import UUID
+from contextlib import asynccontextmanager
 
-
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlmodel import select
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.future import select
 from fastapi import Depends
 
-
-
 from base.config import settings
-from base.pg.entity import Paper, PaperChunk, PaperStatus, User
+from base.pg.entity import User, Paper, Collection, CollectionPaper, PaperChunk, PaperSummary
+from common.model.enums import PaperStatus
 
+logger = logging.getLogger(__name__)
 
-# Database Connection Management
-# Ensure the database URL is async compatible (postgresql+asyncpg)
-DB_URL = settings.database_url.replace("postgresql://", "postgresql+asyncpg://")
+# 1. 创建异步引擎
+database_url = settings.database_url
+if database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 engine = create_async_engine(
-    DB_URL,
-    echo=False,
+    database_url,
+    echo=False,  # Set to True for SQL query logging
     future=True,
-    pool_pre_ping=True,
+    pool_size=20,
+    max_overflow=10,
     pool_recycle=3600,
 )
 
+# 2. 创建异步会话工厂
 async_session_factory = async_sessionmaker(
-    engine, expire_on_commit=False
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
 )
 
-
-async def get_db():
+# 3. 获取数据库会话的依赖项
+async def _get_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Core session generator logic.
+    """
     async with async_session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    FastAPI dependency for database session.
+    """
+    async for session in _get_session():
         yield session
-# 定义 SessionDep 类型别名
-SessionDep = Annotated[AsyncSession, Depends(get_db)]
+
+SessionDep = Annotated[AsyncSession, Depends(get_db_session)]
+
+
+class UserRepository:
+    """用户相关的数据访问层"""
+
+    @staticmethod
+    async def get_user_by_email(session: AsyncSession, email: str) -> Optional[User]:
+        statement = select(User).where(User.email == email)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def create_user(session: AsyncSession, user: User) -> User:
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
+    @staticmethod
+    async def get_user_by_id(session: AsyncSession, user_id: UUID) -> Optional[User]:
+        statement = select(User).where(User.id == user_id)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
 
 
 class PaperRepository:
     """论文相关的数据访问层"""
 
     @staticmethod
+    async def get_paper_by_id(session: AsyncSession, paper_id: UUID) -> Optional[Paper]:
+        statement = select(Paper).where(Paper.id == paper_id)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def create_paper(session: AsyncSession, paper: Paper) -> Paper:
-        """创建论文记录"""
         session.add(paper)
         await session.commit()
         await session.refresh(paper)
         return paper
-
+    
     @staticmethod
-    async def get_paper_by_id(session: AsyncSession, paper_id: UUID) -> Optional[Paper]:
-        """根据ID获取论文"""
-        statement = select(Paper).where(Paper.id == paper_id)
-        result = await session.execute(statement)
-        return result.scalar_one_or_none()
+    async def update_paper(session: AsyncSession, paper: Paper) -> Paper:
+        session.add(paper)
+        await session.commit()
+        await session.refresh(paper)
+        return paper
 
     @staticmethod
     async def update_paper_status(
@@ -70,8 +114,10 @@ class PaperRepository:
         status: PaperStatus, 
         error_message: Optional[str] = None
     ) -> Optional[Paper]:
-        """更新论文状态"""
-        paper = await PaperRepository.get_paper_by_id(session, paper_id)
+        statement = select(Paper).where(Paper.id == paper_id)
+        result = await session.execute(statement)
+        paper = result.scalar_one_or_none()
+        
         if paper:
             paper.status = status
             if error_message:
@@ -82,37 +128,24 @@ class PaperRepository:
         return paper
 
     @staticmethod
-    async def update_paper_file_info(
-        session: AsyncSession,
-        paper_id: UUID,
-        file_key: str,
-        file_url: Optional[str] = None
-    ) -> Optional[Paper]:
-        """更新论文文件信息"""
-        paper = await PaperRepository.get_paper_by_id(session, paper_id)
-        if paper:
-            paper.file_key = file_key
-            if file_url:
-                paper.file_url = file_url
-            session.add(paper)
-            await session.commit()
-            await session.refresh(paper)
-        return paper
-
-    @staticmethod
     async def update_paper_metadata(
-        session: AsyncSession,
-        paper_id: UUID,
-        title: Optional[str] = None,
-        authors: Optional[List[str]] = None
+        session: AsyncSession, 
+        paper_id: UUID, 
+        title: Optional[str] = None, 
+        authors: Optional[List[str]] = None,
+        toc: Optional[List] = None
     ) -> Optional[Paper]:
-        """更新论文元数据"""
-        paper = await PaperRepository.get_paper_by_id(session, paper_id)
+        statement = select(Paper).where(Paper.id == paper_id)
+        result = await session.execute(statement)
+        paper = result.scalar_one_or_none()
+        
         if paper:
             if title:
                 paper.title = title
             if authors:
                 paper.authors = authors
+            if toc:
+                paper.toc = toc
             session.add(paper)
             await session.commit()
             await session.refresh(paper)
@@ -120,20 +153,21 @@ class PaperRepository:
 
     @staticmethod
     async def get_user_papers(
-        session: AsyncSession,
-        user_id: UUID,
-        limit: int = 10,
+        session: AsyncSession, 
+        user_id: UUID, 
+        limit: int = 10, 
         offset: int = 0
     ) -> List[Paper]:
-        """获取用户的论文列表"""
         statement = select(Paper).where(Paper.user_id == user_id).order_by(Paper.created_at.desc()).limit(limit).offset(offset)
         result = await session.execute(statement)
         return result.scalars().all()
 
     @staticmethod
     async def delete_paper(session: AsyncSession, paper_id: UUID) -> bool:
-        """删除论文及其相关数据"""
-        paper = await PaperRepository.get_paper_by_id(session, paper_id)
+        statement = select(Paper).where(Paper.id == paper_id)
+        result = await session.execute(statement)
+        paper = result.scalar_one_or_none()
+        
         if paper:
             await session.delete(paper)
             await session.commit()
@@ -141,43 +175,115 @@ class PaperRepository:
         return False
 
     @staticmethod
-    async def create_paper_chunks(session: AsyncSession, chunks: List[PaperChunk]) -> List[PaperChunk]:
-        """批量创建论文切片"""
-        for chunk in chunks:
-            session.add(chunk)
+    async def create_paper_chunks(session: AsyncSession, chunks: List[PaperChunk]) -> None:
+        session.add_all(chunks)
         await session.commit()
-        # await session.refresh(chunks) # refresh list might be slow, skip if not needed
-        return chunks
-    
+
+
+class CollectionRepository:
+    """收藏夹相关的数据访问层"""
+
     @staticmethod
-    async def get_chunks_by_paper_id(session: AsyncSession, paper_id: UUID) -> List[PaperChunk]:
-        """获取指定论文的所有切片"""
-        statement = select(PaperChunk).where(PaperChunk.paper_id == paper_id).order_by(PaperChunk.chunk_index)
+    async def create_collection(session: AsyncSession, collection: Collection) -> Collection:
+        """创建收藏夹"""
+        session.add(collection)
+        await session.commit()
+        await session.refresh(collection)
+        return collection
+
+    @staticmethod
+    async def get_collection_by_id(session: AsyncSession, collection_id: UUID) -> Optional[Collection]:
+        """根据ID获取收藏夹"""
+        statement = select(Collection).where(Collection.id == collection_id)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_user_collections(
+        session: AsyncSession, 
+        user_id: UUID, 
+        limit: int = 100, 
+        offset: int = 0
+    ) -> List[Collection]:
+        """获取用户的收藏夹列表"""
+        statement = select(Collection).where(Collection.user_id == user_id).order_by(Collection.updated_at.desc()).limit(limit).offset(offset)
         result = await session.execute(statement)
         return result.scalars().all()
 
-
-class UserRepository:
-    """用户相关的数据访问层"""
-
     @staticmethod
-    async def get_user_by_email(session: AsyncSession, email: str) -> Optional[User]:
-        """根据邮箱获取用户"""
-        statement = select(User).where(User.email == email)
-        result = await session.execute(statement)
-        return result.scalar_one_or_none()
-    
-    @staticmethod
-    async def get_user_by_id(session: AsyncSession, user_id: UUID) -> Optional[User]:
-        """根据ID获取用户"""
-        statement = select(User).where(User.id == user_id)
-        result = await session.execute(statement)
-        return result.scalar_one_or_none()
-
-    @staticmethod
-    async def create_user(session: AsyncSession, user: User) -> User:
-        """创建用户"""
-        session.add(user)
+    async def update_collection(session: AsyncSession, collection: Collection) -> Collection:
+        """更新收藏夹"""
+        session.add(collection)
         await session.commit()
-        await session.refresh(user)
-        return user
+        await session.refresh(collection)
+        return collection
+
+    @staticmethod
+    async def delete_collection(session: AsyncSession, collection: Collection) -> bool:
+        """删除收藏夹"""
+        await session.delete(collection)
+        await session.commit()
+        return True
+
+    @staticmethod
+    async def add_paper_to_collection(
+        session: AsyncSession, 
+        collection_id: UUID, 
+        paper_id: UUID
+    ) -> CollectionPaper:
+        """将论文添加到收藏夹"""
+        # 检查是否已存在
+        statement = select(CollectionPaper).where(
+            CollectionPaper.collection_id == collection_id,
+            CollectionPaper.paper_id == paper_id
+        )
+        result = await session.execute(statement)
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            return existing
+            
+        link = CollectionPaper(collection_id=collection_id, paper_id=paper_id)
+        session.add(link)
+        await session.commit()
+        await session.refresh(link)
+        return link
+
+    @staticmethod
+    async def remove_paper_from_collection(
+        session: AsyncSession, 
+        collection_id: UUID, 
+        paper_id: UUID
+    ) -> bool:
+        """从收藏夹移除论文"""
+        statement = select(CollectionPaper).where(
+            CollectionPaper.collection_id == collection_id,
+            CollectionPaper.paper_id == paper_id
+        )
+        result = await session.execute(statement)
+        link = result.scalar_one_or_none()
+        
+        if link:
+            await session.delete(link)
+            await session.commit()
+            return True
+        return False
+
+    @staticmethod
+    async def get_collection_papers(
+        session: AsyncSession, 
+        collection_id: UUID,
+        limit: int = 20,
+        offset: int = 0
+    ) -> List[Paper]:
+        """获取收藏夹内的论文列表"""
+        # 使用 join 查询
+        statement = (
+            select(Paper)
+            .join(CollectionPaper, Paper.id == CollectionPaper.paper_id)
+            .where(CollectionPaper.collection_id == collection_id)
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await session.execute(statement)
+        return result.scalars().all()

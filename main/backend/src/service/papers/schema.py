@@ -68,6 +68,7 @@ class PaperDTO(BaseModel):
     status: PaperStatus
     error_message: Optional[str] = None
     created_at: datetime
+    toc: Optional[List] = None
     # updated_at 暂时不包含，因为Entity中没有
 
 

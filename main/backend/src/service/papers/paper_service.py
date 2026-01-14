@@ -17,10 +17,14 @@ import logging
 import os
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Annotated
 from uuid import UUID
 
 import aiofiles
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from arq import create_pool
+from arq.connections import RedisSettings
 
 # 导入 Business Models / DTOs
 from service.papers.schema import PaperUploadResponse, PaperDTO, PaperInfo
@@ -30,7 +34,7 @@ from common.model.enums import PaperStatus
 from base.pg.entity import Paper, PaperChunk, User
 
 from base.config import settings
-from base.pg.service import get_db_session, PaperRepository
+from base.pg.service import PaperRepository, SessionDep, async_session_factory
 from base.pdf_parser.parser import PDFParseResult, parse_pdf, extract_pdf_text
 from base.embedding.embedding_service import EmbeddingService, embed_batch
 from base.embedding.text_splitter import SemanticTextSplitter
@@ -43,7 +47,8 @@ class PaperService:
     论文上传与解析服务
     """
 
-    def __init__(self):
+    def __init__(self, session: AsyncSession):
+        self.session = session
         self.upload_dir = Path(settings.upload_dir)
         self.upload_dir.mkdir(exist_ok=True)
         logger.info(f"PaperService 初始化完成，上传目录: {self.upload_dir}")
@@ -62,7 +67,8 @@ class PaperService:
             file_url=paper.file_url,
             status=paper.status,
             error_message=paper.error_message,
-            created_at=paper.created_at
+            created_at=paper.created_at,
+            toc=paper.toc
         )
 
     async def upload_paper(
@@ -108,8 +114,7 @@ class PaperService:
             logger.info(f"论文记录创建成功: {paper.id}")
 
             # 5. 触发异步处理任务
-            # TODO: 调用Arq任务进行PDF解析
-            # await self._trigger_process_task(paper.id, file_path)
+            await self._trigger_process_task(paper.id, file_path)
 
             return PaperUploadResponse(
                 paper_id=str(paper.id),
@@ -123,6 +128,33 @@ class PaperService:
             if file_path.exists():
                 file_path.unlink()
             raise
+    
+    async def _trigger_process_task(self, paper_id: UUID, file_path: Path):
+        """
+        触发PDF处理异步任务
+        """
+        try:
+            # 解析Redis URL
+            redis_url = settings.arq_redis_url
+            host = redis_url.split('//')[1].split(':')[0]
+            port = int(redis_url.split(':')[-1].split('/')[0])
+            database = int(redis_url.split('/')[-1])
+
+            redis_settings = RedisSettings(
+                host=host,
+                port=port,
+                database=database
+            )
+            
+            # 创建连接池并入队
+            pool = await create_pool(redis_settings)
+            await pool.enqueue_job('process_pdf_task', str(paper_id))
+            await pool.close()
+            
+            logger.info(f"已触发PDF处理任务: {paper_id}")
+        except Exception as e:
+            logger.error(f"触发PDF处理任务失败: {e}", exc_info=True)
+            # 记录错误但不抛出异常，避免影响上传响应
     
     def _validate_file(self, filename: str, file_content: bytes) -> bool:
         """
@@ -159,26 +191,24 @@ class PaperService:
         """
         创建论文记录 (返回 Entity 供内部使用)
         """
-        async with get_db_session() as session:
-            paper = Paper(
-                user_id=user_id,
-                title=title,
-                authors=authors,
-                file_key=file_key,
-                file_url=file_url,
-                status=PaperStatus.PENDING
-            )
-            return await PaperRepository.create_paper(session, paper)
+        paper = Paper(
+            user_id=user_id,
+            title=title,
+            authors=authors,
+            file_key=file_key,
+            file_url=file_url,
+            status=PaperStatus.PENDING
+        )
+        return await PaperRepository.create_paper(self.session, paper)
 
     async def get_paper_status(self, paper_id: UUID, user_id: UUID) -> Optional[PaperDTO]:
         """
         获取论文处理状态/详情 (返回 DTO)
         """
-        async with get_db_session() as session:
-            paper = await PaperRepository.get_paper_by_id(session, paper_id)
-            if paper and paper.user_id == user_id:
-                return self._entity_to_dto(paper)
-            return None
+        paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
+        if paper and paper.user_id == user_id:
+            return self._entity_to_dto(paper)
+        return None
 
     async def get_paper_detail(self, paper_id: UUID, user_id: UUID) -> Optional[PaperDTO]:
         """
@@ -198,18 +228,17 @@ class PaperService:
         """
         更新论文处理状态
         """
-        async with get_db_session() as session:
-            # 先更新状态
-            paper = await PaperRepository.update_paper_status(session, paper_id, status, error_message)
-            if not paper:
-                return False
-            
-            # 如果有元数据更新
-            if title or authors:
-                await PaperRepository.update_paper_metadata(session, paper_id, title, authors)
-            
-            logger.info(f"论文状态更新: {paper_id} -> {status.value}")
-            return True
+        # 先更新状态
+        paper = await PaperRepository.update_paper_status(self.session, paper_id, status, error_message)
+        if not paper:
+            return False
+        
+        # 如果有元数据更新
+        if title or authors:
+            await PaperRepository.update_paper_metadata(self.session, paper_id, title, authors)
+        
+        logger.info(f"论文状态更新: {paper_id} -> {status.value}")
+        return True
 
     async def get_user_papers(
         self,
@@ -220,9 +249,8 @@ class PaperService:
         """
         获取用户的论文列表 (返回 DTO 列表)
         """
-        async with get_db_session() as session:
-            papers = await PaperRepository.get_user_papers(session, user_id, limit, offset)
-            return [self._entity_to_dto(p) for p in papers]
+        papers = await PaperRepository.get_user_papers(self.session, user_id, limit, offset)
+        return [self._entity_to_dto(p) for p in papers]
 
     async def get_file_path(self, paper: PaperDTO) -> Optional[Path]:
         """
@@ -237,22 +265,28 @@ class PaperService:
         """
         删除论文（包含相关数据）
         """
-        async with get_db_session() as session:
-            # 验证权限
-            paper = await PaperRepository.get_paper_by_id(session, paper_id)
-            if not paper or paper.user_id != user_id:
-                return False
+        # 验证权限
+        paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
+        if not paper or paper.user_id != user_id:
+            return False
 
-            # 删除数据库记录
-            await PaperRepository.delete_paper(session, paper_id)
+        # 删除数据库记录
+        await PaperRepository.delete_paper(self.session, paper_id)
 
-            # 删除文件
-            file_path = self.upload_dir / paper.file_key
-            if file_path.exists():
-                file_path.unlink()
+        # 删除文件
+        file_path = self.upload_dir / paper.file_key
+        if file_path.exists():
+            file_path.unlink()
 
-            logger.info(f"论文已删除: {paper_id}")
-            return True
+        logger.info(f"论文已删除: {paper_id}")
+        return True
+
+
+async def get_paper_service(session: SessionDep) -> PaperService:
+    """获取 PaperService 实例"""
+    return PaperService(session)
+
+PaperServiceDep = Annotated[PaperService, Depends(get_paper_service)]
 
 
 class PaperProcessingService:
@@ -272,7 +306,7 @@ class PaperProcessingService:
 
         try:
             # 1. 获取论文记录并更新状态
-            async with get_db_session() as session:
+            async with async_session_factory() as session:
                 paper = await PaperRepository.get_paper_by_id(session, paper_id)
                 if not paper:
                     logger.error(f"论文不存在: {paper_id}")
@@ -415,7 +449,7 @@ class PaperProcessingService:
         """
         保存文本块到数据库
         """
-        async with get_db_session() as session:
+        async with async_session_factory() as session:
             paper_chunks = []
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 paper_chunks.append(PaperChunk(
@@ -432,14 +466,15 @@ class PaperProcessingService:
         self,
         paper_id: UUID,
         title: Optional[str] = None,
-        authors: Optional[List[str]] = None
+        authors: Optional[List[str]] = None,
+        toc: Optional[List] = None
     ):
         """
         处理完成后更新论文记录
         """
-        async with get_db_session() as session:
+        async with async_session_factory() as session:
             await PaperRepository.update_paper_status(session, paper_id, PaperStatus.COMPLETED)
-            await PaperRepository.update_paper_metadata(session, paper_id, title, authors)
+            await PaperRepository.update_paper_metadata(session, paper_id, title, authors, toc)
             logger.info(f"论文状态更新为完成: {paper_id}")
 
     async def _update_status(
@@ -451,5 +486,5 @@ class PaperProcessingService:
         """
         更新论文状态
         """
-        async with get_db_session() as session:
+        async with async_session_factory() as session:
             await PaperRepository.update_paper_status(session, paper_id, status, error_message)

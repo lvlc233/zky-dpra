@@ -82,6 +82,96 @@ class User(SQLModel, table=True):
     # 关联关系
     papers: List["Paper"] = Relationship(back_populates="user")
     chat_sessions: List["ChatSession"] = Relationship(back_populates="user")
+    collections: List["Collection"] = Relationship(back_populates="user")
+
+
+class CollectionPaper(SQLModel, table=True):
+    """
+    收藏夹-论文关联表 (Collection Paper Association)
+    
+    注释者: BackendAgent
+    注释时间: 2026-01-12 15:00:00
+    
+    用途:
+        实现收藏夹与论文的多对多关联。
+    """
+    __tablename__ = "collection_papers"
+    __table_args__ = {"comment": "收藏夹-论文关联表"}
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "关联ID"}
+    )
+    collection_id: UUID = Field(
+        foreign_key="collections.id",
+        primary_key=False,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "收藏夹ID"}
+    )
+    paper_id: UUID = Field(
+        foreign_key="papers.id",
+        primary_key=False,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "论文ID"}
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "收藏时间"}
+    )
+
+
+class Collection(SQLModel, table=True):
+    """
+    收藏夹表模型 (Collection Model)
+
+    注释者: BackendAgent
+    注释时间: 2026-01-12 15:00:00
+
+    用途:
+        存储用户创建的论文收藏夹/合集。
+
+    使用场景:
+        - 用户创建自定义分类收藏夹。
+        - 将论文添加到收藏夹以便管理。
+    """
+    __tablename__ = "collections"
+    __table_args__ = {"comment": "收藏夹表: 用户自定义的论文集合"}
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "收藏夹ID"}
+    )
+    user_id: UUID = Field(
+        foreign_key="users.id",
+        index=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "所属用户ID"}
+    )
+    name: str = Field(
+        index=True,
+        sa_column_kwargs={"comment": "收藏夹名称"}
+    )
+    description: Optional[str] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "描述"}
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "创建时间"}
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "更新时间"}
+    )
+
+    # 关联关系
+    user: User = Relationship(back_populates="collections")
+    # 通过中间表关联论文
+    # papers: List["Paper"] = Relationship(link_model=CollectionPaper) # 暂不直接定义反向，按需查询
 
 
 class Paper(SQLModel, table=True):
@@ -137,6 +227,10 @@ class Paper(SQLModel, table=True):
     abstract: Optional[str] = Field(
         default=None,
         sa_column_kwargs={"comment": "论文摘要原文"}
+    )
+    toc: Optional[List] = Field(
+        default=None,
+        sa_column=Column(JSON, comment="论文目录结构(TOC)")
     )
 
     # 文件存储
@@ -228,6 +322,57 @@ class PaperChunk(SQLModel, table=True):
 
     # 关联关系
     paper: Paper = Relationship(back_populates="chunks")
+
+
+class SearchHistory(SQLModel, table=True):
+    """
+    搜索历史表模型 (Search History Model)
+
+    注释者: BackendAgent
+    注释时间: 2026-01-12 18:00:00
+
+    用途:
+        记录用户的搜索历史，用于提供搜索建议、历史回溯和用户兴趣分析。
+
+    使用场景:
+        - 用户在搜索框输入时显示最近搜索记录。
+        - 分析用户感兴趣的领域。
+    """
+    __tablename__ = "search_histories"
+    __table_args__ = {"comment": "搜索历史表: 记录用户的搜索关键词及上下文"}
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "记录ID"}
+    )
+    user_id: UUID = Field(
+        foreign_key="users.id",
+        index=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "用户ID"}
+    )
+    query: str = Field(
+        index=True,
+        sa_column_kwargs={"comment": "搜索关键词"}
+    )
+    filters: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON, comment="搜索过滤条件(JSON)")
+    )
+    result_count: int = Field(
+        default=0,
+        sa_column_kwargs={"comment": "搜索结果数量"}
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "搜索时间"}
+    )
+
+    # 关联关系 (可选)
+    # user: User = Relationship(back_populates="search_histories") 
+    # 暂不在 User 中定义反向关系以避免 User 类过于臃肿
 
 
 class PaperSummary(SQLModel, table=True):
