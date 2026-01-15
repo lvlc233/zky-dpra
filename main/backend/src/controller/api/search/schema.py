@@ -7,9 +7,6 @@ from common.model.enums import PaperStatus
 from service.papers.schema import PaperDTO
 
 
-# TODO: 关于搜索条件这里有两类,第一类是搜索范围: 这个条件是指开启了某项条件后,搜索的query会全文匹配对应的字段,例如开启了作者条件,搜索, leCun,就会收缩到作者包含leCun的论文,第二种是在设置中的,例如是否开启摘要,搜索深度,排序方式间接影响搜索效果的
-# TODO: 目前的搜索条件有: 标题,作者,摘要,年份,期刊。设置中的选项有,是否开启深度推理模式,是否开启自动生成摘要,搜索深度,排序方式[相关性,引用量,最新发表,影响力],发表年份范围
-# TODO: 注意后期可能的修改和兼容。
 class SearchFilter(BaseModel):
     """搜索过滤条件"""
     start_date: Optional[datetime] = Field(None, description="开始日期")
@@ -23,7 +20,6 @@ class SearchRequest(BaseModel):
     filters: Optional[SearchFilter] = Field(None, description="过滤条件")
     page: int = Field(1, ge=1, description="页码")
     page_size: int = Field(10, ge=1, le=100, description="每页数量")
-    # TODO: 不是语义而是AI搜索
     enable_semantic_search: bool = Field(False, description="是否启用语义搜索(暂未实现)")
 
 class SearchHistoryResponse(BaseModel):
@@ -38,3 +34,21 @@ class SearchResponse(BaseModel):
     total: int
     items: List[PaperDTO]
     query_id: Optional[UUID] = Field(None, description="搜索历史记录ID")
+
+
+class SearchSettingsResponse(BaseModel):
+    """搜索配置响应 (聚合了 search.* 和 agent.search_depth)"""
+    enable_deep_reasoning: bool = Field(False, description="是否开启深度推理")
+    enable_auto_summary: bool = Field(True, description="是否自动生成摘要")
+    default_sort_by: str = Field("relevance", description="默认排序方式")
+    max_results: int = Field(10, description="默认每页数量")
+    search_depth: int = Field(3, description="搜索深度")
+
+
+class SearchSettingsUpdate(BaseModel):
+    """搜索配置更新"""
+    enable_deep_reasoning: Optional[bool] = None
+    enable_auto_summary: Optional[bool] = None
+    default_sort_by: Optional[str] = None
+    max_results: Optional[int] = None
+    search_depth: Optional[int] = None
