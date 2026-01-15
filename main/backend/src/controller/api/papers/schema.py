@@ -75,19 +75,17 @@ class PaperStatusResponse(BaseModel):
     - created_at: 创建时间
     - updated_at: 更新时间
     '''
-    # TODO: 字段说明没补全哦
-    paper_id: str
-    status: str
-    title: Optional[str] = None
-    authors: Optional[List[str]] = None
-    abstract: Optional[str] = None
+    paper_id: str = Field(..., description="论文唯一ID")
+    status: str = Field(..., description="处理状态（pending/processing/completed/failed）")
+    title: Optional[str] = Field(None, description="论文标题")
+    authors: Optional[List[str]] = Field(None, description="作者列表")
+    abstract: Optional[str] = Field(None, description="论文摘要")
     progress: int = Field(default=0, ge=0, le=100, description="处理进度百分比")
-    error_message: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    # TODO: 这个TOC是干啥的?怎么经常看到它。
-    toc: Optional[List] = None
-    file_url: Optional[str] = None
+    error_message: Optional[str] = Field(None, description="错误信息（如果处理失败）")
+    created_at: datetime = Field(..., description="创建时间")
+    updated_at: Optional[datetime] = Field(None, description="更新时间")
+    toc: Optional[List] = Field(None, description="目录结构 (Table of Contents)，通常包含章节标题、层级和页码")
+    file_url: Optional[str] = Field(None, description="文件访问URL")
 
 
 __all__ = ["PaperFetchRequest", "PaperUploadRequest", "PaperStatusResponse"]
