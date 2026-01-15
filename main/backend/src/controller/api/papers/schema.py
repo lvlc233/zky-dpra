@@ -60,11 +60,10 @@ class PaperUploadRequest(BaseModel):
     title: Optional[str] = None
     authors: Optional[str] = None  # JSON字符串格式
 
-# TODO: 这里其实就是一个业务结果,应该放在业务模型中,并且只controller层应该创建一个通用的Response以此对所有的业务数据进行包装。
+
 class PaperStatusResponse(BaseModel):
     '''
     论文状态响应模型
-
     字段说明:
     - paper_id: 论文唯一ID
     - status: 处理状态（pending/processing/completed/failed）
@@ -76,6 +75,7 @@ class PaperStatusResponse(BaseModel):
     - created_at: 创建时间
     - updated_at: 更新时间
     '''
+    # TODO: 字段说明没补全哦
     paper_id: str
     status: str
     title: Optional[str] = None
@@ -85,6 +85,9 @@ class PaperStatusResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    # TODO: 这个TOC是干啥的?怎么经常看到它。
+    toc: Optional[List] = None
+    file_url: Optional[str] = None
 
 
 __all__ = ["PaperFetchRequest", "PaperUploadRequest", "PaperStatusResponse"]

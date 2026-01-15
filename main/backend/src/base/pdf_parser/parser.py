@@ -8,12 +8,12 @@
 '''
 
 import asyncio
-import logging
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional
 
+# TODO: 管理员: 这边是怎么回事?是没有实现吗?我这边已经安装了依赖给你了
 # TODO: 安装依赖后取消注释
 # try:
 #     from marker.convert import convert_single_pdf
@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 #     MARKER_AVAILABLE = True
 # except ImportError:
 #     MARKER_AVAILABLE = False
-
+# TODO: 还有就是我们不是采用了makker吗?怎么还要用PyMuPDF呢?虽然感觉也不错,不过我需要一个理由。不过依赖我也给你安装好了
 # try:
 #     import fitz  # PyMuPDF
 #     PYMUPDF_AVAILABLE = True
@@ -32,6 +32,7 @@ from typing import Dict, List, Optional
 from loguru import logger
 
 
+# TODO: 不用TypeDict或者Pydantic吗?这里?纯数据模型?
 class PDFParseResult:
     """PDF解析结果"""
 
@@ -42,7 +43,8 @@ class PDFParseResult:
         authors: Optional[List[str]] = None,
         abstract: Optional[str] = None,
         metadata: Optional[Dict] = None,
-        pages: Optional[List[str]] = None
+        pages: Optional[List[str]] = None,
+        toc: Optional[List] = None
     ):
         self.text = text
         self.title = title
@@ -50,7 +52,7 @@ class PDFParseResult:
         self.abstract = abstract
         self.metadata = metadata or {}
         self.pages = pages or []
-
+        self.toc = toc or []
 
 class BasePDFParser(ABC):
     """PDF解析器基类"""
@@ -70,7 +72,7 @@ class BasePDFParser(ABC):
         """提取元数据"""
         pass
 
-
+# TODO: 这里的解析不提交到异步的Woker中吗?没看到相关实现,还是说提交Woker你是让调度者来做的?
 class MarkerPDFParser(BasePDFParser):
     """基于Marker的PDF解析器
 
@@ -181,7 +183,7 @@ class MarkerPDFParser(BasePDFParser):
 
 class PyMuPDFParser(BasePDFParser):
     """基于PyMuPDF的PDF解析器
-
+    
     PyMuPDF（fitz）是一个轻量级的PDF处理库，支持：
     - 快速文本提取
     - 元数据读取
@@ -189,9 +191,16 @@ class PyMuPDFParser(BasePDFParser):
     """
 
     def __init__(self):
-        # if not PYMUPDF_AVAILABLE:
-        #     raise ImportError("PyMuPDF库未安装")
-        logger.info("PyMuPDFParser初始化完成")
+        self.fitz_available = False
+        try:
+            # TODO:PyMuPDF我已安装了
+            import fitz
+            self.fitz = fitz
+            self.fitz_available = True
+        except ImportError:
+            logger.warning("PyMuPDF (fitz) 未安装，将使用模拟解析器")
+        
+        logger.info(f"PyMuPDFParser初始化完成 (可用状态: {self.fitz_available})")
 
     async def parse(self, file_path: Path) -> PDFParseResult:
         """使用PyMuPDF解析PDF"""
@@ -199,6 +208,7 @@ class PyMuPDFParser(BasePDFParser):
 
         try:
             # 在异步环境中运行同步代码
+            # TODO: 这里不用Woker,而是直接loop可以吗?需要合理性分析。
             return await asyncio.get_event_loop().run_in_executor(
                 None,
                 self._parse_sync,
@@ -210,23 +220,31 @@ class PyMuPDFParser(BasePDFParser):
 
     def _parse_sync(self, file_path: Path) -> PDFParseResult:
         """同步解析函数"""
-        # TODO: 安装PyMuPDF后实现
-        # doc = fitz.open(str(file_path))
+        if not self.fitz_available:
+            return self._mock_parse(file_path)
+
+        doc = self.fitz.open(str(file_path))
 
         full_text = ""
         pages = []
         metadata = {}
 
         # 提取每页文本
-        # for page_num in range(doc.page_count):
-        #     page = doc.load_page(page_num)
-        #     page_text = page.get_text()
-        #     pages.append(page_text)
-        #     full_text += page_text + "\n"
+        for page_num in range(doc.page_count):
+            page = doc.load_page(page_num)
+            page_text = page.get_text()
+            pages.append(page_text)
+            full_text += page_text + "\n"
+
+        # 提取TOC
+        try:
+            toc = doc.get_toc()
+        except Exception:
+            toc = []
 
         # 提取元数据
-        # metadata = doc.metadata
-        # doc.close()
+        metadata = doc.metadata
+        doc.close()
 
         # 从元数据或文本中提取标题和作者
         title = metadata.get('title', '') or self._extract_title_from_text(full_text)
@@ -239,7 +257,23 @@ class PyMuPDFParser(BasePDFParser):
             authors=authors,
             abstract=abstract,
             metadata=metadata,
-            pages=pages
+            pages=pages,
+            toc=toc
+        )
+
+    def _mock_parse(self, file_path: Path) -> PDFParseResult:
+        """模拟解析结果（当依赖不可用时）"""
+        # TODO;移除mock,正式代码不可以mock。
+        logger.warning(f"使用模拟解析结果: {file_path}")
+        mock_text = f"这是文件 {file_path.name} 的模拟文本内容。\n由于 PyMuPDF 未安装，无法提取真实内容。\n" * 10
+        return PDFParseResult(
+            text=mock_text,
+            title=file_path.stem,
+            authors=["Mock Author"],
+            abstract="This is a mock abstract.",
+            metadata={"producer": "MockParser"},
+            pages=[mock_text],
+            toc=[[1, "Mock Section 1", 1], [1, "Mock Section 2", 2]]
         )
 
     async def extract_text(self, file_path: Path) -> str:

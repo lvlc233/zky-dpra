@@ -13,14 +13,17 @@ import asyncio
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Header
+from fastapi.responses import FileResponse
 import logging
 
 from controller.api.papers.schema import PaperFetchRequest, PaperStatusResponse
+from controller.api.auth.router import get_current_user
 from service.papers.schema import PaperListResponse, PaperInfo, PaperUploadResponse
 from service.papers.arxiv_service import ArxivService
-from service.papers.paper_service import PaperService, PaperProcessingService
+from service.papers.paper_service import PaperService, PaperProcessingService, PaperServiceDep
 from base.arxiv.client import ArxivClient
 from base.arxiv.parser import ArxivXmlParser
+from base.pg.entity import User
 from common.model.enums import PaperStatus
 
 # 配置日志
@@ -49,18 +52,8 @@ def get_arxiv_service() -> ArxivService:
     return ArxivService(client=client, parser=parser)
 
 
-def get_paper_service() -> PaperService:
-    return PaperService()
-
-
 def get_paper_processing_service() -> PaperProcessingService:
     return PaperProcessingService()
-
-
-def get_current_user_id(x_user_id: str | None = Header(default=None)) -> UUID:
-    if not x_user_id:
-        return UUID("12345678-1234-5678-1234-567812345678")
-    return UUID(x_user_id)
 
 
 def calculate_progress(status_value: PaperStatus) -> int:
@@ -196,11 +189,11 @@ async def fetch_papers(
 
 @router.post("/upload", response_model=PaperUploadResponse)
 async def upload_paper(
+    paper_service: PaperServiceDep,
     file: UploadFile = File(...),
-    user_id: UUID = Depends(get_current_user_id),
-    paper_service: PaperService = Depends(get_paper_service),
+    current_user: User = Depends(get_current_user),
 ):
-    logger.info(f"接收到论文上传请求: filename={file.filename}, user_id={user_id}")
+    logger.info(f"接收到论文上传请求: filename={file.filename}, user_id={current_user.id}")
 
     if not file.filename:
         raise HTTPException(
@@ -213,7 +206,7 @@ async def upload_paper(
         response = await paper_service.upload_paper(
             file_content=file_content,
             filename=file.filename,
-            user_id=user_id,
+            user_id=current_user.id,
             content_type=file.content_type or "application/pdf",
         )
         return response
@@ -233,10 +226,10 @@ async def upload_paper(
 @router.get("/{paper_id}/status", response_model=PaperStatusResponse)
 async def get_paper_status(
     paper_id: str,
-    user_id: UUID = Depends(get_current_user_id),
-    paper_service: PaperService = Depends(get_paper_service),
+    paper_service: PaperServiceDep,
+    current_user: User = Depends(get_current_user),
 ):
-    logger.info(f"接收到论文状态查询请求: paper_id={paper_id}, user_id={user_id}")
+    logger.info(f"接收到论文状态查询请求: paper_id={paper_id}, user_id={current_user.id}")
 
     try:
         paper_uuid = UUID(paper_id)
@@ -246,7 +239,7 @@ async def get_paper_status(
             detail="无效的论文ID格式",
         )
 
-    paper = await paper_service.get_paper_status(paper_uuid, user_id)
+    paper = await paper_service.get_paper_status(paper_uuid, current_user.id)
     if not paper:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -263,18 +256,20 @@ async def get_paper_status(
         error_message=paper.error_message,
         created_at=paper.created_at,
         updated_at=paper.created_at,
+        toc=paper.toc,
+        file_url=paper.file_url or f"/api/v1/papers/{paper.id}/file"
     )
 
 
 @router.post("/{paper_id}/process", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_paper_processing(
     paper_id: str,
-    user_id: UUID = Depends(get_current_user_id),
-    paper_service: PaperService = Depends(get_paper_service),
+    paper_service: PaperServiceDep,
+    current_user: User = Depends(get_current_user),
     processing_service: PaperProcessingService = Depends(get_paper_processing_service),
 ):
     # 解析
-    logger.info(f"接收到论文处理触发请求: paper_id={paper_id}, user_id={user_id}")
+    logger.info(f"接收到论文处理触发请求: paper_id={paper_id}, user_id={current_user.id}")
 
     try:
         paper_uuid = UUID(paper_id)
@@ -284,7 +279,7 @@ async def trigger_paper_processing(
             detail="无效的论文ID格式",
         )
 
-    paper = await paper_service.get_paper_status(paper_uuid, user_id)
+    paper = await paper_service.get_paper_status(paper_uuid, current_user.id)
     if not paper:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -298,12 +293,12 @@ async def trigger_paper_processing(
 
 @router.get("/list", response_model=list[PaperStatusResponse])
 async def list_user_papers(
+    paper_service: PaperServiceDep,
     limit: int = 10,
     offset: int = 0,
-    user_id: UUID = Depends(get_current_user_id),
-    paper_service: PaperService = Depends(get_paper_service),
+    current_user: User = Depends(get_current_user),
 ):
-    papers = await paper_service.get_user_papers(user_id=user_id, limit=limit, offset=offset)
+    papers = await paper_service.get_user_papers(user_id=current_user.id, limit=limit, offset=offset)
     return [
         PaperStatusResponse(
             paper_id=str(p.id),
@@ -315,16 +310,55 @@ async def list_user_papers(
             error_message=p.error_message,
             created_at=p.created_at,
             updated_at=p.created_at,
+            toc=p.toc,
+            file_url=p.file_url
         )
         for p in papers
     ]
 
 
+@router.get("/{paper_id}/file")
+async def get_paper_file(
+    paper_id: str,
+    paper_service: PaperServiceDep,
+    current_user: User = Depends(get_current_user),
+):
+    logger.info(f"接收到获取论文文件请求: paper_id={paper_id}, user_id={current_user.id}")
+
+    try:
+        paper_uuid = UUID(paper_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的论文ID格式",
+        )
+
+    paper = await paper_service.get_paper_status(paper_uuid, current_user.id)
+    if not paper:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="论文不存在或无访问权限",
+        )
+
+    file_path = await paper_service.get_file_path(paper)
+    if not file_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="文件文件不存在",
+        )
+    
+    return FileResponse(
+        path=file_path,
+        filename=f"{paper.title}.pdf",
+        media_type="application/pdf"
+    )
+
+
 @router.delete("/{paper_id}")
 async def delete_paper(
     paper_id: str,
-    user_id: UUID = Depends(get_current_user_id),
-    paper_service: PaperService = Depends(get_paper_service),
+    paper_service: PaperServiceDep,
+    current_user: User = Depends(get_current_user),
 ):
     try:
         paper_uuid = UUID(paper_id)
@@ -334,7 +368,7 @@ async def delete_paper(
             detail="无效的论文ID格式",
         )
 
-    ok = await paper_service.delete_paper(paper_uuid, user_id)
+    ok = await paper_service.delete_paper(paper_uuid, current_user.id)
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -372,10 +406,10 @@ async def test_arxiv_search(
 @router.get("/{paper_id}", response_model=PaperStatusResponse)
 async def get_paper_by_id(
     paper_id: str,
-    user_id: UUID = Depends(get_current_user_id),
-    paper_service: PaperService = Depends(get_paper_service),
+    paper_service: PaperServiceDep,
+    current_user: User = Depends(get_current_user),
 ):
-    logger.info(f"接收到获取单篇论文请求: paper_id={paper_id}, user_id={user_id}")
+    logger.info(f"接收到获取单篇论文请求: paper_id={paper_id}, user_id={current_user.id}")
 
     try:
         paper_uuid = UUID(paper_id)
@@ -385,7 +419,7 @@ async def get_paper_by_id(
             detail="无效的论文ID格式",
         )
 
-    paper = await paper_service.get_paper_status(paper_uuid, user_id)
+    paper = await paper_service.get_paper_status(paper_uuid, current_user.id)
     if not paper:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -402,4 +436,6 @@ async def get_paper_by_id(
         error_message=paper.error_message,
         created_at=paper.created_at,
         updated_at=paper.created_at,
+        toc=paper.toc,
+        file_url=paper.file_url or f"/api/v1/papers/{paper.id}/file"
     )
