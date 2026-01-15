@@ -16,7 +16,7 @@ from service.papers.paper_service import PaperServiceDep
 from common.model.enums import PaperStatus
 
 logger = logging.getLogger(__name__)
-
+# TODO: 相关说明已经在schema中标注了。
 class SearchService:
     def __init__(self, session: AsyncSession):
         self.session = session
