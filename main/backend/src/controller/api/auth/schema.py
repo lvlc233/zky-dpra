@@ -13,13 +13,14 @@ class UserCreate(UserBase):
 class UserLogin(BaseModel):
     email: str
     password: str
-
+#  TODO:为什么要在鉴权这里,搞一个更新用户设置?有问题吧
 class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     is_active: bool
     created_at: datetime
+    settings: Optional[dict] = None
 
 class Token(BaseModel):
     access_token: str
@@ -30,3 +31,6 @@ class UserSettings(BaseModel):
     theme: Optional[str] = "light"
     language: Optional[str] = "zh"
     # 其他设置...
+#  TODO:为什么要在鉴权这里,搞一个更新用户设置?有问题吧
+class UserSettingsUpdate(BaseModel):
+    settings: UserSettings

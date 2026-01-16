@@ -1,12 +1,16 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 from controller.api.app import create_app
-from base.pg.entity import Paper
+from base.pg.entity import Paper, User
 from common.model.enums import PaperStatus
 from service.papers.schema import PaperUploadResponse, PaperDTO
+from service.papers.paper_service import get_paper_service, PaperService
+from service.papers.arxiv_service import ArxivService
+from controller.api.papers.router import get_arxiv_service
+from controller.api.auth.router import get_current_user
 
 
 def _fake_upload_file_response(paper_id: str):
@@ -14,33 +18,63 @@ def _fake_upload_file_response(paper_id: str):
 
 
 @pytest.fixture
-def client():
+def mock_paper_service():
+    service = AsyncMock(spec=PaperService)
+    return service
+
+
+@pytest.fixture
+def mock_arxiv_service():
+    service = AsyncMock(spec=ArxivService)
+    return service
+
+
+@pytest.fixture
+def mock_user():
+    return User(id=uuid4(), email="test@example.com")
+
+
+@pytest.fixture
+def client(mock_paper_service, mock_arxiv_service, mock_user):
     app = create_app()
+    
+    # Override dependencies
+    async def override_get_paper_service():
+        return mock_paper_service
+        
+    async def override_get_current_user():
+        return mock_user
+        
+    app.dependency_overrides[get_paper_service] = override_get_paper_service
+    app.dependency_overrides[get_arxiv_service] = lambda: mock_arxiv_service
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    
     return TestClient(app)
 
 
-def test_upload_paper_ok(client):
+def test_upload_paper_ok(client, mock_paper_service, mock_user):
     paper_id = str(uuid4())
+    mock_paper_service.upload_paper.return_value = _fake_upload_file_response(paper_id)
 
-    with patch("controller.api.papers.router.PaperService") as mock_service_cls:
-        mock_service = mock_service_cls.return_value
-        mock_service.upload_paper = AsyncMock(return_value=_fake_upload_file_response(paper_id))
-
-        files = {"file": ("test.pdf", b"%PDF-1.4 test", "application/pdf")}
-        resp = client.post("/papers/upload", files=files)
+    files = {"file": ("test.pdf", b"%PDF-1.4 test", "application/pdf")}
+    resp = client.post("/api/v1/papers/upload", files=files)
 
     assert resp.status_code == 200
     data = resp.json()
     assert data["paper_id"] == paper_id
     assert data["status"] == PaperStatus.PENDING.value
+    
+    # Verify service call with correct user_id
+    mock_paper_service.upload_paper.assert_called_once()
+    args, kwargs = mock_paper_service.upload_paper.call_args
+    assert kwargs["user_id"] == mock_user.id
 
 
-def test_get_paper_status_ok(client):
+def test_get_paper_status_ok(client, mock_paper_service, mock_user):
     paper_id = uuid4()
-    user_id = uuid4()
     paper_dto = PaperDTO(
         id=paper_id,
-        user_id=user_id,
+        user_id=mock_user.id,
         title="t",
         authors=[],
         abstract=None,
@@ -49,12 +83,10 @@ def test_get_paper_status_ok(client):
         status=PaperStatus.PENDING,
         created_at="2024-01-01T00:00:00"
     )
+    
+    mock_paper_service.get_paper_status.return_value = paper_dto
 
-    with patch("controller.api.papers.router.PaperService") as mock_service_cls:
-        mock_service = mock_service_cls.return_value
-        mock_service.get_paper_status = AsyncMock(return_value=paper_dto)
-
-        resp = client.get(f"/papers/{paper_id}/status", headers={"X-User-Id": str(user_id)})
+    resp = client.get(f"/api/v1/papers/{paper_id}/status")
 
     assert resp.status_code == 200
     data = resp.json()
@@ -63,24 +95,21 @@ def test_get_paper_status_ok(client):
 
 
 def test_get_paper_status_invalid_id(client):
-    resp = client.get("/papers/not-a-uuid/status")
+    resp = client.get("/api/v1/papers/not-a-uuid/status")
     assert resp.status_code == 400
 
 
-def test_arxiv_search_ok(client):
+def test_arxiv_search_ok(client, mock_arxiv_service):
     from service.papers.schema import PaperInfo
     
-    with patch("controller.api.papers.router.ArxivService") as mock_service_cls:
-        # Mock the instance created by the class
-        mock_service = mock_service_cls.return_value
-        # Mock the search_papers method
-        mock_service.search_papers = AsyncMock(return_value=[
-            PaperInfo(title="Test Paper", authors=["Me"], abstract="Test", source_id="123")
-        ])
-        
-        resp = client.get("/papers/search/test")
-        
+    mock_arxiv_service.search_papers.return_value = [
+        PaperInfo(title="Test Paper", authors=["Me"], abstract="Test", source_id="123")
+    ]
+    
+    resp = client.get("/api/v1/papers/search/test")
+    
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_count"] == 1
     assert data["papers"][0]["title"] == "Test Paper"
+

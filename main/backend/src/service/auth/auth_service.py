@@ -140,6 +140,33 @@ class AuthService:
             
         return user
 
+# TODO: 为什么要在鉴权这里,搞一个更新用户设置的方法?有问题吧
+    async def update_user_settings(self, user_id: UUID, settings_data: dict) -> User:
+        """
+        更新用户设置
+        
+        Args:
+            user_id: 用户ID
+            settings_data: 新的设置数据 (字典)
+            
+        Returns:
+            User: 更新后的用户对象
+        """
+        user = await self.get_user(user_id)
+        if not user.settings:
+            user.settings = {}
+        
+        # Merge settings
+        # 这里进行简单的合并，如果有更复杂的逻辑可以扩展
+        current_settings = dict(user.settings)
+        current_settings.update(settings_data)
+        user.settings = current_settings
+        
+        self.session.add(user)
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
+
 async def get_auth_service(session: SessionDep) -> AuthService:
     """获取 AuthService 实例"""
     return AuthService(session)

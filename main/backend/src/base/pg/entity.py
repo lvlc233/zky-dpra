@@ -13,10 +13,10 @@
 '''
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from pgvector.sqlalchemy import Vector
 from sqlmodel import Field, Relationship, SQLModel
@@ -38,7 +38,7 @@ class User(SQLModel, table=True):
         - 用户注册、登录认证 (Auth Service)。
         - 关联用户上传的论文、聊天记录、阅读标注等资源。
         - 权限控制与用户信息查询。
-
+    
     内部实现:
         - 继承自 SQLModel，对应数据库表 'users'。
         - id: 使用 UUID 作为主键，确保全局唯一性。
@@ -78,11 +78,19 @@ class User(SQLModel, table=True):
         default_factory=datetime.now,
         sa_column_kwargs={"comment": "账号创建时间"}
     )
+    
+    # 用户设置 (JSON)
+    settings: Optional[dict] = Field(
+        default_factory=lambda: {"theme": "light", "language": "zh"},
+        sa_column=Column(JSON, comment="用户个性化设置")
+    )
 
     # 关联关系
     papers: List["Paper"] = Relationship(back_populates="user")
     chat_sessions: List["ChatSession"] = Relationship(back_populates="user")
     collections: List["Collection"] = Relationship(back_populates="user")
+    notes: List["Note"] = Relationship(back_populates="user")
+    mind_maps: List["MindMap"] = Relationship(back_populates="user")
 
 
 class CollectionPaper(SQLModel, table=True):
@@ -234,6 +242,7 @@ class Paper(SQLModel, table=True):
     )
 
     # 文件存储
+    # TODO: 这里可能需要前端做处理,获取文件的时候转化为从nginx获取?
     file_key: str = Field(
         sa_column_kwargs={"comment": "文件存储Key/路径(MinIO或本地)"}
     )
@@ -263,6 +272,9 @@ class Paper(SQLModel, table=True):
     summaries: List["PaperSummary"] = Relationship(back_populates="paper")
     layers: List["Layer"] = Relationship(back_populates="paper")
     reports: List["Report"] = Relationship(back_populates="paper")
+    chat_sessions: List["ChatSession"] = Relationship(back_populates="paper")
+    notes: List["Note"] = Relationship(back_populates="paper")
+    mind_map: Optional["MindMap"] = Relationship(back_populates="paper")
 
 
 class PaperChunk(SQLModel, table=True):
@@ -315,6 +327,7 @@ class PaperChunk(SQLModel, table=True):
         sa_column_kwargs={"comment": "切片顺序索引"}
     )
 
+    #  TODO: 维度现在不确定.可能存在多维度配置的可能。
     # 向量嵌入 (pgvector 1536维，适配OpenAI Small模型)
     embedding: List[float] = Field(
         sa_column=Column(Vector(1536), comment="向量Embedding(1536维)")
@@ -470,6 +483,12 @@ class ChatSession(SQLModel, table=True):
         default="chat",
         sa_column_kwargs={"comment": "Agent类型(chat/search/summary)"}
     )
+    paper_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="papers.id",
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "关联论文ID(可选)"}
+    )
     created_at: datetime = Field(
         default_factory=datetime.now,
         sa_column_kwargs={"comment": "创建时间"}
@@ -477,6 +496,7 @@ class ChatSession(SQLModel, table=True):
 
     # 关联关系
     user: User = Relationship(back_populates="chat_sessions")
+    paper: Optional["Paper"] = Relationship(back_populates="chat_sessions")
     messages: List["ChatMessage"] = Relationship(back_populates="session")
 
 
@@ -659,7 +679,7 @@ class Annotation(SQLModel, table=True):
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=datetime.now,
         sa_column_kwargs={"comment": "创建时间"}
     )
 
@@ -737,3 +757,493 @@ class Report(SQLModel, table=True):
 
     # 关联关系
     paper: Paper = Relationship(back_populates="reports")
+
+
+class Note(SQLModel, table=True):
+    """
+    用户笔记表模型 (User Note Model)
+    
+    注释者: BackendAgent
+    注释时间: 2026-01-14 16:30:00
+    
+    用途:
+        存储用户针对论文撰写的通用笔记 (非特定位置的标注)。
+        
+    使用场景:
+        - 侧边栏的 "笔记" Tab，用于记录阅读心得、待办事项或草稿。
+        - 独立于 PDF 标注 (Annotation)，是整篇论文层面的笔记。
+    """
+    __tablename__ = "notes"
+    __table_args__ = {"comment": "用户笔记表: 存储论文层面的通用笔记"}
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "笔记ID"}
+    )
+    paper_id: UUID = Field(
+        foreign_key="papers.id",
+        index=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "所属论文ID"}
+    )
+    user_id: UUID = Field(
+        foreign_key="users.id",
+        index=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "创建者用户ID"}
+    )
+    
+    title: Optional[str] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "笔记标题"}
+    )
+    content: str = Field(
+        sa_column_kwargs={"comment": "笔记内容(Markdown)"}
+    )
+    
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "创建时间"}
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "更新时间"}
+    )
+
+    # 关联
+    paper: Paper = Relationship(back_populates="notes")
+    user: User = Relationship(back_populates="notes")
+
+
+class MindMap(SQLModel, table=True):
+    """
+    思维导图/知识图谱表模型 (Mind Map Model)
+    
+    注释者: BackendAgent
+    注释时间: 2026-01-14 16:45:00
+    
+    用途:
+        存储论文的知识结构图 (节点与边)。
+        
+    使用场景:
+        - 侧边栏 "脑图" Tab，展示论文核心概念及其关系。
+        - 支持前端 reagraph 渲染。
+        - 存储 Agent 生成的图谱数据或用户手动编辑的结果。
+    """
+    __tablename__ = "mind_maps"
+    __table_args__ = {"comment": "思维导图表: 存储论文的知识结构(节点与边)"}
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "脑图ID"}
+    )
+    paper_id: UUID = Field(
+        foreign_key="papers.id",
+        index=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "所属论文ID"}
+    )
+    user_id: UUID = Field(
+        foreign_key="users.id",
+        index=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "所属用户ID"}
+    )
+    
+    # 存储图数据: { "nodes": [...], "edges": [...] }
+    # 节点结构: { "id": "...", "label": "...", "data": {...} }
+    # 边结构: { "id": "...", "source": "...", "target": "...", "label": "..." }
+    graph_data: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSON, comment="图数据(JSON):包含nodes和edges")
+    )
+    
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "创建时间"}
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "更新时间"}
+    )
+
+    # 关联
+    paper: Paper = Relationship(back_populates="mind_map")
+    user: User = Relationship(back_populates="mind_maps")
+
+
+class AgentSession(SQLModel, table=True):
+    """
+    Agent 会话表
+    存储 Agent 的运行实例信息，关联到用户的聊天会话
+    """
+    __tablename__ = "agent_sessions"
+    __table_args__ = {"comment": "Agent会话表: 存储Agent运行实例信息"}
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "会话ID"}
+    )
+
+    user_id: UUID = Field(
+        foreign_key="users.id",
+        index=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "用户ID"}
+    )
+
+    chat_session_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="chat_sessions.id",
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "关联的聊天会话ID"}
+    )
+
+    thread_id: str = Field(
+        sa_column=Column(Text, unique=True, index=True, comment="LangGraph线程ID")
+    )
+
+    agent_type: str = Field(
+        sa_column_kwargs={"comment": "Agent类型(search/paper_chat/summary/mindmap/deep_research)"}
+    )
+
+    status: str = Field(
+        default="active",
+        sa_column_kwargs={"comment": "会话状态(active/interrupted/completed/error)"}
+    )
+
+    interrupt_type: Optional[str] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "中断类型(strong/weak)"}
+    )
+
+    interrupt_data: Optional[Dict[str, Any]] = Field(
+        default=None,
+        sa_column=Column(JSON, comment="中断相关数据")
+    )
+
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column_kwargs={"comment": "创建时间"}
+    )
+
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column_kwargs={"comment": "更新时间"}
+    )
+
+    completed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "完成时间"}
+    )
+
+
+class AgentTodo(SQLModel, table=True):
+    """
+    Agent 待办事项表
+    存储弱人工介入的待办事项
+    """
+    __tablename__ = "agent_todos"
+    __table_args__ = {"comment": "Agent待办事项表: 存储弱人工介入的待办"}
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "待办ID"}
+    )
+
+    agent_session_id: UUID = Field(
+        foreign_key="agent_sessions.id",
+        index=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "Agent会话ID"}
+    )
+
+    todo_type: str = Field(
+        sa_column_kwargs={"comment": "待办类型(approval/input/selection等)"}
+    )
+
+    todo_data: Dict[str, Any] = Field(
+        sa_column=Column(JSON, comment="待办事项详情")
+    )
+
+    status: str = Field(
+        default="pending",
+        sa_column_kwargs={"comment": "状态(pending/completed/cancelled)"}
+    )
+
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column_kwargs={"comment": "创建时间"}
+    )
+
+    completed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "完成时间"}
+    )
+
+
+class AgentCheckpoint(SQLModel, table=True):
+    """
+    Agent 检查点表
+    扩展 LangGraph 的 checkpoint 表，添加业务字段
+    """
+    __tablename__ = "agent_checkpoints"
+    __table_args__ = {"comment": "Agent检查点表: 扩展LangGraph checkpoint"}
+
+    thread_id: str = Field(
+        sa_column=Column(Text, primary_key=True, comment="线程ID")
+    )
+
+    checkpoint_id: str = Field(
+        sa_column=Column(Text, primary_key=True, comment="检查点ID")
+    )
+
+    parent_id: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, comment="父检查点ID")
+    )
+
+    checkpoint: Dict[str, Any] = Field(
+        sa_column=Column(JSON, comment="检查点数据")
+    )
+
+    checkpoint_metadata: Dict[str, Any] = Field(
+        sa_column=Column("metadata", JSON, comment="元数据")
+    )
+
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column_kwargs={"comment": "创建时间"}
+    )
+
+    node_name: Optional[str] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "节点名称"}
+    )
+
+    step_count: int = Field(
+        default=0,
+        sa_column_kwargs={"comment": "步骤计数"}
+    )
+
+
+class AgentCheckpointWrite(SQLModel, table=True):
+    """
+    Agent 检查点写入表
+    扩展 LangGraph 的 checkpoint_writes 表
+    """
+    __tablename__ = "agent_checkpoint_writes"
+    __table_args__ = {"comment": "Agent检查点写入表: 扩展LangGraph checkpoint_writes"}
+
+    thread_id: str = Field(
+        sa_column=Column(Text, primary_key=True, comment="线程ID")
+    )
+
+    checkpoint_id: str = Field(
+        sa_column=Column(Text, primary_key=True, comment="检查点ID")
+    )
+
+    task_id: str = Field(
+        sa_column=Column(Text, primary_key=True, comment="任务ID")
+    )
+
+    idx: int = Field(
+        primary_key=True,
+        sa_column_kwargs={"comment": "索引"}
+    )
+
+    channel: str = Field(
+        sa_column=Column(Text, comment="通道")
+    )
+
+    type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, comment="类型")
+    )
+
+    blob: Optional[bytes] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "二进制数据"}
+    )
+
+
+class ConfigCategory(SQLModel, table=True):
+    """
+    配置分类表 (Config Categories)
+
+    注释者: BackendAgent
+    注释时间: 2026-01-14 18:50:00
+    
+    用途:
+        用于对配置项进行分类管理，如 'system', 'user', 'agent' 等。
+    
+    内部实现:
+        - code: 分类代码，如 'system.llm', 'user.ui'。
+    """
+    __tablename__ = "config_categories"
+    __table_args__ = {"comment": "配置分类表: 用于对配置项进行分类管理"}
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "分类ID"}
+    )
+    code: str = Field(
+        unique=True,
+        index=True,
+        max_length=50,
+        sa_column_kwargs={"comment": "分类代码(如 system.llm)"}
+    )
+    name: str = Field(
+        max_length=100,
+        sa_column_kwargs={"comment": "分类显示名称"}
+    )
+    description: Optional[str] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "分类描述"}
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "创建时间"}
+    )
+
+    # 关联
+    definitions: List["ConfigDefinition"] = Relationship(back_populates="category")
+
+
+class ConfigDefinition(SQLModel, table=True):
+    """
+    配置项定义表 (Config Definitions)
+
+    注释者: BackendAgent
+    注释时间: 2026-01-14 18:50:00
+    
+    用途:
+        定义具体的配置项元数据，包括键名、类型、默认值、验证规则等。
+    
+    内部实现:
+        - scope: 作用域 (system, user, session)。
+        - value_type: 值类型 (string, number, boolean, json)。
+    """
+    __tablename__ = "config_definitions"
+    __table_args__ = (
+        UniqueConstraint("category_id", "key", name="unique_category_key"),
+        {"comment": "配置项定义表: 定义具体的配置项元数据"}
+    )
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "配置定义ID"}
+    )
+    category_id: Optional[UUID] = Field(
+        default=None, 
+        foreign_key="config_categories.id",
+        sa_column_kwargs={"comment": "关联的分类ID"}
+    )
+    key: str = Field(
+        max_length=200,
+        index=True,
+        sa_column_kwargs={"comment": "配置键(如 theme, timeout)"}
+    )
+    name: str = Field(
+        max_length=200,
+        sa_column_kwargs={"comment": "配置显示名称"}
+    )
+    description: Optional[str] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "配置描述"}
+    )
+    value_type: str = Field(
+        max_length=50,
+        sa_column_kwargs={"comment": "值类型(string, number, boolean, json)"}
+    )
+    default_value: Optional[Dict[str, Any]] = Field(
+        default=None,
+        sa_column=Column(JSON, comment="默认值(JSON格式)")
+    )
+    validation_rules: Optional[Dict[str, Any]] = Field(
+        default=None,
+        sa_column=Column(JSON, comment="验证规则(JSON格式)")
+    )
+    options: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        sa_column=Column(JSON, comment="可选值列表(JSON格式)")
+    )
+    scope: str = Field(
+        max_length=50,
+        sa_column_kwargs={"comment": "作用域(system, user, session)"}
+    )
+    is_public: bool = Field(
+        default=False,
+        sa_column_kwargs={"comment": "是否公开(前端可见)"}
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "创建时间"}
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "更新时间"}
+    )
+
+    # 关联
+    category: Optional[ConfigCategory] = Relationship(back_populates="definitions")
+    user_values: List["UserConfigValue"] = Relationship(back_populates="definition")
+
+
+class UserConfigValue(SQLModel, table=True):
+    """
+    用户配置值表 (User Config Values)
+
+    注释者: BackendAgent
+    注释时间: 2026-01-14 18:50:00
+    
+    用途:
+        存储用户特定的配置值，覆盖默认配置。
+    """
+    __tablename__ = "user_config_values"
+    __table_args__ = (
+        UniqueConstraint("user_id", "config_id", name="unique_user_config"),
+        {"comment": "用户配置值表: 存储用户特定的配置值"}
+    )
+
+    id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+        sa_type=PGUUID(as_uuid=True),
+        sa_column_kwargs={"comment": "配置值ID"}
+    )
+    user_id: UUID = Field(
+        foreign_key="users.id",
+        sa_column_kwargs={"comment": "关联的用户ID"}
+    )
+    config_id: UUID = Field(
+        foreign_key="config_definitions.id",
+        sa_column_kwargs={"comment": "关联的配置定义ID"}
+    )
+    value: Dict[str, Any] = Field(
+        sa_column=Column(JSON, nullable=False, comment="配置值(JSON格式)")
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "创建时间"}
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"comment": "更新时间"}
+    )
+
+    # 关联
+    definition: Optional[ConfigDefinition] = Relationship(back_populates="user_values")
+    # user: Optional["User"] = Relationship(back_populates="config_values") # 如果需要在User中反向关联

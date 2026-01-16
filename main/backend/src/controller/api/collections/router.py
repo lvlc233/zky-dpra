@@ -32,7 +32,7 @@ async def create_collection(
     """创建收藏夹"""
     return await service.create_collection(user_id, data)
 
-# TODO: 这里可能需要后续提取到搜索的设置中,暂时先这样子也没问题。
+
 @router.get("", response_model=List[CollectionResponse])
 async def get_collections(
     service: CollectionServiceDep,
@@ -70,7 +70,6 @@ async def update_collection(
         raise HTTPException(status_code=404, detail="收藏夹不存在或无权访问")
     return collection
 
-# TODO: 可能需要提炼删除收藏夹的请求模型。
 @router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_collection(
     collection_id: UUID,

@@ -23,6 +23,19 @@ class SummaryService:
         # TODO: 从配置读取模型参数
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
 
+    async def get_summary(self, paper_id: UUID, summary_type: str) -> Optional[SummaryResponse]:
+        """获取论文摘要"""
+        stmt = select(PaperSummary).where(
+            PaperSummary.paper_id == paper_id,
+            PaperSummary.summary_type == summary_type
+        )
+        result = await self.session.execute(stmt)
+        summary = result.scalar_one_or_none()
+        
+        if summary:
+            return SummaryResponse.model_validate(summary)
+        return None
+
     async def get_or_create_summary(self, paper_id: UUID, create_in: SummaryCreate) -> SummaryResponse:
         """获取或生成论文摘要"""
         # TODO: 这里也是没有用仓储。 

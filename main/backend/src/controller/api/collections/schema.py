@@ -51,5 +51,3 @@ class CollectionListResponse(BaseModel):
     total: int = Field(..., description="总数")
     limit: int = Field(..., description="每页限制")
     offset: int = Field(..., description="偏移量")
-
-# TODO: 少了删除收藏夹和移除论文的数据模型,管理员建议哪怕简单的接口也使用请求模型。

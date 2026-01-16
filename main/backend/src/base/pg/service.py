@@ -6,10 +6,11 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.future import select
-from fastapi import Depends
+from sqlalchemy.orm import selectinload
+from fastapi import Depends, Header
 
 from base.config import settings
-from base.pg.entity import User, Paper, Collection, CollectionPaper, PaperChunk, PaperSummary
+from base.pg.entity import User, Paper, Collection, CollectionPaper, PaperChunk, PaperSummary, Layer, Annotation
 from common.model.enums import PaperStatus
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,20 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 SessionDep = Annotated[AsyncSession, Depends(get_db_session)]
+
+def get_current_user_id(x_user_id: Optional[str] = Header(default=None)) -> UUID:
+    """
+    获取当前用户ID (Mock/Dev)
+    TODO: Integrate with real Auth or JWT decoding if needed at this level.
+    Currently using X-User-Id header for simplicity in some modules.
+    """
+    if not x_user_id:
+        # Default UUID for testing/dev if no header provided
+        return UUID("12345678-1234-5678-1234-567812345678")
+    try:
+        return UUID(x_user_id)
+    except ValueError:
+        return UUID("12345678-1234-5678-1234-567812345678")
 
 
 class UserRepository:
@@ -287,3 +302,79 @@ class CollectionRepository:
         )
         result = await session.execute(statement)
         return result.scalars().all()
+
+
+class ReaderRepository:
+    """阅读器相关的数据访问层"""
+
+    @staticmethod
+    async def get_layers_by_paper(session: AsyncSession, paper_id: UUID) -> List[Layer]:
+        """获取论文的所有图层(包含标注)"""
+        statement = (
+            select(Layer)
+            .options(selectinload(Layer.annotations))
+            .where(Layer.paper_id == paper_id)
+            .order_by(Layer.created_at)
+        )
+        result = await session.execute(statement)
+        return result.scalars().all()
+
+    @staticmethod
+    async def create_layer(session: AsyncSession, layer: Layer) -> Layer:
+        """创建图层"""
+        session.add(layer)
+        await session.commit()
+        await session.refresh(layer)
+        return layer
+
+    @staticmethod
+    async def get_layer_by_id(session: AsyncSession, layer_id: UUID) -> Optional[Layer]:
+        """获取图层详情"""
+        statement = select(Layer).where(Layer.id == layer_id)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+        
+    @staticmethod
+    async def create_annotation(session: AsyncSession, annotation: Annotation) -> Annotation:
+        """创建标注"""
+        session.add(annotation)
+        await session.commit()
+        await session.refresh(annotation)
+        return annotation
+
+    @staticmethod
+    async def update_annotation(session: AsyncSession, annotation: Annotation) -> Annotation:
+        """更新标注"""
+        session.add(annotation)
+        await session.commit()
+        await session.refresh(annotation)
+        return annotation
+        
+    @staticmethod
+    async def get_annotation_by_id(session: AsyncSession, anno_id: UUID) -> Optional[Annotation]:
+        """获取标注详情"""
+        statement = select(Annotation).where(Annotation.id == anno_id)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+        
+    @staticmethod
+    async def delete_annotation(session: AsyncSession, annotation: Annotation) -> bool:
+        """删除标注"""
+        await session.delete(annotation)
+        await session.commit()
+        return True
+
+    @staticmethod
+    async def update_layer(session: AsyncSession, layer: Layer) -> Layer:
+        """更新图层"""
+        session.add(layer)
+        await session.commit()
+        await session.refresh(layer)
+        return layer
+
+    @staticmethod
+    async def delete_layer(session: AsyncSession, layer: Layer) -> bool:
+        """删除图层"""
+        await session.delete(layer)
+        await session.commit()
+        return True

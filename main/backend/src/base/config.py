@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # 异步任务配置
     arq_redis_url: str = "redis://localhost:6379/1"
 
+    # Neo4j配置
+    neo4j_url: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "password"
+
     # 日志配置
     log_level: str = "INFO"
 

@@ -15,9 +15,11 @@ def mock_db_session():
     return mock_session
 
 @pytest.fixture
-def mock_get_db_session(mock_db_session):
-    with patch("service.papers.paper_service.get_db_session", return_value=mock_db_session):
-        yield mock_db_session
+def mock_async_session_factory(mock_db_session):
+    with patch("service.papers.paper_service.async_session_factory") as mock_factory:
+        mock_factory.return_value.__aenter__.return_value = mock_db_session
+        mock_factory.return_value.__aexit__.return_value = None
+        yield mock_factory
 
 @pytest.fixture
 def mock_paper_repo():
@@ -46,8 +48,8 @@ def mock_aiofiles():
         yield mock_aio
 
 @pytest.mark.asyncio
-async def test_upload_paper_success(mock_settings, mock_get_db_session, mock_paper_repo, mock_aiofiles):
-    service = PaperService()
+async def test_upload_paper_success(mock_settings, mock_db_session, mock_paper_repo, mock_aiofiles):
+    service = PaperService(session=mock_db_session)
     user_id = uuid4()
     file_content = b"%PDF-1.4 content"
     filename = "test.pdf"
@@ -64,8 +66,8 @@ async def test_upload_paper_success(mock_settings, mock_get_db_session, mock_pap
     mock_aiofiles.open.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_upload_paper_invalid_file(mock_settings):
-    service = PaperService()
+async def test_upload_paper_invalid_file(mock_settings, mock_db_session):
+    service = PaperService(session=mock_db_session)
     user_id = uuid4()
     
     # Invalid content
@@ -77,7 +79,7 @@ async def test_upload_paper_invalid_file(mock_settings):
         await service.upload_paper(b"%PDF...", "test.txt", user_id)
 
 @pytest.mark.asyncio
-async def test_process_pdf_success(mock_settings, mock_get_db_session, mock_paper_repo):
+async def test_process_pdf_success(mock_settings, mock_async_session_factory, mock_paper_repo, mock_db_session):
     service = PaperProcessingService()
     paper_id = uuid4()
     
@@ -105,5 +107,5 @@ async def test_process_pdf_success(mock_settings, mock_get_db_session, mock_pape
         
         # Verify status updates
         # Called once for PROCESSING
-        mock_paper_repo.update_paper_status.assert_any_call(mock_get_db_session, paper_id, PaperStatus.PROCESSING)
+        mock_paper_repo.update_paper_status.assert_any_call(mock_db_session, paper_id, PaperStatus.PROCESSING)
 

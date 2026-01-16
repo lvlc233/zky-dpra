@@ -5,6 +5,7 @@ from loguru import logger
 
 from controller.api.reports.schema import ReportCreate, ReportResponse, ReportListResponse
 
+
 # 临时 Mock 依赖
 def get_current_user_id():
     return UUID("12345678-1234-5678-1234-567812345678")

@@ -18,7 +18,7 @@ from base.pg.entity import User
 from service.auth.auth_service import AuthService,AuthServiceDep
 from common.security import create_access_token
 from controller.response import Response
-from controller.api.auth.schema import UserCreate, UserLogin, Token, UserResponse, UserSettings
+from controller.api.auth.schema import UserCreate, UserLogin, Token, UserResponse, UserSettings, UserSettingsUpdate
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -30,7 +30,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 
-
+# 这里甚至直接用Entity..算了,所有的数据模型的问题都后面再说吧。
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     service: AuthServiceDep
@@ -86,6 +86,22 @@ async def register(
 async def read_users_me(current_user: User = Depends(get_current_user)):
     """获取当前用户信息"""
     return Response.success(data=UserResponse.model_validate(current_user))
+
+# TODO: 为什么要在鉴权这里,搞一个更新用户设置的方法?有问题吧
+@users_router.put("/settings", response_model=Response[dict])
+async def update_settings(
+    settings_in: UserSettingsUpdate,
+    service: AuthServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """更新用户全局设置"""
+    # 将 Pydantic 模型转为 dict
+    settings_dict = settings_in.settings.model_dump(exclude_unset=True)
+    
+    updated_user = await service.update_user_settings(current_user.id, settings_dict)
+    
+    # 返回更新后的 settings
+    return Response.success(data=updated_user.settings)
 
 # 注意：users_router 需要在 app.py 中注册，或者这里合并
 # 为方便起见，router 和 users_router 可以在 app.py 分别注册
