@@ -135,6 +135,14 @@
   - **规范偏差**: 这不符合严格的分层架构规范（Controller 应定义 Request/Response，Service 应定义 DTO）。
   - **未来规划**: 这是一个已知的技术债务，后续需要重构为 Mapper 模式 (Request -> DTO -> Response)。目前通过 TODO 注释标记。
 
+### 配置服务重构 (2026-01-16)
+- **异步升级**: `ConfigService` 已完全重构为异步模式，支持 `AsyncSession`，消除了同步 DB 操作带来的性能隐患。
+- **依赖注入**: 修复了 `SettingsRouter` 中的依赖注入错误，统一使用 `SessionDep`。
+- **用户配置双轨制 (现状)**:
+  - `User.settings` (JSON列): 存储简单的、非结构化的用户偏好 (Legacy)。
+  - `UserConfigValue` (Table): 存储复杂的、系统定义的配置项 (推荐)。
+  - **TODO**: 未来需要合并这两套配置系统。
+
 ---
-**最后更新**: 2026年01月16日 09:00
-**记忆版本**: v1.9
+**最后更新**: 2026年01月16日 13:50
+**记忆版本**: v1.10

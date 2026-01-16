@@ -1,68 +1,4 @@
-# BackendAgent 操作日志
-
-# 操作记录汇总
-
-## 2026-01-16 08:50:00
-**操作内容**: 重构阅读器服务依赖注入模式
-**操作目标**: 解耦 Service 层与 FastAPI 依赖注入机制，修复 "反向注入" 设计缺陷
-**操作结果**: 成功
-**备注**:
-- 修改 `src/service/reader/reader_service.py`:
-  - 移除 `get_reader_service` 工厂函数和 `ReaderServiceDep` 类型别名。
-  - 恢复 Service 层为纯粹的业务逻辑类，不再依赖 FastAPI 的 `Depends`。
-- 修改 `src/controller/api/reader/router.py`:
-  - 将依赖注入从 `ReaderServiceDep` 改为直接注入 `SessionDep`。
-  - 在 Controller 层显式实例化 `ReaderService`, `SummaryService`, `NoteService`, `MindMapService`。
-  - 解决了 Controller 从 Service 获取 Session (`service.db`) 传递给其他 Service 的反模式问题。
-
----
-
-## 2026-01-15 21:35:00
-**操作内容**: 修复PDF解析器依赖与架构优化
-**操作目标**: 解决Marker库API变更导致的导入错误，提升解析性能并完善文档
-**操作结果**: 成功
-**备注**:
-- 修复 `src/base/pdf_parser/parser.py`:
-  - 适配新版 `marker-pdf` API (`PdfConverter` 替代已废弃的 `load_all_models` 和 `convert_single_pdf`)。
-  - 引入 `asyncio` executor 机制，将 CPU 密集型的 PDF 解析任务移至独立线程运行，避免阻塞 Event Loop。
-  - 增强 `PDFParseResult` 为 Pydantic 模型，提供更强的类型校验。
-- 优化 `src/controller/api/papers/schema.py`:
-  - 完善 `PaperStatusResponse` 字段说明，明确 `toc` (Table of Contents) 字段用途。
-- 验证:
-  - 确认 `marker-pdf` 和 `pymupdf` 依赖检测逻辑正常。
-  - 确认解析器工厂模式 (`PDFParserFactory`) 可正确实例化解析器。
-
----
-
-## 2026-01-15 21:24:00
-**操作内容**: 提取搜索配置并完善文档
-**操作目标**: 解决用户反馈的搜索配置缺失问题，明确搜索设置API
-**操作结果**: 成功
-**备注**:
-- 提取了搜索相关的配置项 (deep_reasoning, auto_summary, etc.) 到 `SearchSettingsResponse`。
-- 更新 `src/service/config/config_service.py`，在 `init_default_configs` 中添加搜索相关默认配置。
-- 更新 `src/controller/api/search/schema.py`，新增配置模型。
-- 更新 `src/controller/api/search/router.py`，新增 `GET/PUT /search/config` 接口。
-- 更新 `AGENT/BackendAgent/Documents/IMPLEMENTATION_DETAILS.md`，补充搜索API文档。
-
----
-
-## 2026-01-14 18:45:00
-**操作内容**: 完成用户可配置项系统设计方案
-**操作目标**: 设计T-145~T-147任务所需的用户配置系统架构
-**操作结果**: 成功
-**备注**:
-- 完成用户配置系统完整设计方案，包含：
-  - 配置项分类（系统/用户/会话/Agent四级）
-  - 数据库表结构设计（config_categories, config_definitions, user_config_values等）
-  - RESTful API设计（获取/更新/批量操作）
-  - 与LangGraphAgent的集成方案（ConfigProvider模式）
-  - 配置热更新机制（事件驱动+缓存失效）
-  - 版本管理和迁移策略
-- 输出完整设计文档：`AGENT/BackendAgent/DESIGN_USER_CONFIG.md`
-- 为后续实现T-146和T-147提供详细的技术规范
-
----
+# BackendAgent 操作日志（按时间顺序排列）
 
 ## 2026-01-10 12:35:00
 **操作内容**: 优化日志系统与修复arXiv客户端重定向问题  
@@ -77,109 +13,6 @@
   - 启用 httpx 的 follow_redirects=True 选项作为保险
   - 迁移至 loguru logger
 - 更新 src/service/papers/arxiv_service.py 迁移至 loguru logger
-
----
-
-## 2026-01-14 15:30:00
-**操作内容**: 完善阅读模块视图管理 (View Management) 及修复测试问题
-**操作目标**: 完成 Task Metrics T-082~T-089，实现图层/标注的增删改查及测试
-**操作结果**: 成功
-**备注**: 
-- 功能完善 (View Management):
-  - 实现 `Layer` 和 `Annotation` 的完整 CRUD 操作。
-  - Service层: `src/service/reader/reader_service.py`。
-  - Controller层: `src/controller/api/reader/router.py`。
-- 修复测试:
-  - 修复 `test_paper_service.py` 中的 `NoForeignKeysError` (添加 `ChatSession.paper_id` 外键)。
-  - 创建并完善 `test/src/test_reader_router.py`，覆盖所有接口 (GET/POST/PUT/DELETE)。
-- 任务追踪:
-  - 标记 T-082~T-089 为完成状态。
-
----
-
-## 2026-01-14 16:00:00
-**操作内容**: 完成阅读模块-对话与总结功能 (Chat & Summary)
-**操作目标**: 完成 Task Metrics T-090~T-097，实现论文对话、总结生成及会话管理
-**操作结果**: 成功
-**备注**: 
-- 架构重构:
-  - 创建 `src/service/chat/chat_service.py`，将业务逻辑从 Router 剥离。
-  - 规范化依赖注入 (`ChatServiceDep`)。
-- 功能实现:
-  - Chat: 实现会话创建、消息流式响应 (SSE)、会话更名 (PATCH)、会话删除 (DELETE, 级联删除消息)。
-  - Summary: 实现基于 LLM 的论文摘要生成 (`SummaryService`)。
-  - Retrieval: 确认 `RetrievalService` 与 Agent 的集成。
-- 测试验证:
-  - 完善 `test/src/test_chat_summary.py`:
-    - 修复 Fixtures (Mock `agent_graph`, `db_session`, `env_vars`)。
-    - 验证 `SummaryService` 摘要生成逻辑。
-    - 验证 `ChatService` 会话管理与 SSE 消息流。
-    - 测试全部通过。
-- 任务追踪:
-  - 标记 T-090~T-097 为完成状态。
-
----
-
-## 2026-01-14 16:30:00
-**操作内容**: 完成阅读模块-笔记功能 (Note)
-**操作目标**: 完成 Task Metrics T-098~T-105，实现通用笔记的 CRUD 功能
-**操作结果**: 成功
-**备注**: 
-- 数据库变更:
-  - 更新 `src/base/pg/entity.py`: 新增 `Note` 实体模型，更新 `User` 和 `Paper` 关联。
-- 功能实现:
-  - Controller: 定义 `NoteCreate`, `NoteUpdate`, `NoteResponse` 数据模型。
-  - Service: 实现 `NoteService`，支持笔记的创建、查询、更新和删除。
-  - Router: 新增 `/api/v1/reader/papers/{id}/notes` 和 `/api/v1/reader/notes/{id}` 接口。
-- 测试验证:
-  - 创建 `test/src/test_reader_note.py`。
-  - 验证 Service 层 CRUD 逻辑。
-  - 验证 Controller 层 API 接口。
-  - 测试全部通过。
-- 任务追踪:
-  - 标记 T-098~T-105 为完成状态。
-
----
-
-## 2026-01-14 17:15:00
-**操作内容**: 完成阅读模块-脑图功能 (Mind Map)
-**操作目标**: 完成 Task Metrics T-106~T-113，实现思维导图的获取与更新
-**操作结果**: 成功
-**备注**: 
-- 数据库变更:
-  - 更新 `src/base/pg/entity.py`: 新增 `MindMap` 实体模型 (存储 JSON graph_data)，更新 `User` 和 `Paper` 关联。
-- 功能实现:
-  - Controller: 定义 `MindMapCreate`, `MindMapUpdate`, `MindMapResponse`, `GraphData` 数据模型。
-  - Service: 实现 `MindMapService`，支持脑图的获取 (get_or_create) 和更新。
-  - Router: 新增 `/api/v1/reader/papers/{id}/graph` (GET/PUT) 接口。
-- 测试验证:
-  - 创建 `test/src/test_reader_mindmap.py`。
-  - 验证 Service 层逻辑。
-  - 验证 Controller 层 API 接口。
-  - 测试全部通过。
-- 任务追踪:
-  - 标记 T-106~T-113 为完成状态。
-
----
-
-## 2026-01-14 17:45:00
-**操作内容**: 完成用户设置模块 (User Settings)
-**操作目标**: 完成 Task Metrics T-114~T-121，实现用户全局配置的更新
-**操作结果**: 成功
-**备注**: 
-- 数据库变更:
-  - 更新 `src/base/pg/entity.py`: 在 `User` 实体中添加 `settings` 字段 (JSON)，用于存储个性化配置。
-- 功能实现:
-  - Controller: 更新 `src/controller/api/auth/schema.py`，添加 `UserSettingsUpdate` 模型。
-  - Service: 更新 `src/service/auth/auth_service.py`，实现 `update_user_settings` 方法。
-  - Router: 更新 `src/controller/api/auth/router.py`，新增 `PUT /api/v1/users/settings` 接口。
-- 测试验证:
-  - 创建 `test/src/test_user_settings.py`。
-  - 验证 Service 层逻辑 (Mock UserRepository)。
-  - 验证 Controller 层 API 接口 (Mock Dependency)。
-  - 测试全部通过。
-- 任务追踪:
-  - 标记 T-114~T-121 为完成状态。
 
 ---
 
@@ -323,54 +156,6 @@
 ---
 
 ## 2026-01-12 14:15:00
-**操作内容1**: 修复 Auth 模块响应格式与依赖注入问题  
-**操作目标**: 确保 Auth 接口符合 Response.success 规范，并通过测试  
-**操作结果**: 成功  
-**备注**: 
-- 修复 `src/controller/api/auth/router.py`:
-  - `get_current_user` 依赖项修正为返回 `User` 实体而非 `Response` 对象，解决 Pydantic 校验错误
-  - `read_users_me` 接口保持返回 `Response.success(data=UserResponse.model_validate(current_user))`
-- 更新 `src/controller/api/auth/schema.py`:
-  - 使用 `ConfigDict` 替代废弃的 `class Config`，消除 Pydantic 警告
-- 更新 `src/controller/response.py`:
-  - 修复 `Response` 类定义，添加 `model_config = ConfigDict(from_attributes=True)` 支持 ORM 转换
-- 验证:
-  - 执行 `pytest test/src/test_auth_router.py`，6个测试用例全部通过
-
-**操作内容2**: 重构认证模块 (Auth Module Refactoring)  
-**操作目标**: 规范化异常处理，下沉鉴权逻辑至 Service 层，清理 TODO  
-**操作结果**: 成功  
-**备注**: 
-- Service 层 (`src/service/auth/auth_service.py`):
-  - 新增 `get_user_by_token` 方法，封装 Token 解析与用户查询逻辑
-  - 引入 `AuthenticationError`, `BusinessError`, `NotFoundError` 替代 `return None` 或 `False`
-- Controller 层 (`src/controller/api/auth/router.py`):
-  - `get_current_user` 依赖改为调用 `service.get_user_by_token`
-  - `login` 和 `register` 移除手动的 `Response.fail`，完全依赖全局异常处理器 (`global_exception_handler`)
-  - 移除冗余的 TODO 注释
-- Infrastructure 层 (`src/common/security.py`):
-  - 更新关于 Token 过期的 TODO，明确后续引入 Refresh Token 机制
-- 测试 (`test/src/test_auth_router.py`):
-  - 禁用 `TestClient` 的 `raise_server_exceptions` 以验证全局异常处理器
-  - 更新 Mock 逻辑以匹配 Service 层抛出的异常
-  - 验证通过: 6 passed, 0 failed
-
----
-
-## 2026-01-12 14:20:00
-**操作内容**: 任务状态确认与切换  
-**操作目标**: 确认登录模块 (Auth) 任务 T-042~T-049 完成，准备进入收藏夹管理模块 (T-050~T-057)  
-**操作结果**: 成功  
-**备注**: 
-- 更新 PROJECT/TASK_METRICS.md: 将 T-042 至 T-049 标记为 🟢 (Completed)
-- 确认下一阶段任务: 管理模块_收藏夹管理
-- 预研需求: 
-  - 需设计 Favorites / Collections 实体
-  - 需实现收藏夹的增删改查及论文关联
-
----
-
-## 2026-01-12 14:40:00
 **操作内容**: 重构 PaperService 依赖注入并更新文档  
 **操作目标**: 将 PaperService 对齐 AuthService 的依赖注入风格，并完善相关文档  
 **操作结果**: 成功  
@@ -397,21 +182,48 @@
 
 ---
 
-## 2026-01-12 14:45:00
-**操作内容1**: 升级数据库连接池配置  
-**操作目标**: 彻底解决 `ConnectionDoesNotExistError`  
+## 2026-01-12 14:20:00
+**操作内容**: 任务状态确认与切换  
+**操作目标**: 确认登录模块 (Auth) 任务 T-042~T-049 完成，准备进入收藏夹管理模块 (T-050~T-057)  
 **操作结果**: 成功  
 **备注**: 
-- 问题原因: 
-  - 旧版 `sessionmaker` 在异步环境下的行为可能不稳定
-  - 数据库连接可能因长时间闲置被服务端断开，虽然开启了 pre-ping，但增加 `pool_recycle` 更保险
-- 修复方案:
-  - 升级 `src/base/pg/service.py`:
-    - 引入并使用 SQLAlchemy 2.0 推荐的 `async_sessionmaker`
-    - 为 `create_async_engine` 添加 `pool_recycle=3600` (1小时自动回收连接)
-- 验证: 运行测试通过
+- 更新 PROJECT/TASK_METRICS.md: 将 T-042 至 T-049 标记为 🟢 (Completed)
+- 确认下一阶段任务: 管理模块_收藏夹管理
+- 预研需求: 
+  - 需设计 Favorites / Collections 实体
+  - 需实现收藏夹的增删改查及论文关联
 
-**操作内容2**: 修复 Router 依赖注入错误  
+---
+
+## 2026-01-12 14:45:00
+**操作内容**: 重构 PaperService 依赖注入并更新文档  
+**操作目标**: 将 PaperService 对齐 AuthService 的依赖注入风格，并完善相关文档  
+**操作结果**: 成功  
+**备注**: 
+- 重构 (Refactoring):
+  - 修改 `src/service/papers/paper_service.py`:
+    - 构造函数改为 `__init__(self, session: AsyncSession)`
+    - 移除内部的 `get_db_session` 调用，改用传入的 `session`
+    - 定义 `get_paper_service` 工厂和 `PaperServiceDep` 类型别名
+    - 修复 `PaperProcessingService` 使用 `async_session_factory` 处理后台任务会话
+  - 更新 `src/controller/api/papers/router.py`:
+    - 全面替换为 `Annotated[PaperService, Depends(get_paper_service)]` 风格
+    - 修复了函数参数默认值顺序导致的 `SyntaxError`
+- 测试 (Testing):
+  - 更新 `test/src/test_papers_router.py` 中的 `dependency_overrides` 以适配新工厂函数
+  - 修复 `test/src/test_paper_service.py` 中的 Mock Fixture
+  - 验证通过: 16 passed, 2 warnings
+- 文档 (Documentation):
+  - 更新 `AGENT/BackendAgent/Documents/BACKEND_COMPONENT_DOCS.md`:
+    - 完善 Auth Module 文档
+    - 规范化依赖注入 (Dependency Injection) 的写法说明
+  - 更新 `AGENT/BackendAgent/MEMORY.md`:
+    - 记录 Service 依赖标准化的架构决策
+
+---
+
+## 2026-01-12 15:00:00
+**操作内容**: 修复 Router 依赖注入错误  
 **操作目标**: 解决 `TypeError: '_AsyncGeneratorContextManager' object is not an async iterator`  
 **操作结果**: 成功  
 **备注**: 
@@ -426,7 +238,7 @@
 
 ---
 
-## 2026-01-12 15:00:00
+## 2026-01-12 16:00:00
 **操作内容**: 最终修复 ConnectionDoesNotExistError 并整理 Repository  
 **操作目标**: 解决数据库连接中途关闭问题，并优化代码结构  
 **操作结果**: 成功  
@@ -443,7 +255,7 @@
 
 ---
 
-## 2026-01-12 16:00:00
+## 2026-01-12 17:30:00
 **操作内容**: 数据注入相关的内容  
 **操作目标**: 相关的service和repository  
 **操作结果**: 成功  
@@ -475,33 +287,6 @@
       async with async_session_factory() as session:
           yield session
   ```
-
----
-
-## 2026-01-12 17:30:00
-**操作内容**: 重构 PaperService 依赖注入并更新文档  
-**操作目标**: 将 PaperService 对齐 AuthService 的依赖注入风格，并完善相关文档  
-**操作结果**: 成功  
-**备注**: 
-- 重构 (Refactoring):
-  - 修改 `src/service/papers/paper_service.py`:
-    - 构造函数改为 `__init__(self, session: AsyncSession)`
-    - 移除内部的 `get_db_session` 调用，改用传入的 `session`
-    - 定义 `get_paper_service` 工厂和 `PaperServiceDep` 类型别名
-    - 修复 `PaperProcessingService` 使用 `async_session_factory` 处理后台任务会话
-  - 更新 `src/controller/api/papers/router.py`:
-    - 全面替换为 `Annotated[PaperService, Depends(get_paper_service)]` 风格
-    - 修复了函数参数默认值顺序导致的 `SyntaxError`
-- 测试 (Testing):
-  - 更新 `test/src/test_papers_router.py` 中的 `dependency_overrides` 以适配新工厂函数
-  - 修复 `test/src/test_paper_service.py` 中的 Mock Fixture
-  - 验证通过: 16 passed, 2 warnings
-- 文档 (Documentation):
-  - 更新 `AGENT/BackendAgent/Documents/BACKEND_COMPONENT_DOCS.md`:
-    - 完善 Auth Module 文档
-    - 规范化依赖注入 (Dependency Injection) 的写法说明
-  - 更新 `AGENT/BackendAgent/MEMORY.md`:
-    - 记录 Service 依赖标准化的架构决策
 
 ---
 
@@ -559,7 +344,7 @@
   - 实现 `src/service/papers/paper_service.py`: 
     - `upload_paper`: 处理文件保存、数据库记录创建、Arq 任务投递
     - `get_paper_status`: 查询论文处理状态
-01-14- 接口层:
+- 接口层:
   - 更新 `src/controller/api/papers/router.py`: 实现 `POST /upload` 和 `GET /{id}`
 - 测试:
   - 创建并通过 `test/src/test_paper_service_arq.py`，验证上传+异步处理流程
@@ -567,19 +352,140 @@
 ---
 
 ## 2026-01-14 13:55:00
-**操作内容1**: 实现阅读模块目录加载功能 (Reading Module TOC)  
+**操作内容**: 实现阅读模块目录加载功能 (Reading Module TOC)  
 **操作目标**: 完成 Task Metrics T-074~T-081，支持论文目录结构提取与前端展示  
 **操作结果**: 成功 (待审核)  
 **备注**: 
 - 数据模型:
   - 更新 `src/base/pg/entity.py`: Paper 模型新增 `toc` 字段 (JSON)
 
+---
+
+## 2026-01-14 15:30:00
+**操作内容**: 完善阅读模块视图管理 (View Management) 及修复测试问题  
+**操作目标**: 完成 Task Metrics T-082~T-089，实现图层/标注的增删改查及测试  
+**操作结果**: 成功  
+**备注**: 
+- 功能完善 (View Management):
+  - 实现 `Layer` 和 `Annotation` 的完整 CRUD 操作。
+  - Service层: `src/service/reader/reader_service.py`。
+  - Controller层: `src/controller/api/reader/router.py`。
+- 修复测试:
+  - 修复 `test_paper_service.py` 中的 `NoForeignKeysError` (添加 `ChatSession.paper_id` 外键)。
+  - 创建并完善 `test/src/test_reader_router.py`，覆盖所有接口 (GET/POST/PUT/DELETE)。
+- 任务追踪:
+  - 标记 T-082~T-089 为完成状态。
+
+---
+
+## 2026-01-14 16:00:00
+**操作内容**: 完成阅读模块-对话与总结功能 (Chat & Summary)  
+**操作目标**: 完成 Task Metrics T-090~T-097，实现论文对话、总结生成及会话管理  
+**操作结果**: 成功  
+**备注**: 
+- 架构重构:
+  - 创建 `src/service/chat/chat_service.py`，将业务逻辑从 Router 剥离。
+  - 规范化依赖注入 (`ChatServiceDep`)。
+- 功能实现:
+  - Chat: 实现会话创建、消息流式响应 (SSE)、会话更名 (PATCH)、会话删除 (DELETE, 级联删除消息)。
+  - Summary: 实现基于 LLM 的论文摘要生成 (`SummaryService`)。
+  - Retrieval: 确认 `RetrievalService` 与 Agent 的集成。
+- 测试验证:
+  - 完善 `test/src/test_chat_summary.py`:
+    - 修复 Fixtures (Mock `agent_graph`, `db_session`, `env_vars`)。
+    - 验证 `SummaryService` 摘要生成逻辑。
+    - 验证 `ChatService` 会话管理与 SSE 消息流。
+    - 测试全部通过。
+- 任务追踪:
+  - 标记 T-090~T-097 为完成状态。
+
+---
+
+## 2026-01-14 16:30:00
+**操作内容**: 完成阅读模块-笔记功能 (Note)  
+**操作目标**: 完成 Task Metrics T-098~T-105，实现通用笔记的 CRUD 功能  
+**操作结果**: 成功  
+**备注**: 
+- 数据库变更:
+  - 更新 `src/base/pg/entity.py`: 新增 `Note` 实体模型，更新 `User` 和 `Paper` 关联。
+- 功能实现:
+  - Controller: 定义 `NoteCreate`, `NoteUpdate`, `NoteResponse` 数据模型。
+  - Service: 实现 `NoteService`，支持笔记的创建、查询、更新和删除。
+  - Router: 新增 `/api/v1/reader/papers/{id}/notes` 和 `/api/v1/reader/notes/{id}` 接口。
+- 测试验证:
+  - 创建 `test/src/test_reader_note.py`。
+  - 验证 Service 层 CRUD 逻辑。
+  - 验证 Controller 层 API 接口。
+  - 测试全部通过。
+- 任务追踪:
+  - 标记 T-098~T-105 为完成状态。
+
+---
+
+## 2026-01-14 17:15:00
+**操作内容**: 完成阅读模块-脑图功能 (Mind Map)  
+**操作目标**: 完成 Task Metrics T-106~T-113，实现思维导图的获取与更新  
+**操作结果**: 成功  
+**备注**: 
+- 数据库变更:
+  - 更新 `src/base/pg/entity.py`: 新增 `MindMap` 实体模型 (存储 JSON graph_data)，更新 `User` 和 `Paper` 关联。
+- 功能实现:
+  - Controller: 定义 `MindMapCreate`, `MindMapUpdate`, `MindMapResponse`, `GraphData` 数据模型。
+  - Service: 实现 `MindMapService`，支持脑图的获取 (get_or_create) 和更新。
+  - Router: 新增 `/api/v1/reader/papers/{id}/graph` (GET/PUT) 接口。
+- 测试验证:
+  - 创建 `test/src/test_reader_mindmap.py`。
+  - 验证 Service 层逻辑。
+  - 验证 Controller 层 API 接口。
+  - 测试全部通过。
+- 任务追踪:
+  - 标记 T-106~T-113 为完成状态。
+
+---
+
+## 2026-01-14 17:45:00
+**操作内容**: 完成用户设置模块 (User Settings)  
+**操作目标**: 完成 Task Metrics T-114~T-121，实现用户全局配置的更新  
+**操作结果**: 成功  
+**备注**: 
+- 数据库变更:
+  - 更新 `src/base/pg/entity.py`: 在 `User` 实体中添加 `settings` 字段 (JSON)，用于存储个性化配置。
+- 功能实现:
+  - Controller: 更新 `src/controller/api/auth/schema.py`，添加 `UserSettingsUpdate` 模型。
+  - Service: 更新 `src/service/auth/auth_service.py`，实现 `update_user_settings` 方法。
+  - Router: 更新 `src/controller/api/auth/router.py`，新增 `PUT /api/v1/users/settings` 接口。
+- 测试验证:
+  - 创建 `test/src/test_user_settings.py`。
+  - 验证 Service 层逻辑 (Mock UserRepository)。
+  - 验证 Controller 层 API 接口 (Mock Dependency)。
+  - 测试全部通过。
+- 任务追踪:
+  - 标记 T-114~T-121 为完成状态。
+
+---
+
+## 2026-01-14 18:45:00
+**操作内容**: 完成用户可配置项系统设计方案  
+**操作目标**: 设计T-145~T-147任务所需的用户配置系统架构  
+**操作结果**: 成功  
+**备注**: 
+- 完成用户配置系统完整设计方案，包含：
+  - 配置项分类（系统/用户/会话/Agent四级）
+  - 数据库表结构设计（config_categories, config_definitions, user_config_values等）
+  - RESTful API设计（获取/更新/批量操作）
+  - 与LangGraphAgent的集成方案（ConfigProvider模式）
+  - 配置热更新机制（事件驱动+缓存失效）
+  - 版本管理和迁移策略
+- 输出完整设计文档：`AGENT/BackendAgent/DESIGN_USER_CONFIG.md`
+- 为后续实现T-146和T-147提供详细的技术规范
+
+---
 
 ## 2026-01-14 21:04:00
-**操作内容**: 实现用户配置系统与合并 Agent 持久化实体
-**操作目标**: T-145, T-146, T-147 (Backend)
-**操作结果**: 成功
-**备注**:
+**操作内容**: 实现用户配置系统与合并 Agent 持久化实体  
+**操作目标**: T-145, T-146, T-147 (Backend)  
+**操作结果**: 成功  
+**备注**: 
 - **数据库变更**:
   - 更新 `src/base/pg/entity.py`:
     - 合并 `AgentSession`, `AgentTodo`, `AgentCheckpoint`, `AgentCheckpointWrite` 实体。
@@ -598,3 +504,77 @@
 - **验证方式**:
   - Alembic 迁移脚本自动生成并应用成功。
   - 代码静态检查无误。
+
+---
+
+## 2026-01-15 21:24:00
+**操作内容**: 提取搜索配置并完善文档  
+**操作目标**: 解决用户反馈的搜索配置缺失问题，明确搜索设置API  
+**操作结果**: 成功  
+**备注**: 
+- 提取了搜索相关的配置项 (deep_reasoning, auto_summary, etc.) 到 `SearchSettingsResponse`。
+- 更新 `src/service/config/config_service.py`，在 `init_default_configs` 中添加搜索相关默认配置。
+- 更新 `src/controller/api/search/schema.py`，新增配置模型。
+- 更新 `src/controller/api/search/router.py`，新增 `GET/PUT /search/config` 接口。
+- 更新 `AGENT/BackendAgent/Documents/IMPLEMENTATION_DETAILS.md`，补充搜索API文档。
+
+---
+
+## 2026-01-15 21:35:00
+**操作内容**: 修复PDF解析器依赖与架构优化  
+**操作目标**: 解决Marker库API变更导致的导入错误，提升解析性能并完善文档  
+**操作结果**: 成功  
+**备注**: 
+- 修复 `src/base/pdf_parser/parser.py`:
+  - 适配新版 `marker-pdf` API (`PdfConverter` 替代已废弃的 `load_all_models` 和 `convert_single_pdf`)。
+  - 引入 `asyncio` executor 机制，将 CPU 密集型的 PDF 解析任务移至独立线程运行，避免阻塞 Event Loop。
+  - 增强 `PDFParseResult` 为 Pydantic 模型，提供更强的类型校验。
+- 优化 `src/controller/api/papers/schema.py`:
+  - 完善 `PaperStatusResponse` 字段说明，明确 `toc` (Table of Contents) 字段用途。
+- 验证:
+  - 确认 `marker-pdf` 和 `pymupdf` 依赖检测逻辑正常。
+  - 确认解析器工厂模式 (`PDFParserFactory`) 可正确实例化解析器。
+
+---
+
+## 2026-01-16 08:50:00
+**操作内容**: 重构阅读器服务依赖注入模式  
+**操作目标**: 解耦 Service 层与 FastAPI 依赖注入机制，修复 "反向注入" 设计缺陷  
+**操作结果**: 成功  
+**备注**: 
+- 修改 `src/service/reader/reader_service.py`:
+  - 移除 `get_reader_service` 工厂函数和 `ReaderServiceDep` 类型别名。
+  - 恢复 Service 层为纯粹的业务逻辑类，不再依赖 FastAPI 的 `Depends`。
+- 修改 `src/controller/api/reader/router.py`:
+  - 将依赖注入从 `ReaderServiceDep` 改为直接注入 `SessionDep`。
+  - 在 Controller 层显式实例化 `ReaderService`, `SummaryService`, `NoteService`, `MindMapService`。
+  - 解决了 Controller 从 Service 获取 Session (`service.db`) 传递给其他 Service 的反模式问题。
+
+---
+
+## 2026-01-16 09:23:00
+**操作内容**: 重构聊天服务依赖注入模式
+**操作目标**: 解耦 ChatService 与 FastAPI 依赖注入，对齐阅读器模块的架构改进
+**操作结果**: 成功
+**备注**:
+- 修改 `src/service/chat/chat_service.py`:
+  - 移除 `get_chat_service` 和 `ChatServiceDep`。
+  - `ChatService` 构造函数改为直接接收 `AsyncSession`。
+- 修改 `src/controller/api/chat/router.py`:
+  - 路由函数改为依赖 `SessionDep`。
+  - 手动实例化 `ChatService(session)`。
+  - 统一了 Controller 层的依赖注入风格。
+
+---
+
+## 2026-01-16 13:50:00
+**操作内容**: 修复配置服务依赖注入错误与异步兼容性升级
+**操作目标**: 解决 `settings_router.py` 中 `get_session` 导入失败问题，并升级 `ConfigService` 支持 `AsyncSession`
+**操作结果**: 成功
+**备注**:
+- 修改 `src/service/config/config_service.py`:
+  - 将数据库会话类型从同步 `Session` 升级为 `AsyncSession`。
+  - 将所有数据库操作 (`exec`, `commit`, `refresh`) 升级为异步 `await` 调用。
+- 修改 `src/controller/api/users/settings_router.py`:
+  - 修复错误的 `get_session` 导入，改为使用 `base.pg.service.SessionDep`。
+  - 更新 `get_config_service` 依赖注入以匹配新的异步服务签名。
