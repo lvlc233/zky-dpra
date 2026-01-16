@@ -33,6 +33,20 @@ async def generate_summary(
     summary = await summary_service.get_or_create_summary(paper_id, summary_in)
     return Response.success(data=summary)
 
+@router.get("/papers/{paper_id}/summary", response_model=Response[SummaryResponse])
+async def get_summary(
+    paper_id: UUID,
+    summary_type: str,
+    session: SessionDep,
+    current_user: User = Depends(get_current_user)
+):
+    """获取论文摘要"""
+    summary_service = SummaryService(session)
+    summary = await summary_service.get_summary(paper_id, summary_type)
+    if not summary:
+        raise HTTPException(status_code=404, detail="Summary not found")
+    return Response.success(data=summary)
+
 # --- Layers ---
 
 @router.get("/papers/{paper_id}/layers", response_model=Response[LayerListResponse])

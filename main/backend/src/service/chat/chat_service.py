@@ -113,10 +113,4 @@ class ChatService:
         await self.session.refresh(msg)
         return msg
 
-# 依赖注入
-# TODO: 这里也有旧的依赖设计。
-async def get_chat_service(session: SessionDep) -> ChatService:
-    return ChatService(session)
 
-from typing import Annotated
-ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]

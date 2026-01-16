@@ -7,14 +7,14 @@ from loguru import logger
 import asyncio
 import json
 
-from base.pg.service import get_current_user_id
+from base.pg.service import get_current_user_id, SessionDep
 from base.pg.entity import User
 from controller.api.chat.schema import (
     ChatSessionCreate, ChatSessionResponse, ChatSessionListResponse,
     ChatMessageResponse, ChatMessageListResponse, ChatMessageRequest,
     ChatSessionUpdate
 )
-from service.chat.chat_service import ChatServiceDep
+from service.chat.chat_service import ChatService
 from controller.response import Response
 from agent.paper_chat_agent.agent import paper_chat_agent_graph
 from langchain_core.messages import HumanMessage
@@ -24,43 +24,47 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 @router.post("/sessions", response_model=Response[ChatSessionResponse])
 async def create_session(
     session_in: ChatSessionCreate,
-    service: ChatServiceDep,
+    session: SessionDep,
     user_id: UUID = Depends(get_current_user_id)
 ):
     """创建新的聊天会话"""
+    service = ChatService(session)
     new_session = await service.create_session(user_id, session_in)
     return Response.success(data=new_session)
 
 @router.get("/sessions", response_model=Response[ChatSessionListResponse])
 async def list_sessions(
-    service: ChatServiceDep,
+    session: SessionDep,
     limit: int = 20,
     user_id: UUID = Depends(get_current_user_id)
 ):
     """获取会话列表"""
+    service = ChatService(session)
     sessions = await service.list_sessions(user_id, limit)
     return Response.success(data={"sessions": sessions})
 
 @router.get("/sessions/{session_id}", response_model=Response[ChatSessionResponse])
 async def get_session(
     session_id: UUID,
-    service: ChatServiceDep,
+    session: SessionDep,
     user_id: UUID = Depends(get_current_user_id)
 ):
     """获取会话详情"""
-    session = await service.get_session(session_id, user_id)
-    if not session:
+    service = ChatService(session)
+    chat_session = await service.get_session(session_id, user_id)
+    if not chat_session:
         raise HTTPException(status_code=404, detail="Session not found")
-    return Response.success(data=session)
+    return Response.success(data=chat_session)
 
 @router.patch("/sessions/{session_id}", response_model=Response[ChatSessionResponse])
 async def update_session(
     session_id: UUID,
     session_in: ChatSessionUpdate,
-    service: ChatServiceDep,
+    session: SessionDep,
     user_id: UUID = Depends(get_current_user_id)
 ):
     """更新会话信息"""
+    service = ChatService(session)
     updated_session = await service.update_session(session_id, user_id, session_in)
     if not updated_session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -69,10 +73,11 @@ async def update_session(
 @router.delete("/sessions/{session_id}")
 async def delete_session(
     session_id: UUID,
-    service: ChatServiceDep,
+    session: SessionDep,
     user_id: UUID = Depends(get_current_user_id)
 ):
     """删除会话"""
+    service = ChatService(session)
     success = await service.delete_session(session_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -81,13 +86,14 @@ async def delete_session(
 @router.get("/sessions/{session_id}/messages", response_model=Response[ChatMessageListResponse])
 async def get_history(
     session_id: UUID,
-    service: ChatServiceDep,
+    session: SessionDep,
     user_id: UUID = Depends(get_current_user_id)
 ):
     """获取会话历史消息"""
     # 验证 session 归属
-    session = await service.get_session(session_id, user_id)
-    if not session:
+    service = ChatService(session)
+    chat_session = await service.get_session(session_id, user_id)
+    if not chat_session:
         raise HTTPException(status_code=404, detail="Session not found")
         
     messages = await service.get_messages(session_id)
@@ -97,13 +103,14 @@ async def get_history(
 async def send_message(
     session_id: UUID,
     request: ChatMessageRequest,
-    service: ChatServiceDep,
+    session: SessionDep,
     user_id: UUID = Depends(get_current_user_id)
 ):
     """
     发送消息并返回 SSE 流 (支持 Paper Chat Agent)
     """
     # 1. 验证 Session
+    service = ChatService(session)
     chat_session = await service.get_session(session_id, user_id)
     if not chat_session:
         raise HTTPException(status_code=404, detail="Session not found")
