@@ -227,6 +227,16 @@ class CollectionPaper(SQLModel, table=True):
 > - `event: source` -> `data: JSON({...})` (Citation info)
 > - `event: error` -> `data: "Error msg"`
 
+### 2.6 搜索 (Search) - Tags: `Search`
+
+| Method | Path | Summary | Request | Response |
+| :--- | :--- | :--- | :--- | :--- |
+| POST | `/search` | 搜索论文 (综合) | `SearchRequest` | `SearchResponse` |
+| GET | `/search/history` | 获取搜索历史 | `Query(limit)` | `List[SearchHistoryResponse]` |
+| DELETE | `/search/history` | 清空搜索历史 | - | `204 No Content` |
+| GET | `/search/config` | 获取搜索配置 | - | `SearchSettingsResponse` |
+| PUT | `/search/config` | 更新搜索配置 | `SearchSettingsUpdate` | `SearchSettingsResponse` |
+
 ---
 
 ## 3. 异步任务设计 (Async Tasks)

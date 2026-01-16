@@ -100,9 +100,28 @@ Agent测试内容包括3个部分，并以节点和工具为单位。
 
 
 ### 前端
-1. 使用config专门处理url连接等配置项
-2. 使用专门的service进行后端数据连接并进行数据转化
-TODO: 前端内容不了解，需要一定的调研。
+1. **架构与框架**:
+    - 采用 **Next.js 14 (App Router)** 架构，充分利用 Server Components 进行性能优化。
+    - 核心语言: **TypeScript 5+**，强制开启严格模式。
+    - 路由策略: 基于文件系统的路由 (File-system based routing)，遵循 `src/app` 目录结构。
+
+2. **UI/UX 设计体系**:
+    - 样式引擎: **Tailwind CSS**，实现原子化、可响应的样式开发。
+    - 组件库: 基于 **Radix UI** (Headless UI) + **Shadcn/UI** 的自建组件体系，确保可定制性与无障碍访问 (A11y)。
+    - 图标库: 使用 **Lucide React**。
+
+3. **核心功能模块实现**:
+    - **PDF 阅读**: 集成 `react-pdf` 和 `pdfjs-dist` 实现高性能 PDF 渲染与交互。
+    - **知识图谱**: 使用 `reagraph` (WebGL) 进行大规模知识节点的 2D/3D 可视化展示。
+    - **AI 交互**: 集成 **Vercel AI SDK (`ai`)** 处理流式对话 (Streaming) 和 LLM 工具调用，支持 Server-Sent Events (SSE)。
+
+4. **状态管理与数据流**:
+    - **客户端状态**: 使用 **Zustand** 管理轻量级全局状态 (如 UI 开关、用户会话、阅读器配置)。
+    - **服务端数据**: 优先使用 Next.js Server Actions 与 Server Components Fetching；统一封装请求层处理拦截与错误映射。
+
+5. **配置与环境**:
+    - 使用 `next.config.mjs` 处理构建配置。
+    - 环境变量通过 `.env` 管理，禁止硬编码敏感信息。
 
 
 
@@ -200,6 +219,7 @@ TODO: 前端内容不了解，需要一定的调研。
     '''
 9. 如果一个模块打算废弃，使用 废弃的注解标志，并提交废弃申请记录，供MasterAgent或人类审核。 
 10. 后端项目始终使用模块化导包而非相对位置导包，若不清楚模块内容，查看pyproject.toml
+11. 管理员会使用TODO和Agent进行交流,例如提出问题或者指出修改建议,在完成了相关TODO的时候记得移除相关TODO的标记,它们通常是一次性的。若有必要,可以将TODO的交流/解决记录改为注释。
 
 ## 数据模型设计规范（SaaS化哲学）
 > 核心原则：数据模型即业务边界。模型是模块间交互的契约，而非全局共享的数据容器。

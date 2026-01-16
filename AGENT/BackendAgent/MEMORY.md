@@ -123,6 +123,18 @@
 - **显式资源释放**: 在 Generator 中使用 `try...except...finally` 结构，确保 `session.close()` 即使在异常时也能执行，防止 `ConnectionDoesNotExistError`。
 - **避免混合使用**: 不要在 Generator 内部再使用 `async with session_factory()`，而是显式创建和关闭，避免双重 Context Manager 导致的逻辑混乱。
 
+### PDF解析与搜索配置 (2026-01-15)
+- **Marker库适配**: 新版 `marker-pdf` 废弃了 `load_all_models`，需使用 `PdfConverter` + `create_model_dict` 初始化。
+- **解析器架构**: CPU密集型解析任务（如Marker渲染）必须封装在 `asyncio` executor 中运行，避免阻塞主线程。
+- **搜索配置管理**: 搜索相关参数（深度推理、自动摘要等）已纳入用户设置体系 (`UserSettings`)，通过 `/api/v1/search/config` 统一管理。
+
+### 架构决策与技术债务 (2026-01-16)
+- **共享模型模式 (Shared Schema Pattern)**:
+  - **现状**: Reader 模块 (`src/service/reader/schema.py`) 采用了共享模型模式，Service 层定义的 Schema 同时被用作 Controller 层的 Request/Response 模型。
+  - **原因**: 为了快速迭代，减少 CRUD 类业务的重复样板代码。
+  - **规范偏差**: 这不符合严格的分层架构规范（Controller 应定义 Request/Response，Service 应定义 DTO）。
+  - **未来规划**: 这是一个已知的技术债务，后续需要重构为 Mapper 模式 (Request -> DTO -> Response)。目前通过 TODO 注释标记。
+
 ---
-**最后更新**: 2026年01月14日 14:15
-**记忆版本**: v1.7
+**最后更新**: 2026年01月16日 09:00
+**记忆版本**: v1.9
