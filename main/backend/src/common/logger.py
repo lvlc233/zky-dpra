@@ -4,6 +4,7 @@ from types import FrameType
 from typing import cast
 
 from loguru import logger
+from common.model.errors import BaseAppException
 
 # TODO: 这个是?怎么用的?
 class InterceptHandler(logging.Handler):
@@ -23,7 +24,12 @@ class InterceptHandler(logging.Handler):
             frame = cast(FrameType, frame.f_back)
             depth += 1
 
-        logger.opt(depth=depth, exception=record.exc_info).log(
+        # 如果是自定义业务异常，不打印堆栈信息
+        exc_info = record.exc_info
+        if exc_info and isinstance(exc_info[1], BaseAppException):
+            exc_info = None
+
+        logger.opt(depth=depth, exception=exc_info).log(
             level, record.getMessage()
         )
 

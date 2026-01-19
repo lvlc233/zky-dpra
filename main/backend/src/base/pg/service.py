@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from fastapi import Depends, Header
+from fastapi import Depends
 
 from base.config import settings
 from base.pg.entity import User, Paper, Collection, CollectionPaper, PaperChunk, PaperSummary, Layer, Annotation
@@ -60,20 +60,6 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 SessionDep = Annotated[AsyncSession, Depends(get_db_session)]
-
-def get_current_user_id(x_user_id: Optional[str] = Header(default=None)) -> UUID:
-    """
-    获取当前用户ID (Mock/Dev)
-    TODO: Integrate with real Auth or JWT decoding if needed at this level.
-    Currently using X-User-Id header for simplicity in some modules.
-    """
-    if not x_user_id:
-        # Default UUID for testing/dev if no header provided
-        return UUID("12345678-1234-5678-1234-567812345678")
-    try:
-        return UUID(x_user_id)
-    except ValueError:
-        return UUID("12345678-1234-5678-1234-567812345678")
 
 
 class UserRepository:
@@ -224,6 +210,15 @@ class CollectionRepository:
         statement = select(Collection).where(Collection.user_id == user_id).order_by(Collection.updated_at.desc()).limit(limit).offset(offset)
         result = await session.execute(statement)
         return result.scalars().all()
+
+    @staticmethod
+    async def get_default_collection(session: AsyncSession, user_id: UUID) -> Optional[Collection]:
+        statement = select(Collection).where(
+            Collection.user_id == user_id,
+            Collection.is_default.is_(True),
+        )
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
 
     @staticmethod
     async def update_collection(session: AsyncSession, collection: Collection) -> Collection:

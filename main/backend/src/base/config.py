@@ -1,22 +1,21 @@
 '''
 开发者: BackendAgent
-当前版本: v1.1_config
+当前版本: v1.2_config
 创建时间: 2026年01月08日 11:30
-更新时间: 2026年01月09日 15:45
+更新时间: 2026年01月16日 10:00
 更新记录:
     [2026年01月08日 11:30:v1.0_config:创建数据库配置模块]
     [2026年01月09日 15:45:v1.1_config:添加Embedding服务配置(本地ONNX/云端SiliconFlow)]
+    [2026年01月16日 10:00:v1.2_config:修复transformers缓存路径警告]
 '''
 
-import os
 from typing import Optional, Literal
+
 
 # pydantic v2 use pydantic_settings
 # 考虑到兼容性，这里暂时假设是 v1 或已安装 pydantic-settings
-try:
-    from pydantic_settings import BaseSettings
-except ImportError:
-    from pydantic import BaseSettings
+
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):

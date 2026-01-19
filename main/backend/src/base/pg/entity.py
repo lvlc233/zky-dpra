@@ -167,6 +167,11 @@ class Collection(SQLModel, table=True):
         default=None,
         sa_column_kwargs={"comment": "描述"}
     )
+    is_default: bool = Field(
+        default=False,
+        index=True,
+        sa_column_kwargs={"comment": "是否为默认收藏夹"}
+    )
     created_at: datetime = Field(
         default_factory=datetime.now,
         sa_column_kwargs={"comment": "创建时间"}
