@@ -240,3 +240,89 @@ path: "/AGENT"
 - 完成 FastAPI 接口定义 (Auth, Papers, Chat)
 - 设计了基于 Arq 的异步文件处理流程
 - 规划了基于 SSE 的流式对话接口
+
+========================
+操作时间: 2026-01-17 22:07
+操作内容: 论文文件URL与下载链路改造（Nginx X-Accel-Redirect）
+操作目标: 前端仅需PDF URL即可安全预览/下载，不走对象存储
+操作结果: 成功
+备注:
+- 变更范围:
+  * main/backend/src/controller/api/papers/router.py: /papers/{paper_id}/file 改为返回 X-Accel-Redirect
+  * main/backend/src/service/papers/paper_service.py: 上传时生成稳定 file_url，并规范化文件名
+  * main/backend/src/controller/api/reader/router.py: Layers/Annotations 接口改为依赖注入 ReaderServiceDep
+  * main/backend/test/*: 更新 paper file 测试，修复 chat/reader/agent 测试不一致导致的失败
+- 验证方式与结果:
+  * uv run pytest: 通过
+  * uv run python -m compileall src: 通过
+
+========================
+操作时间: 2026-01-17 22:44
+操作内容: 认证链路增强（Cookie + 直链PDF）
+操作目标: 支持浏览器直接打开PDF资源时仍可携带认证信息
+操作结果: 成功
+备注:
+- 变更范围:
+  * main/backend/src/controller/api/auth/router.py: login 写入 access_token Cookie，鉴权依赖支持从 Cookie 取 token
+  * main/backend/src/controller/api/papers/router.py: /papers/{paper_id}/file 使用 get_current_user_for_file（支持 query token）
+  * main/backend/test/src/test_paper_reading.py: 适配新增依赖覆盖
+- 验证方式与结果:
+  * uv run pytest: 通过
+
+========================
+操作时间: 2026-01-17 23:11
+操作内容: 修复登录响应的 Set-Cookie 可靠性
+操作目标: 解决部分客户端侧观测到 login 未返回/未生效 Cookie 的问题
+操作结果: 成功
+备注:
+- 变更范围:
+  * main/backend/src/controller/api/auth/router.py: login 改为显式返回 JSONResponse 并在该响应上 set_cookie
+  * main/backend/test/src/test_auth_router.py: 增加 Set-Cookie 断言，防止回归
+- 验证方式与结果:
+  * python -m pytest test/src/test_auth_router.py: 通过
+  * python -m pytest: 通过
+
+========================
+操作时间: 2026-01-17 23:24
+操作内容: 修复 file_url 相对路径导致前端 PDF 404
+操作目标: 避免 status/详情接口返回 "/api/v1/..." 时被前端按 localhost:3000 解析
+操作结果: 成功
+备注:
+- 变更范围:
+  * main/backend/src/controller/api/papers/router.py: 生成绝对 file_url（基于 request.base_url）
+- 验证方式与结果:
+  * python -m pytest test/src/test_paper_reading.py: 通过
+  * python -m compileall src: 通过
+========================
+操作时间: 2026年01月17日 23:42
+目标: 修复前端预览 PDF 404/空文件问题（后端侧提供可直接访问的 file_url，并在未配置 Nginx 时返回真实文件流）
+变更范围:
+- main/backend/src/controller/api/papers/router.py
+  - get_paper_file: 默认使用 FileResponse 返回本地 PDF 文件流；当环境变量 DPRA_USE_X_ACCEL_REDIRECT=1/true/yes 时，改用 X-Accel-Redirect
+- main/backend/test/src/test_paper_reading.py
+  - test_get_paper_file_success: 适配 FileResponse，校验返回内容为非空 PDF
+  - test_get_paper_detail_with_toc: 适配返回绝对 file_url
+验证方式与结果:
+- python -m pytest test/src/test_paper_reading.py test/src/test_papers_router.py: 通过
+- python -m compileall src: 通过
+说明:
+- 该改动用于在本地开发/未部署 Nginx 时避免 X-Accel-Redirect 返回空内容；如部署了 Nginx 并配置 internal-uploads location，可开启 DPRA_USE_X_ACCEL_REDIRECT 以走 Nginx 托管
+
+========================
+操作时间: 2026年01月19日 22:30
+操作内容: 统一接口文档为 Job 模式
+操作目标: 前后端接口与 SSE 事件规范统一到 Job 任务模型
+操作结果: 成功
+备注:
+- 更新 Read 模块接口为 Job 创建/查询/订阅
+- Task 模型统一为 Job，并新增 JobCreateRequest/JobResponse
+- SSE 事件改为 JobStart/JobProgress/JobEnd/JobError
+
+========================
+操作时间: 2026年01月19日 22:33
+操作内容: 补充 Job 结果结构与类型映射
+操作目标: 统一 Job 结果字段，明确各任务类型的 result 结构
+操作结果: 成功
+备注:
+- Job.result/JobEventPayload.result 按类型映射到 Toc/AISummary/MindMap/Message
+- 新增 JobResult 类型说明用于前后端对齐

@@ -162,7 +162,7 @@
 | T-147 | Backend | 校验用户设置相关接口的实现是否符合设计稿 | LangGraphAgent、Backend | P1 | 🟢  |  |  | 组件使用文档和组件代码 |
 | T-148 | MasterAgent | 阅读全部的项目文档设置首页介绍处的相关内容 | MasterAgent | P1 | 🔴  |  |  | 组件使用文档和组件代码 |
 | T-149 | Frontend | 根据首页需求生成首页介绍处的相关内容 | Frontend | P1 | 🔴  |  |  | 组件使用文档和组件代码 |
-| T-150 | Frontend | 使用Next.js将组件串联成页面并完成完整的前端项目(连接后端) | Frontend | P1 | 🔴  |  |  | 组件使用文档和组件代码 |
+| T-150 | Frontend | 使用Next.js将组件串联成页面并完成完整的前端项目(连接后端) | Frontend | P1 | 🟢  | 2026-01-17 10:00 | 2026-01-17 14:00 | 完成所有核心页面与后端接口的对接，修复类型错误 |
 | T-151 | MasterAgent | 生成README.md和该项目的论文研究文档 | MasterAgent | P1 | 🔴  |  |  | 最终文档 |
 
 

@@ -7,17 +7,7 @@
 
 ---
 
-## 1. 认证与用户模块 (Auth & User)
 
-前端已实现登录/注册弹窗，需要后端提供标准 JWT 认证支持。
-
-### 1.1 接口列表
-| Method | Path | Description | Payload/Params | Response |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/auth/login` | 用户登录 | `{email, password}` | `{access_token, token_type, user: User}` |
-| `POST` | `/api/v1/auth/register` | 用户注册 | `{email, password, full_name?}` | `{id, email, created_at}` |
-| `GET` | `/api/v1/users/me` | 获取当前用户信息 | Header: `Authorization` | `{id, email, full_name, avatar_url, settings}` |
-| `PUT` | `/api/v1/users/settings` | 更新用户全局设置 | `{settings: {theme, language, ...}}` | `{settings}` |
 
 ---
 
@@ -211,3 +201,4 @@ interface ReportItem {
   summary?: string;
 }
 ```
+(感觉可以合并到统一架构文案中。)
