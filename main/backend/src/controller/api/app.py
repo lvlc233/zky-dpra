@@ -9,6 +9,7 @@
 '''
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
@@ -18,10 +19,9 @@ from loguru import logger
 from controller.api.papers.router import router as papers_router
 from controller.api.auth.router import router as auth_router, users_router
 from controller.api.reader.router import router as reader_router
-from controller.api.chat.router import router as chat_router
-from controller.api.reports.router import router as reports_router
 from controller.api.collections.router import router as collections_router
 from controller.api.search.router import router as search_router
+from controller.api.users.settings_router import router as settings_router
 
 # 导入异常处理器
 from controller.response import global_exception_handler
@@ -55,7 +55,21 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
         description="基于 LangGraph 的 AI 辅助论文研究与管理平台 API"
     )
-
+    # 跨域
+    app.add_middleware(
+        CORSMiddleware,
+        # 当 allow_credentials=True 时，allow_origins 不能包含 "*"，必须显式指定域名
+        # TODO: 这边也是给nginx做适配来着的,也是后面要考虑的问题。
+        allow_origins=[
+            "http://localhost:3000", 
+            "http://127.0.0.1:3000",
+            "http://localhost:5173", # Vite 默认端口，以防万一
+            "http://127.0.0.1:5173"
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],  # 关键：允许所有HTTP方法
+        allow_headers=["*"],  # 关键：允许所有请求头
+    )
     # 注册全局异常处理器
     app.add_exception_handler(Exception, global_exception_handler)
     app.add_exception_handler(StarletteHTTPException, global_exception_handler)

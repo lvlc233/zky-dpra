@@ -1,21 +1,46 @@
 import request from '@/lib/request';
 import { Collection, Paper } from '@/types/models';
 
+const mapPaper = (paper: Paper & Record<string, unknown>): Paper => {
+  const mappedId = (paper as { paper_id?: string }).paper_id ?? paper.id;
+  return {
+    ...paper,
+    id: mappedId,
+  };
+};
+
+const mapCollection = (collection: Collection & Record<string, unknown>): Collection => {
+  const mappedId = (collection as { collection_id?: string }).collection_id ?? collection.id;
+  const mappedCount = (collection as { total?: number }).total ?? collection.count;
+  return {
+    ...collection,
+    id: mappedId,
+    count: mappedCount,
+  };
+};
+
 export const collectionService = {
   getAll: async (): Promise<Collection[]> => {
-    return request.get('/collections');
+    const data = await request.get('/collections');
+    const list = (data as Collection[]) ?? [];
+    return list.map((item) => mapCollection(item));
   },
 
   getById: async (id: string): Promise<Collection & { papers: Paper[] }> => {
-    return request.get(`/collections/${id}`);
+    const data = await request.get(`/collections/${id}`);
+    const mapped = mapCollection(data as Collection);
+    const papers = ((data as { papers?: Paper[] }).papers ?? []).map((paper) => mapPaper(paper));
+    return { ...mapped, papers };
   },
 
-  create: async (name: string, description?: string): Promise<Collection> => {
-    return request.post('/collections', { name, description });
+  create: async (name: string): Promise<Collection> => {
+    const data = await request.post('/collections', { name });
+    return mapCollection(data as Collection);
   },
 
-  update: async (id: string, data: Partial<Collection>): Promise<Collection> => {
-    return request.put(`/collections/${id}`, data);
+  update: async (id: string, name: string): Promise<Collection> => {
+    const data = await request.patch(`/collections/${id}`, { new_name: name });
+    return mapCollection(data as Collection);
   },
 
   delete: async (id: string): Promise<{ success: boolean }> => {
@@ -23,10 +48,10 @@ export const collectionService = {
   },
 
   addPaper: async (collectionId: string, paperId: string): Promise<void> => {
-    return request.post(`/collections/${collectionId}/papers`, { paper_id: paperId });
+    return request.patch(`/papers/move/${paperId}`, { collection_id: collectionId });
   },
 
-  removePaper: async (collectionId: string, paperId: string): Promise<void> => {
-    return request.delete(`/collections/${collectionId}/papers/${paperId}`);
+  removePaper: async (paperId: string): Promise<void> => {
+    return request.delete(`/papers/${paperId}`);
   }
 };

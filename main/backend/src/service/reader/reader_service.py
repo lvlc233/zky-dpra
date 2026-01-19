@@ -91,3 +91,9 @@ class ReaderService:
         return await ReaderRepository.delete_annotation(self.session, anno)
 
 
+def get_reader_service(session: SessionDep) -> ReaderService:
+    return ReaderService(session)
+
+
+ReaderServiceDep = Annotated[ReaderService, Depends(get_reader_service)]
+

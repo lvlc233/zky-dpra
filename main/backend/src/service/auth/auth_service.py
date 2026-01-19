@@ -12,8 +12,8 @@ from typing import Optional, Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from base.pg.entity import User
-from base.pg.service import UserRepository
+from base.pg.entity import User, Collection
+from base.pg.service import UserRepository, CollectionRepository
 from common.security import get_password_hash, verify_password, decode_access_token
 from common.logger import logger
 from common.model.errors import AuthenticationError, BusinessError, NotFoundError
@@ -94,6 +94,14 @@ class AuthService:
         
         # 保存到数据库
         created_user = await UserRepository.create_user(self.session, new_user)
+
+        default_collection = Collection(
+            user_id=created_user.id,
+            name="默认收藏夹",
+            description="系统默认收藏夹",
+            is_default=True,
+        )
+        await CollectionRepository.create_collection(self.session, default_collection)
         logger.info(f"新用户注册成功: {email}")
         return created_user
 

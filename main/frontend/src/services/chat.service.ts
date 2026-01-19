@@ -14,15 +14,30 @@ export interface ChatMessage {
 
 export const chatService = {
   createSession: async (agentType: string, context?: any): Promise<ChatSession> => {
-    return request.post('/chat/sessions', { agent_type: agentType, context });
+    const data = await request.post('/chat/sessions', { agent_type: agentType, context });
+    const response = data as ChatSession & Record<string, unknown>;
+    return {
+      ...response,
+      id: (response as { sessionId?: string; session_id?: string }).sessionId ?? (response as { session_id?: string }).session_id ?? response.id,
+    };
   },
 
   getSessions: async (): Promise<ChatSession[]> => {
-    return request.get('/chat/sessions');
+    const data = await request.get('/chat/sessions');
+    const list = (data as ChatSession[]) ?? [];
+    return list.map((session) => ({
+      ...session,
+      id: (session as { sessionId?: string; session_id?: string }).sessionId ?? (session as { session_id?: string }).session_id ?? session.id,
+    }));
   },
 
   getSession: async (id: string): Promise<ChatSession> => {
-    return request.get(`/chat/sessions/${id}`);
+    const data = await request.get(`/chat/sessions/${id}`);
+    const session = data as ChatSession & Record<string, unknown>;
+    return {
+      ...session,
+      id: (session as { sessionId?: string; session_id?: string }).sessionId ?? (session as { session_id?: string }).session_id ?? session.id,
+    };
   },
 
   getMessages: async (sessionId: string): Promise<ChatMessage[]> => {

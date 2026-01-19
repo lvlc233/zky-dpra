@@ -204,9 +204,116 @@
 - **变更范围**: 更新前端服务层与页面参数，统一 API 路径与字段映射。
 - **验证方式**: `npm run lint` 通过。
 - **结果**: 成功。
+- **变更范围**:
+    - **`src/types/api.d.ts`**: 新增 `ApiResponse` 泛型，更新 `PaperListResponse` (移除 total 字段适配 Array 返回)， 新增 `Search/Reader` 响应类型。
+    - **`src/lib/request.ts`**: 拦截器适配 `{ code: 200， data: ...， message: ... }` 响应解包逻辑。
+    - **`src/services/`**:
+        - `auth.service.ts`: 无变更 (路径一致)。
+        - `paper.service.ts`:
+            - 列表接口更新为 `/papers/list` (GET)。
+            - 新增 `/papers/fetch` (从 URL 抓取)。
+            - 移除 `Reader` 相关方法 (移至 `reader.service.ts`)。
+        - `reader.service.ts` (新增): 封装 `Summary`， `Layers`， `Annotations`， `Notes`， `Graph` 接口。
+        - `collection.service.ts` (新增): 封装收藏夹 CRUD。
+        - `search.service.ts` (新增): 封装论文搜索与配置。
+        - `chat.service.ts`: 适配 `/chat/sessions` 路径。
+- **验证方式**: 代码逻辑与 API 文档路径、参数一致性检查。
 
-## 2026-01-19 23:28
-- **目标**: 补充主页项目细节与介绍。
-- **变更范围**: 优化 `src/app/page.tsx`，增加核心功能、优势介绍及页脚。
-- **验证方式**: `npm run lint` 通过。
+### 页面功能实现与后端集成 (v0.3)
+- **目标**: 完成核心页面的 UI 实现并接入后端真实 API。
+- **变更范围**:
+    - **认证模块**: 实现 `Login` / `Register` 页面，接入 `auth.service`。
+    - **仪表盘**: `DashboardPage` 接入 `paper.service` 列表与上传功能，接入 `search.service`。
+    - **阅读器**: `ReaderPage` 接入 `paper.service` (详情/状态) 与 `reader.service` (分层阅读)。
+        - `PDFViewer`: 支持带 Token 的 PDF 加载。
+        - `GuideTab`: 实现导读获取与基于 SSE 的流式对话 (`chat.service`)。
+        - `GraphTab`: 集成 `GraphViz` 组件与 `reader.service` 知识图谱数据。
+    - **聊天室**: 新增 `src/app/chat/page.tsx`，实现独立的多会话管理与流式问答界面。
+- **验证方式**: 各模块功能代码逻辑完整，API 调用路径与参数匹配，UI 交互状态（`Loading/Error`）覆盖。
+
+### Bug 修复 (v0.3.1)
+- **目标**: 修复运行时 ReferenceError。
+- **变更范围**:
+    - `src/app/dashboard/page.tsx`: 定义缺失的 `handleUploadSuccess` 函数。
+    - `src/components/upload/UploadModal.tsx`: 修复 `onUploadSuccess` prop 未解构导致的潜在 ReferenceError。
+- **验证方式**: 确认 `handleUploadSuccess` 定义存在，且 `UploadModal` 正确解构 props。
+
+### 功能补全 (v0.3.2)
+- **目标**: 修复 Module Not Found 错误并补全基础 UI 组件。
+- **变更范围**:
+    - `src/components/ui/button.tsx`: 创建 Shadcn/UI Button 组件。
+    - `package.json`: 安装 `class-variance-authority`, `@radix-ui/react-slot` 依赖。
+- **验证方式**: 运行 `npx tsc --noEmit` 通过类型检查。
+
+### 页面优化 (v0.3.3)
+- **目标**: 移除 Home 页面冗余的 Action Bar，保留 Navbar 导航。
+- **变更范围**:
+    - `src/app/page.tsx`: 移除 Action Bar 区域代码及相关逻辑。
+    - `src/components/layout/Navbar.tsx`: 将导航链接指向 `/dashboard` 以保证功能可用。
+- **验证方式**: 确认 Home 页面无中间按钮，Navbar 点击可跳转。
+## 2026-01-17 14:00
+- **目标**: T-150 前端页面串联与后端对接。
+- **变更范围**: 
+    - 实现 API 服务层 (`src/services/*`) 对接后端接口。
+    - 实现核心页面: `Dashboard` (仪表盘), `Reader` (阅读器), `Chat` (独立对话), `Auth` (认证)。
+    - 修复 TypeScript 类型错误 (36 errors)。
+    - 优化 UI 组件 (Shadcn/UI) 与交互体验。
+- **验证方式**: `npx tsc --noEmit` 通过，页面功能自测通过。
+- **结果**: 成功。
+
+## 2026-01-17 14:15
+- **目标**: 实现前端统一日志与异常处理。
+- **变更范围**: 
+    - 新增 `src/lib/logger.ts` 统一日志工具。
+    - 新增 `src/app/error.tsx` 和 `src/app/global-error.tsx` 全局异常边界。
+    - 新增 `src/components/providers/GlobalErrorListener.tsx` 捕获 Window 级异常。
+    - 更新 `src/lib/request.ts` 集成日志与错误提示。
+    - 优化关键页面日志记录 (Reader, Dashboard, Chat, Upload)。
+- **验证方式**: `npx tsc --noEmit` 通过。
+- **结果**: 成功。
+
+## 2026-01-17 17:20
+- **目标**: 上传论文时携带收藏夹 ID，未指定则落默认收藏夹。
+- **变更范围**:
+    - `main/frontend/src/services/paper.service.ts`: `upload` 支持 `collection_id` 表单字段。
+    - `main/frontend/src/store/upload.store.ts`: 增加上传上下文 `collectionId` 并支持打开弹窗时覆盖。
+    - `main/frontend/src/components/upload/UploadModal.tsx`: 上传时将 `collectionId` 透传到后端。
+    - `main/frontend/src/app/dashboard/page.tsx`: 同步当前收藏夹到上传上下文，离开页面自动清空。
+- **验证方式**: `npx tsc --noEmit`、`npm run lint` 通过。
+- **结果**: 成功。
+
+## 2026-01-17 21:02
+- **目标**: 清理 Hooks 依赖告警，保证 lint 结果无告警。
+- **变更范围**:
+    - `main/frontend/src/app/chat/page.tsx`: `loadSessions` 改为稳定回调并补齐依赖。
+    - `main/frontend/src/app/dashboard/page.tsx`: `loadCollections/loadRecentPapers/handleUploadSuccess` 改为稳定回调并补齐依赖。
+    - `main/frontend/src/components/reader/PDFViewer.tsx`: 同步页码 Effect 补齐依赖。
+- **验证方式**: `npm run lint`（无 warnings）、`npx tsc --noEmit` 通过。
+- **结果**: 成功。
+
+## 2026-01-17 21:09
+- **目标**: 点击收藏夹后加载该收藏夹的论文列表。
+- **变更范围**:
+    - `main/frontend/src/app/dashboard/page.tsx`: 新增收藏夹详情加载逻辑，并在收藏夹切换/上传成功时刷新对应列表。
+- **验证方式**: `npm run lint`、`npx tsc --noEmit` 通过。
+- **结果**: 成功。
+
+## 2026-01-17 21:16
+- **目标**: 点击论文条目跳转到阅读页。
+- **变更范围**:
+    - `main/frontend/src/components/search/SearchResults.tsx`: 为论文行增加跳转逻辑（`/reader/{id}`），并处理行内按钮事件冒泡。
+- **验证方式**: `npm run lint`、`npx tsc --noEmit` 通过。
+- **结果**: 成功。
+## 时间: 2026-01-17 21:36
+目标: 阅读页在 AI 解析进行中仍可直接查看 PDF；解析进度非阻塞提示。
+变更范围:
+- main/frontend/src/app/reader/[id]/page.tsx
+验证方式与结果:
+- npm run lint: 通过
+- npx tsc --noEmit: 通过
+
+## 2026-01-18 13:16
+- **目标**: 补全“项目统一技术架构文档”前端技术选型表。
+- **变更范围**: 更新 `PROJECT/DOCUMENTS/项目统一技术架构文档(重要).md` 第 2 节前端技术选型表格（修正 PDF 行格式，按当前实际使用补齐 AI/组件库/消息提示/Markdown 渲染/请求封装）。
+- **验证方式**: 人工核对表格渲染与依赖/代码使用一致性（`main/frontend/package.json` 与 `src/*` 代码引用）。
 - **结果**: 成功。

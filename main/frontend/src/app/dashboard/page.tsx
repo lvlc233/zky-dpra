@@ -139,7 +139,7 @@ export default function DashboardPage() {
         const results = await searchService.search({
             query,
             page: 1,
-            page_size: 20,
+            limit: 20,
             filters: activeCollection ? { collection_id: activeCollection.id } : undefined
         });
         setHasSearched(true);

@@ -1,9 +1,10 @@
 '''
 开发者: BackendAgent
-当前版本: v1.3_paper_service_saas
+当前版本: v1.4_paper_file_url_and_x_accel
 创建时间: 2026年01月08日 14:00
-更新时间: 2026年01月10日 10:20
+更新时间: 2026年01月17日 21:58
 更新记录:
+    [2026年01月17日 21:58:v1.4_paper_file_url_and_x_accel:上传时生成稳定file_url并规范化文件名，配合Nginx X-Accel-Redirect下载]
     [2026年01月10日 10:20:v1.3_paper_service_saas:适配SaaS化架构，Service层返回DTO而非Entity，解耦数据层]
     [2026年01月09日 16:10:v1.2_paper_service:重构数据库访问逻辑，移除Service层SQL语句，使用Repository模式]
     [2026年01月08日 16:30:v1.1_paper_service:从/src/base/service/paper_service.py迁移到/src/service/papers/paper_service.py中]
@@ -18,10 +19,12 @@ import os
 import uuid
 from pathlib import Path
 from typing import List, Optional, Annotated
+from urllib.parse import urlparse
 from uuid import UUID
 
 import aiofiles
 from fastapi import Depends
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -31,10 +34,10 @@ from service.papers.schema import PaperUploadResponse, PaperDTO, PaperInfo
 from common.model.enums import PaperStatus
 
 # 导入 Entities (仅用于与 Repository 交互)
-from base.pg.entity import Paper, PaperChunk, User
+from base.pg.entity import Paper, PaperChunk, User, Collection
 
 from base.config import settings
-from base.pg.service import PaperRepository, SessionDep, async_session_factory
+from base.pg.service import PaperRepository, CollectionRepository, SessionDep, async_session_factory
 from base.pdf_parser.parser import PDFParseResult, parse_pdf, extract_pdf_text
 from base.embedding.embedding_service import EmbeddingService, embed_batch
 from base.embedding.text_splitter import SemanticTextSplitter
@@ -51,6 +54,7 @@ class PaperService:
         self.session = session
         self.upload_dir = Path(settings.upload_dir)
         self.upload_dir.mkdir(exist_ok=True)
+        # TODO: 仅管理员标注: 这里暂时就是指定本地的上传的目录在哪。
         logger.info(f"PaperService 初始化完成，上传目录: {self.upload_dir}")
 
     def _entity_to_dto(self, paper: Paper) -> PaperDTO:
@@ -76,9 +80,11 @@ class PaperService:
         file_content: bytes,
         filename: str,
         user_id: UUID,
-        content_type: str = "application/pdf"
+        content_type: str = "application/pdf",
+        collection_id: UUID | None = None,
     ) -> PaperUploadResponse:
         """
+        TODO: 是否要再支持下网络上传和存储呢?(当初的架构好像是有包括的。)
         上传论文文件
         """
         logger.info(f"开始上传论文: {filename}, 用户ID: {user_id}")
@@ -87,10 +93,21 @@ class PaperService:
         if not self._validate_file(filename, file_content):
             raise ValueError(f"文件验证失败: {filename}")
 
+        safe_filename = Path(filename).name
+        if not safe_filename:
+            raise ValueError("文件名无效")
+
         # 2. 生成文件ID和路径
         file_id = str(uuid.uuid4())
-        file_key = f"papers/{user_id}/{file_id}/{filename}"
+        file_key = f"papers/{user_id}/{file_id}/{safe_filename}"
         file_path = self.upload_dir / file_key
+
+        target_collection_id: UUID | None = None
+        if collection_id is not None:
+            collection = await CollectionRepository.get_collection_by_id(self.session, collection_id)
+            if not collection or collection.user_id != user_id:
+                raise ValueError("收藏夹不存在或无权访问")
+            target_collection_id = collection.id
 
         # 确保目录存在
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -105,15 +122,41 @@ class PaperService:
             # 4. 创建论文记录
             paper = await self._create_paper_record(
                 user_id=user_id,
-                title=filename,  # 初始标题为文件名，后续解析时更新
+                title=safe_filename,  # 初始标题为文件名，后续解析时更新
                 authors=[],  # 从PDF元数据提取
                 file_key=file_key,
                 file_url=None  # 可配置CDN URL
             )
 
+            try:
+                if target_collection_id is not None:
+                    await CollectionRepository.add_paper_to_collection(self.session, target_collection_id, paper.id)
+                else:
+                    default_collection = await CollectionRepository.get_default_collection(self.session, user_id)
+                    if not default_collection:
+                        try:
+                            default_collection = await CollectionRepository.create_collection(
+                                self.session,
+                                Collection(
+                                    user_id=user_id,
+                                    name="默认收藏夹",
+                                    description="系统默认收藏夹",
+                                    is_default=True,
+                                ),
+                            )
+                        except IntegrityError:
+                            await self.session.rollback()
+                            default_collection = await CollectionRepository.get_default_collection(self.session, user_id)
+
+                    if default_collection:
+                        await CollectionRepository.add_paper_to_collection(self.session, default_collection.id, paper.id)
+            except Exception as e:
+                logger.warning(f"论文加入默认收藏夹失败(不影响上传): paper_id={paper.id}, user_id={user_id}, err={e}")
+
             logger.info(f"论文记录创建成功: {paper.id}")
 
             # 5. 触发异步处理任务
+            # TODO: 这个解析好像有问题。TODO::作者标记,1. 要不要等待解析完成才持久化到本地?2.现在是先存储元数据到数据库,哪如果第一次解析,失败,那什么时候会再解析呢?
             await self._trigger_process_task(paper.id, file_path)
 
             return PaperUploadResponse(
@@ -129,16 +172,36 @@ class PaperService:
                 file_path.unlink()
             raise
     
+    # TODO: 这个异步任务创建和调度是否合理呃?
     async def _trigger_process_task(self, paper_id: UUID, file_path: Path):
         """
         触发PDF处理异步任务
         """
         try:
-            # 解析Redis URL
             redis_url = settings.arq_redis_url
-            host = redis_url.split('//')[1].split(':')[0]
-            port = int(redis_url.split(':')[-1].split('/')[0])
-            database = int(redis_url.split('/')[-1])
+            parsed = urlparse(redis_url)
+            host = parsed.hostname
+            port = parsed.port or 6379
+            database = int(parsed.path.lstrip("/") or "0")
+
+            if not host:
+                raise ValueError(f"Invalid Redis URL: {redis_url}")
+
+            try:
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_connection(host, port),
+                    timeout=0.2,
+                )
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                # TODO: 这里的确是需要异步任务的一个执行。其实应该分为3个模块论文上传
+                # 1.解析: 存储解析结果给AI进行利用(在上传的时候就进行处理,而不用等到需要AI需要的时候再解析->持久化))
+                # 2.pdf持久化: 存储到本地文件系统或是对象存储,用于在离线的情况下,存储论文(思考: 我真的需要存储完整的论文嘛?我这边只做pdf解析和元数据存储(url或file?),想就保留着吧,再说)
+                # 3.pdf元数据持久化: 存储基础的信息和可引用信息,可服务与收藏夹。
+                logger.warning(f"Redis不可用，跳过任务入队: {host}:{port}, paper_id={paper_id}")
+
+                return
 
             redis_settings = RedisSettings(
                 host=host,
@@ -146,16 +209,20 @@ class PaperService:
                 database=database
             )
             
-            # 创建连接池并入队
-            pool = await create_pool(redis_settings)
-            await pool.enqueue_job('process_pdf_task', str(paper_id))
-            await pool.close()
+            pool = None
+            try:
+                pool = await create_pool(redis_settings)
+                await pool.enqueue_job('process_pdf_task', str(paper_id))
+            finally:
+                if pool is not None:
+                    await pool.close()
             
             logger.info(f"已触发PDF处理任务: {paper_id}")
         except Exception as e:
             logger.error(f"触发PDF处理任务失败: {e}", exc_info=True)
             # 记录错误但不抛出异常，避免影响上传响应
     
+    #TODO: 用这里的redis做嘛?不用我们的worker下的内容,Agent需要获取重新了解下整个项目对这种解析的任务的了解,并汇报给我。
     def _validate_file(self, filename: str, file_content: bytes) -> bool:
         """
         验证文件类型和大小
@@ -199,6 +266,10 @@ class PaperService:
             file_url=file_url,
             status=PaperStatus.PENDING
         )
+
+        if paper.file_url is None:
+            paper.file_url = f"/api/v1/papers/{paper.id}/file"
+
         return await PaperRepository.create_paper(self.session, paper)
 
     async def get_paper_status(self, paper_id: UUID, user_id: UUID) -> Optional[PaperDTO]:

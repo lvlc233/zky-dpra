@@ -109,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
 
     try {
-      await collectionService.update(renamingId, { name: renameLabel });
+      await collectionService.update(renamingId, renameLabel);
       toast.success("重命名成功");
       setRenamingId(null);
       setRenameLabel('');

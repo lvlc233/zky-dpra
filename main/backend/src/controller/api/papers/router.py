@@ -1,23 +1,26 @@
 '''
 开发者: BackendAgent
-当前版本: v0.2_papers_upload_status
+当前版本: v0.4_papers_absolute_file_url
 创建时间: 2026年01月02日 10:16
-更新时间: 2026年01月09日 10:19
+更新时间: 2026年01月17日 23:24
 更新记录:
+    [2026年01月17日 21:58:v0.3_papers_x_accel_redirect:论文文件下载改为X-Accel-Redirect，交由Nginx托管文件流]
+    [2026年01月17日 23:24:v0.4_papers_absolute_file_url:状态/详情接口返回绝对 file_url，避免前端以自身域名请求导致404]
     [2026年01月09日 10:19:v0.2_papers_upload_status:补齐论文上传、状态查询、触发处理与列表接口，避免与动态路由冲突]
     [2026年01月02日 10:16:v0.1_papers:修复依赖注入和安全问题，使用Depends注入服务]
     [2026年01月02日 08:54:v0.1_paper_router:全局实例化服务，违反依赖注入原则]
 '''
 
 import asyncio
+import os
+from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Header
-from fastapi.responses import FileResponse
-import logging
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Header, Form, Request
+from fastapi.responses import Response, FileResponse
 
 from controller.api.papers.schema import PaperFetchRequest, PaperStatusResponse
-from controller.api.auth.router import get_current_user
+from controller.api.auth.router import get_current_user, get_current_user_for_file
 from service.papers.schema import PaperListResponse, PaperInfo, PaperUploadResponse
 from service.papers.arxiv_service import ArxivService
 from service.papers.paper_service import PaperService, PaperProcessingService, PaperServiceDep
@@ -31,6 +34,24 @@ from loguru import logger
 
 # 创建路由
 router = APIRouter(prefix="/papers", tags=["papers"])
+
+INTERNAL_UPLOADS_LOCATION_PREFIX = "/internal-uploads/"
+
+
+def _resolve_file_url(request: Request, file_url: str) -> str:
+    if not file_url:
+        return file_url
+
+    # 如果是网络的,就返回网络的
+    normalized = file_url.strip()
+    if normalized.startswith("http://") or normalized.startswith("https://"):
+        return normalized
+    # 如果是本地的,就处理下
+    # TODO: 感觉这个论文的本地化存储位置可以设置为配置项啊。
+    if normalized.startswith("/"):
+        return f"{str(request.base_url).rstrip('/')}{normalized}"
+
+    return normalized
 
 
 def get_arxiv_service() -> ArxivService:
@@ -191,6 +212,7 @@ async def fetch_papers(
 async def upload_paper(
     paper_service: PaperServiceDep,
     file: UploadFile = File(...),
+    collection_id: UUID | None = Form(None),
     current_user: User = Depends(get_current_user),
 ):
     logger.info(f"接收到论文上传请求: filename={file.filename}, user_id={current_user.id}")
@@ -208,6 +230,7 @@ async def upload_paper(
             filename=file.filename,
             user_id=current_user.id,
             content_type=file.content_type or "application/pdf",
+            collection_id=collection_id,
         )
         return response
     except ValueError as e:
@@ -226,6 +249,7 @@ async def upload_paper(
 @router.get("/{paper_id}/status", response_model=PaperStatusResponse)
 async def get_paper_status(
     paper_id: str,
+    request: Request,
     paper_service: PaperServiceDep,
     current_user: User = Depends(get_current_user),
 ):
@@ -245,7 +269,7 @@ async def get_paper_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="论文不存在或无访问权限",
         )
-
+    # TODO:状态用sse发送通知会不会好点
     return PaperStatusResponse(
         paper_id=str(paper.id),
         status=paper.status.value,
@@ -257,7 +281,7 @@ async def get_paper_status(
         created_at=paper.created_at,
         updated_at=paper.created_at,
         toc=paper.toc,
-        file_url=paper.file_url or f"/api/v1/papers/{paper.id}/file"
+        file_url=_resolve_file_url(request, paper.file_url or f"/api/v1/papers/{paper.id}/file")
     )
 
 
@@ -293,6 +317,7 @@ async def trigger_paper_processing(
 
 @router.get("/list", response_model=list[PaperStatusResponse])
 async def list_user_papers(
+    request: Request,
     paper_service: PaperServiceDep,
     limit: int = 10,
     offset: int = 0,
@@ -311,7 +336,7 @@ async def list_user_papers(
             created_at=p.created_at,
             updated_at=p.created_at,
             toc=p.toc,
-            file_url=p.file_url
+            file_url=_resolve_file_url(request, p.file_url)
         )
         for p in papers
     ]
@@ -321,7 +346,7 @@ async def list_user_papers(
 async def get_paper_file(
     paper_id: str,
     paper_service: PaperServiceDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_file),
 ):
     logger.info(f"接收到获取论文文件请求: paper_id={paper_id}, user_id={current_user.id}")
 
@@ -346,11 +371,32 @@ async def get_paper_file(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="文件文件不存在",
         )
-    
+
+    download_filename = paper.title
+    if not download_filename.lower().endswith(".pdf"):
+        download_filename = f"{download_filename}.pdf"
+
+    content_disposition = f"inline; filename*=UTF-8''{quote(download_filename)}"
+    use_x_accel = os.getenv("DPRA_USE_X_ACCEL_REDIRECT", "").strip().lower() in {"1", "true", "yes"}
+    if use_x_accel:
+        internal_uri = f"{INTERNAL_UPLOADS_LOCATION_PREFIX}{paper.file_key}"
+        internal_uri = quote(internal_uri, safe="/")
+        # TODO:这两种有什么区别嘛?
+        return Response(
+            status_code=status.HTTP_200_OK,
+            media_type="application/pdf",
+            headers={
+                "X-Accel-Redirect": internal_uri,
+                "Content-Disposition": content_disposition,
+            },
+        )
+    # TODO:这两种有什么区别嘛?
     return FileResponse(
         path=file_path,
-        filename=f"{paper.title}.pdf",
-        media_type="application/pdf"
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": content_disposition,
+        },
     )
 
 
@@ -406,6 +452,7 @@ async def test_arxiv_search(
 @router.get("/{paper_id}", response_model=PaperStatusResponse)
 async def get_paper_by_id(
     paper_id: str,
+    request: Request,
     paper_service: PaperServiceDep,
     current_user: User = Depends(get_current_user),
 ):
@@ -437,5 +484,5 @@ async def get_paper_by_id(
         created_at=paper.created_at,
         updated_at=paper.created_at,
         toc=paper.toc,
-        file_url=paper.file_url or f"/api/v1/papers/{paper.id}/file"
+        file_url=_resolve_file_url(request, paper.file_url or f"/api/v1/papers/{paper.id}/file")
     )

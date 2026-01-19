@@ -3,11 +3,12 @@ from typing import List, Optional, Annotated
 from uuid import UUID
 from datetime import datetime
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
-from base.pg.service import CollectionRepository, PaperRepository, SessionDep
+from base.pg.service import CollectionRepository, PaperRepository, SessionDep, UserRepository
 from base.pg.entity import Collection, Paper
 from controller.api.collections.schema import (
     CollectionCreate, 
@@ -46,8 +47,36 @@ class CollectionService:
             created_at=paper.created_at
         )
 
+    async def ensure_default_collection(self, user_id: UUID) -> Collection:
+        user = await UserRepository.get_user_by_id(self.session, user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+        default_collection = await CollectionRepository.get_default_collection(self.session, user_id)
+        if default_collection:
+            return default_collection
+
+        try:
+            collection = Collection(
+                user_id=user_id,
+                name="默认收藏夹",
+                description="系统默认收藏夹",
+                is_default=True,
+            )
+            return await CollectionRepository.create_collection(self.session, collection)
+        except IntegrityError:
+            await self.session.rollback()
+            default_collection = await CollectionRepository.get_default_collection(self.session, user_id)
+            if default_collection:
+                return default_collection
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建默认收藏夹失败")
+
     async def create_collection(self, user_id: UUID, data: CollectionCreate) -> CollectionResponse:
         """创建收藏夹"""
+        user = await UserRepository.get_user_by_id(self.session, user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
         collection = Collection(
             user_id=user_id,
             name=data.name,
@@ -63,6 +92,8 @@ class CollectionService:
         offset: int = 0
     ) -> List[CollectionResponse]:
         """获取用户收藏夹列表"""
+        if offset == 0:
+            await self.ensure_default_collection(user_id)
         collections = await CollectionRepository.get_user_collections(
             self.session, user_id, limit, offset
         )
@@ -92,6 +123,9 @@ class CollectionService:
         if not collection or collection.user_id != user_id:
             return None
 
+        if collection.is_default and data.name is not None and data.name != collection.name:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="默认收藏夹不允许重命名")
+
         if data.name is not None:
             collection.name = data.name
         if data.description is not None:
@@ -106,6 +140,9 @@ class CollectionService:
         collection = await CollectionRepository.get_collection_by_id(self.session, collection_id)
         if not collection or collection.user_id != user_id:
             return False
+
+        if collection.is_default:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="默认收藏夹不允许删除")
         
         return await CollectionRepository.delete_collection(self.session, collection)
 

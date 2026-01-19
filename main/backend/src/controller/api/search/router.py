@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, Query, status
 from redis.asyncio import Redis
 from sqlmodel import Session
 
-from base.config import get_session
 from base.redis.service import get_redis
+from base.pg.service import get_db_session
 from service.config.config_service import ConfigService
 from controller.api.search.schema import (
     SearchRequest, 
@@ -58,7 +58,7 @@ async def clear_search_history(
 
 
 def get_config_service(
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db_session),
     redis: Redis = Depends(get_redis)
 ) -> ConfigService:
     return ConfigService(db, redis)

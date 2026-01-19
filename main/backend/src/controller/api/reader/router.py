@@ -6,7 +6,7 @@ from loguru import logger
 from service.reader.summary_service import SummaryService
 from service.reader.note_service import NoteService
 from service.reader.mind_map_service import MindMapService
-from service.reader.reader_service import ReaderService
+from service.reader.reader_service import ReaderServiceDep
 from service.reader.schema import (
     LayerCreate, LayerResponse, LayerListResponse, LayerUpdate,
     AnnotationCreate, AnnotationResponse, AnnotationUpdate,
@@ -52,11 +52,10 @@ async def get_summary(
 @router.get("/papers/{paper_id}/layers", response_model=Response[LayerListResponse])
 async def get_paper_layers(
     paper_id: UUID,
-    session: SessionDep,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """获取论文的所有图层"""
-    service = ReaderService(session)
     layers = await service.get_layers_by_paper(paper_id)
     return Response.success(data=layers)
 
@@ -64,11 +63,10 @@ async def get_paper_layers(
 async def create_layer(
     paper_id: UUID,
     layer_in: LayerCreate,
-    session: SessionDep,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """创建新图层"""
-    service = ReaderService(session)
     layer = await service.create_layer(paper_id, current_user.id, layer_in)
     return Response.success(data=layer)
 
@@ -76,11 +74,10 @@ async def create_layer(
 async def update_layer(
     layer_id: UUID,
     layer_in: LayerUpdate,
-    session: SessionDep,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """更新图层"""
-    service = ReaderService(session)
     updated = await service.update_layer(layer_id, layer_in)
     if not updated:
         raise HTTPException(status_code=404, detail="Layer not found")
@@ -89,11 +86,10 @@ async def update_layer(
 @router.delete("/layers/{layer_id}")
 async def delete_layer(
     layer_id: UUID,
-    session: SessionDep,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """删除图层"""
-    service = ReaderService(session)
     success = await service.delete_layer(layer_id)
     if not success:
         raise HTTPException(status_code=404, detail="Layer not found")
@@ -105,12 +101,11 @@ async def delete_layer(
 async def create_annotation(
     layer_id: UUID,
     anno_in: AnnotationCreate,
-    session: SessionDep,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """添加标注"""
     # 这里可以添加额外的权限检查，确保 layer 属于当前用户或可见
-    service = ReaderService(session)
     annotation = await service.create_annotation(layer_id, anno_in)
     return Response.success(data=annotation)
 
@@ -118,11 +113,10 @@ async def create_annotation(
 async def update_annotation(
     anno_id: UUID,
     anno_in: AnnotationUpdate,
-    session: SessionDep,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """更新标注"""
-    service = ReaderService(session)
     updated = await service.update_annotation(anno_id, anno_in)
     if not updated:
         raise HTTPException(status_code=404, detail="Annotation not found")
@@ -131,11 +125,10 @@ async def update_annotation(
 @router.delete("/annotations/{anno_id}")
 async def delete_annotation(
     anno_id: UUID,
-    session: SessionDep,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """删除标注"""
-    service = ReaderService(session)
     success = await service.delete_annotation(anno_id)
     if not success:
         raise HTTPException(status_code=404, detail="Annotation not found")

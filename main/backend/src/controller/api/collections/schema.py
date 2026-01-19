@@ -28,6 +28,7 @@ class CollectionResponse(CollectionBase):
     """收藏夹响应模型"""
     id: UUID = Field(..., description="收藏夹ID")
     user_id: UUID = Field(..., description="所属用户ID")
+    is_default: bool = Field(False, description="是否为默认收藏夹")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
     

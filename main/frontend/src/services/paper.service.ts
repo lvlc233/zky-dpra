@@ -1,43 +1,46 @@
 import request from '@/lib/request';
-import { PaperListResponse, UploadResponse, PaperStatusResponse } from '@/types/api';
+import { UploadResponse, PaperStatusResponse } from '@/types/api';
 import { Paper } from '@/types/models';
+
+const mapPaper = (paper: Paper & Record<string, unknown>): Paper => {
+  const mappedId = (paper as { paper_id?: string }).paper_id ?? paper.id;
+  return {
+    ...paper,
+    id: mappedId,
+  };
+};
 
 export const paperService = {
   upload: async (file: File, collectionId?: string | null): Promise<UploadResponse> => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('files', file);
     if (collectionId) {
       formData.append('collection_id', collectionId);
     }
-    return request.post('/papers/upload', formData, {
+    return request.post('/papers/upload/local', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
   },
 
-  fetchFromUrl: async (url: string, source = 'arXiv'): Promise<any> => {
-    return request.post('/papers/fetch', { url, source });
+  fetchFromUrl: async (url: string, collectionId?: string | null): Promise<UploadResponse[]> => {
+    const payload: { urls: string[]; collection_id?: string | null } = { urls: [url] };
+    if (collectionId !== undefined) {
+      payload.collection_id = collectionId;
+    }
+    return request.post('/papers/upload/web', payload);
   },
 
   getList: async (page = 1, limit = 10): Promise<Paper[]> => {
-    // API docs say: /papers/list?limit=10&offset=0
-    // And response is: [ { "id": "...", ... } ] (Array of papers, not { items, total })
-    // Wait, let me double check the docs provided in the prompt.
-    // Doc 2.1: Response: [ { "id": "...", ... } ]
-    // Doc 2.1: Params: limit, offset.
-    const offset = (page - 1) * limit;
-    return request.get('/papers/list', { params: { limit, offset } });
+    const data = await request.get('/papers', { params: { page, limit, sort: 'created_at' } });
+    const items = (data as { items?: Paper[] }).items ?? (data as Paper[]);
+    return items.map((paper) => mapPaper(paper));
   },
 
   getById: async (id: string): Promise<Paper> => {
-    // Note: The doc doesn't explicitly list "Get Detail" endpoint under /papers/
-    // But typically it should be there. Assuming /papers/{id} exists or using list.
-    // Let's assume standard REST for now, or use list to find.
-    // Wait, Doc 2.4 is /papers/{id}/status which returns details + status.
-    // Maybe we should use that for details too? Or assume standard GET /papers/{id} exists.
-    // I will keep standard GET /papers/{id} but be aware it might not be documented.
-    return request.get(`/papers/${id}`); 
+    const data = await request.get(`/papers/${id}`);
+    return mapPaper(data as Paper);
   },
 
   getStatus: async (id: string): Promise<PaperStatusResponse> => {

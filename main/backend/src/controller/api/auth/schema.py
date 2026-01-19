@@ -30,7 +30,4 @@ class Token(BaseModel):
 class UserSettings(BaseModel):
     theme: Optional[str] = "light"
     language: Optional[str] = "zh"
-    # 其他设置...
-#  TODO:为什么要在鉴权这里,搞一个更新用户设置?有问题吧
-class UserSettingsUpdate(BaseModel):
-    settings: UserSettings
+
