@@ -60,9 +60,15 @@ def test_login_success():
     
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": "test@example.com", "password": "password"}
+        json={"email": "test@example.com", "password": "password"},
+        headers={"Origin": "http://localhost:3000"},
     )
     assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    assert response.headers.get("access-control-allow-credentials") == "true"
+    set_cookie = response.headers.get("set-cookie")
+    assert set_cookie is not None
+    assert "access_token=" in set_cookie
     json_resp = response.json()
     assert json_resp["code"] == 200
     data = json_resp["data"]
@@ -76,11 +82,14 @@ def test_login_failure():
     
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": "wrong@example.com", "password": "wrong"}
+        json={"email": "wrong@example.com", "password": "wrong"},
+        headers={"Origin": "http://localhost:3000"},
     )
     
     # Global exception handler returns 401 status code
     assert response.status_code == 401
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    assert response.headers.get("access-control-allow-credentials") == "true"
     json_resp = response.json()
     assert json_resp["code"] == 401
     assert json_resp["message"] == "Incorrect email or password"
@@ -96,9 +105,12 @@ def test_register_success():
     
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": "new@example.com", "password": "password", "full_name": "New User"}
+        json={"email": "new@example.com", "password": "password", "full_name": "New User"},
+        headers={"Origin": "http://localhost:3000"},
     )
     assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    assert response.headers.get("access-control-allow-credentials") == "true"
     json_resp = response.json()
     assert json_resp["code"] == 200
     assert json_resp["data"]["email"] == "test@example.com" # Returns mock user
@@ -109,11 +121,14 @@ def test_register_failure():
     
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": "existing@example.com", "password": "password"}
+        json={"email": "existing@example.com", "password": "password"},
+        headers={"Origin": "http://localhost:3000"},
     )
     
     # Global exception handler returns 400 status code for BusinessError
     assert response.status_code == 400
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    assert response.headers.get("access-control-allow-credentials") == "true"
     json_resp = response.json()
     assert json_resp["code"] == 400
     assert json_resp["message"] == "Email already registered"

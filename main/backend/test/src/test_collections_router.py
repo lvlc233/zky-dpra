@@ -10,19 +10,30 @@ from service.collections.collection_service import CollectionService, get_collec
 from controller.api.collections.schema import CollectionResponse, CollectionDetailResponse
 from service.papers.schema import PaperDTO
 from common.model.enums import PaperStatus
+from controller.api.auth.router import get_current_user
+from base.pg.entity import User
 
 @pytest.fixture
 def mock_collection_service():
     return AsyncMock(spec=CollectionService)
 
 @pytest.fixture
-def client(mock_collection_service):
+def mock_user():
+    return User(id=uuid4(), email="test@example.com")
+
+
+@pytest.fixture
+def client(mock_collection_service, mock_user):
     app = create_app()
     
     async def override_get_collection_service():
         return mock_collection_service
+
+    async def override_get_current_user():
+        return mock_user
         
     app.dependency_overrides[get_collection_service] = override_get_collection_service
+    app.dependency_overrides[get_current_user] = override_get_current_user
     
     return TestClient(app)
 
@@ -41,8 +52,8 @@ def _fake_collection_response(collection_id=None, user_id=None, name="Test Colle
         updated_at=datetime.now()
     )
 
-def test_create_collection(client, mock_collection_service):
-    user_id = uuid4()
+def test_create_collection(client, mock_collection_service, mock_user):
+    user_id = mock_user.id
     collection_id = uuid4()
     
     mock_resp = _fake_collection_response(collection_id, user_id, "New Collection")
@@ -55,8 +66,7 @@ def test_create_collection(client, mock_collection_service):
     
     resp = client.post(
         "/api/v1/collections", 
-        json=payload,
-        headers={"X-User-Id": str(user_id)}
+        json=payload
     )
     
     assert resp.status_code == 201
@@ -66,8 +76,8 @@ def test_create_collection(client, mock_collection_service):
     
     mock_collection_service.create_collection.assert_called_once()
 
-def test_get_collections(client, mock_collection_service):
-    user_id = uuid4()
+def test_get_collections(client, mock_collection_service, mock_user):
+    user_id = mock_user.id
     mock_resps = [
         _fake_collection_response(uuid4(), user_id, "C1"),
         _fake_collection_response(uuid4(), user_id, "C2")
@@ -75,8 +85,7 @@ def test_get_collections(client, mock_collection_service):
     mock_collection_service.get_user_collections.return_value = mock_resps
     
     resp = client.get(
-        "/api/v1/collections",
-        headers={"X-User-Id": str(user_id)}
+        "/api/v1/collections"
     )
     
     assert resp.status_code == 200
@@ -84,8 +93,8 @@ def test_get_collections(client, mock_collection_service):
     assert len(data) == 2
     assert data[0]["name"] == "C1"
 
-def test_get_collection_detail(client, mock_collection_service):
-    user_id = uuid4()
+def test_get_collection_detail(client, mock_collection_service, mock_user):
+    user_id = mock_user.id
     collection_id = uuid4()
     
     base_resp = _fake_collection_response(collection_id, user_id)
@@ -97,8 +106,7 @@ def test_get_collection_detail(client, mock_collection_service):
     mock_collection_service.get_collection_detail.return_value = detail_resp
     
     resp = client.get(
-        f"/api/v1/collections/{collection_id}",
-        headers={"X-User-Id": str(user_id)}
+        f"/api/v1/collections/{collection_id}"
     )
     
     assert resp.status_code == 200
@@ -110,14 +118,13 @@ def test_get_collection_detail_not_found(client, mock_collection_service):
     mock_collection_service.get_collection_detail.return_value = None
     
     resp = client.get(
-        f"/api/v1/collections/{uuid4()}",
-        headers={"X-User-Id": str(uuid4())}
+        f"/api/v1/collections/{uuid4()}"
     )
     
     assert resp.status_code == 404
 
-def test_update_collection(client, mock_collection_service):
-    user_id = uuid4()
+def test_update_collection(client, mock_collection_service, mock_user):
+    user_id = mock_user.id
     collection_id = uuid4()
     
     mock_resp = _fake_collection_response(collection_id, user_id, "Updated Name")
@@ -127,8 +134,7 @@ def test_update_collection(client, mock_collection_service):
     
     resp = client.put(
         f"/api/v1/collections/{collection_id}",
-        json=payload,
-        headers={"X-User-Id": str(user_id)}
+        json=payload
     )
     
     assert resp.status_code == 200
@@ -138,8 +144,7 @@ def test_delete_collection(client, mock_collection_service):
     mock_collection_service.delete_collection.return_value = True
     
     resp = client.delete(
-        f"/api/v1/collections/{uuid4()}",
-        headers={"X-User-Id": str(uuid4())}
+        f"/api/v1/collections/{uuid4()}"
     )
     
     assert resp.status_code == 204
@@ -150,8 +155,7 @@ def test_add_paper_to_collection(client, mock_collection_service):
     payload = {"paper_id": str(uuid4())}
     resp = client.post(
         f"/api/v1/collections/{uuid4()}/papers",
-        json=payload,
-        headers={"X-User-Id": str(uuid4())}
+        json=payload
     )
     
     assert resp.status_code == 201
@@ -162,8 +166,7 @@ def test_add_paper_fail(client, mock_collection_service):
     payload = {"paper_id": str(uuid4())}
     resp = client.post(
         f"/api/v1/collections/{uuid4()}/papers",
-        json=payload,
-        headers={"X-User-Id": str(uuid4())}
+        json=payload
     )
     
     assert resp.status_code == 400
@@ -172,8 +175,7 @@ def test_remove_paper(client, mock_collection_service):
     mock_collection_service.remove_paper_from_collection.return_value = True
     
     resp = client.delete(
-        f"/api/v1/collections/{uuid4()}/papers/{uuid4()}",
-        headers={"X-User-Id": str(uuid4())}
+        f"/api/v1/collections/{uuid4()}/papers/{uuid4()}"
     )
     
     assert resp.status_code == 204

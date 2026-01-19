@@ -140,11 +140,7 @@ async def test_chat_flow(client, db_session, mock_embedding_service, mock_agent_
     
     session_in = ChatSessionCreate(agent_type="chat", paper_id=paper.id)
     
-    # Instantiate ChatService with mocked db_session
-    from service.chat.chat_service import ChatService
-    chat_service = ChatService(db_session)
-    
-    response = await create_session(session_in, chat_service, user.id)
+    response = await create_session(session_in, db_session, user)
     chat_session = response.data
 
     assert chat_session.agent_type == "paper_chat"
@@ -171,7 +167,7 @@ async def test_chat_flow(client, db_session, mock_embedding_service, mock_agent_
     req = ChatMessageRequest(content="Hello Paper")
 
     # Verify response is streaming
-    response = await send_message(chat_session.id, req, chat_service, user.id)
+    response = await send_message(chat_session.id, req, db_session, user)
 
     # Iterate stream
     content = ""

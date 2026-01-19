@@ -15,8 +15,14 @@ async def test_upload_paper_triggers_arq():
     service = PaperService(session)
     
     # Mock dependencies
+    writer = AsyncMock()
+    writer.wait_closed = AsyncMock()
+    writer.close = MagicMock()
+
     with patch("service.papers.paper_service.aiofiles.open") as mock_open, \
          patch("service.papers.paper_service.PaperRepository") as mock_repo, \
+         patch("service.papers.paper_service.CollectionRepository") as mock_collection_repo, \
+         patch("service.papers.paper_service.asyncio.open_connection", new=AsyncMock(return_value=(AsyncMock(), writer))), \
          patch("service.papers.paper_service.create_pool") as mock_create_pool:
         
         # Setup mocks
@@ -31,6 +37,9 @@ async def test_upload_paper_triggers_arq():
         
         mock_pool = AsyncMock()
         mock_create_pool.return_value = mock_pool
+
+        mock_collection_repo.get_default_collection = AsyncMock(return_value=MagicMock(id=uuid4()))
+        mock_collection_repo.add_paper_to_collection = AsyncMock()
         
         # Call upload_paper
         user_id = uuid4()
@@ -54,6 +63,11 @@ async def test_trigger_process_task_error_handling():
     session = AsyncMock()
     service = PaperService(session)
     
-    with patch("service.papers.paper_service.create_pool", side_effect=Exception("Redis error")):
+    writer = AsyncMock()
+    writer.wait_closed = AsyncMock()
+    writer.close = MagicMock()
+
+    with patch("service.papers.paper_service.asyncio.open_connection", new=AsyncMock(return_value=(AsyncMock(), writer))), \
+         patch("service.papers.paper_service.create_pool", side_effect=Exception("Redis error")):
         # Should not raise exception
         await service._trigger_process_task(uuid4(), Path("test.pdf"))

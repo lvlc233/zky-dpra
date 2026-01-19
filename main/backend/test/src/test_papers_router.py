@@ -68,6 +68,27 @@ def test_upload_paper_ok(client, mock_paper_service, mock_user):
     mock_paper_service.upload_paper.assert_called_once()
     args, kwargs = mock_paper_service.upload_paper.call_args
     assert kwargs["user_id"] == mock_user.id
+    assert kwargs["collection_id"] is None
+
+
+def test_upload_paper_with_collection_id_ok(client, mock_paper_service, mock_user):
+    paper_id = str(uuid4())
+    mock_paper_service.upload_paper.return_value = _fake_upload_file_response(paper_id)
+
+    collection_id = uuid4()
+
+    files = {"file": ("test.pdf", b"%PDF-1.4 test", "application/pdf")}
+    resp = client.post(
+        "/api/v1/papers/upload",
+        files=files,
+        data={"collection_id": str(collection_id)},
+    )
+
+    assert resp.status_code == 200
+    mock_paper_service.upload_paper.assert_called_once()
+    args, kwargs = mock_paper_service.upload_paper.call_args
+    assert kwargs["user_id"] == mock_user.id
+    assert kwargs["collection_id"] == collection_id
 
 
 def test_get_paper_status_ok(client, mock_paper_service, mock_user):
@@ -112,4 +133,3 @@ def test_arxiv_search_ok(client, mock_arxiv_service):
     data = resp.json()
     assert data["total_count"] == 1
     assert data["papers"][0]["title"] == "Test Paper"
-

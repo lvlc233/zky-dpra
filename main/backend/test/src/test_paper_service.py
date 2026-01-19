@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 from uuid import uuid4
 from service.papers.paper_service import PaperService, PaperProcessingService
-from base.pg.entity import Paper
+from base.pg.entity import Paper, Collection
 from common.model.enums import PaperStatus
 
 @pytest.fixture
@@ -33,11 +33,22 @@ def mock_paper_repo():
         mock_repo.update_paper_metadata = AsyncMock()
         yield mock_repo
 
+
+@pytest.fixture
+def mock_collection_repo():
+    with patch("service.papers.paper_service.CollectionRepository") as mock_repo:
+        mock_repo.get_collection_by_id = AsyncMock()
+        mock_repo.get_default_collection = AsyncMock()
+        mock_repo.create_collection = AsyncMock()
+        mock_repo.add_paper_to_collection = AsyncMock()
+        yield mock_repo
+
 @pytest.fixture
 def mock_settings():
     with patch("service.papers.paper_service.settings") as mock_settings:
         mock_settings.upload_dir = "dummy_dir"
         mock_settings.max_file_size = 1024 * 1024 * 10 # 10MB
+        mock_settings.arq_redis_url = "redis://localhost:6379/0"
         yield mock_settings
 
 @pytest.fixture
@@ -48,7 +59,7 @@ def mock_aiofiles():
         yield mock_aio
 
 @pytest.mark.asyncio
-async def test_upload_paper_success(mock_settings, mock_db_session, mock_paper_repo, mock_aiofiles):
+async def test_upload_paper_success(mock_settings, mock_db_session, mock_paper_repo, mock_collection_repo, mock_aiofiles):
     service = PaperService(session=mock_db_session)
     user_id = uuid4()
     file_content = b"%PDF-1.4 content"
@@ -57,13 +68,79 @@ async def test_upload_paper_success(mock_settings, mock_db_session, mock_paper_r
     # Mock create_paper result
     mock_paper = Paper(id=uuid4(), user_id=user_id, title=filename, status=PaperStatus.PENDING)
     mock_paper_repo.create_paper.return_value = mock_paper
+
+    default_collection = Collection(id=uuid4(), user_id=user_id, name="默认收藏夹", is_default=True)
+    mock_collection_repo.get_default_collection.return_value = default_collection
     
-    with patch("pathlib.Path.mkdir"), patch("pathlib.Path.exists", return_value=False):
+    with patch("pathlib.Path.mkdir"), patch("pathlib.Path.exists", return_value=False), patch.object(service, "_trigger_process_task", new=AsyncMock()):
         response = await service.upload_paper(file_content, filename, user_id)
     
     assert response.status == PaperStatus.PENDING.value
     mock_paper_repo.create_paper.assert_called_once()
     mock_aiofiles.open.assert_called_once()
+    mock_collection_repo.add_paper_to_collection.assert_called_once_with(mock_db_session, default_collection.id, mock_paper.id)
+
+
+@pytest.mark.asyncio
+async def test_upload_paper_specified_collection_ok(
+    mock_settings,
+    mock_db_session,
+    mock_paper_repo,
+    mock_collection_repo,
+    mock_aiofiles,
+):
+    service = PaperService(session=mock_db_session)
+    user_id = uuid4()
+    file_content = b"%PDF-1.4 content"
+    filename = "test.pdf"
+
+    target_collection_id = uuid4()
+    target_collection = Collection(id=target_collection_id, user_id=user_id, name="c", is_default=False)
+    mock_collection_repo.get_collection_by_id.return_value = target_collection
+
+    mock_paper = Paper(id=uuid4(), user_id=user_id, title=filename, status=PaperStatus.PENDING)
+    mock_paper_repo.create_paper.return_value = mock_paper
+
+    with (
+        patch("pathlib.Path.mkdir"),
+        patch("pathlib.Path.exists", return_value=False),
+        patch.object(service, "_trigger_process_task", new=AsyncMock()),
+    ):
+        response = await service.upload_paper(
+            file_content,
+            filename,
+            user_id,
+            collection_id=target_collection_id,
+        )
+
+    assert response.status == PaperStatus.PENDING.value
+    mock_collection_repo.add_paper_to_collection.assert_called_once_with(mock_db_session, target_collection_id, mock_paper.id)
+    assert mock_collection_repo.get_default_collection.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_upload_paper_specified_collection_not_found(
+    mock_settings,
+    mock_db_session,
+    mock_paper_repo,
+    mock_collection_repo,
+    mock_aiofiles,
+):
+    service = PaperService(session=mock_db_session)
+    user_id = uuid4()
+
+    mock_collection_repo.get_collection_by_id.return_value = None
+
+    with pytest.raises(ValueError, match="收藏夹不存在或无权访问"):
+        await service.upload_paper(
+            b"%PDF-1.4 content",
+            "test.pdf",
+            user_id,
+            collection_id=uuid4(),
+        )
+
+    assert mock_paper_repo.create_paper.await_count == 0
+    assert mock_aiofiles.open.call_count == 0
 
 @pytest.mark.asyncio
 async def test_upload_paper_invalid_file(mock_settings, mock_db_session):
@@ -108,4 +185,3 @@ async def test_process_pdf_success(mock_settings, mock_async_session_factory, mo
         # Verify status updates
         # Called once for PROCESSING
         mock_paper_repo.update_paper_status.assert_any_call(mock_db_session, paper_id, PaperStatus.PROCESSING)
-
