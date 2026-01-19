@@ -20,10 +20,17 @@ import {
 } from 'lucide-react';
 import * as Popover from '@radix-ui/react-popover';
 
+import { collectionService } from '@/services/collection.service';
+import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
+
 interface SidebarProps {
   className?: string;
   onSettingsClick?: () => void;
   onSelectCollection?: (collection: Collection | null) => void;
+  collections?: Collection[];
+  activeCollectionId?: string | null;
+  onRefresh?: () => void;
 }
 
 export interface Collection {
@@ -32,15 +39,32 @@ export interface Collection {
   count: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ className, onSettingsClick, onSelectCollection }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ 
+  className, 
+  onSettingsClick, 
+  onSelectCollection,
+  collections: propCollections,
+  activeCollectionId,
+  onRefresh
+}) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
-  const [collections, setCollections] = useState<Collection[]>([
-    { id: '1', label: '默认收藏夹', count: 12 },
-    { id: '2', label: '深度学习综述', count: 5 },
-    { id: '3', label: '大模型微调', count: 8 },
-  ]);
+  // Local state is only a fallback or for optimistic UI, but mainly we rely on props now
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Sync with props
+  React.useEffect(() => {
+    if (propCollections) {
+      setCollections(propCollections);
+    }
+  }, [propCollections]);
+
+  React.useEffect(() => {
+    if (activeCollectionId !== undefined) {
+      setActiveId(activeCollectionId);
+    }
+  }, [activeCollectionId]);
   const [isCreating, setIsCreating] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -55,21 +79,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onSettingsClick, on
     if (onSelectCollection) onSelectCollection(null);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!newLabel.trim()) {
       setIsCreating(false);
       return;
     }
-    const newCollection = {
-      id: Math.random().toString(36).substring(7),
-      label: newLabel,
-      count: 0
-    };
-    setCollections([...collections, newCollection]);
-    setNewLabel('');
-    setIsCreating(false);
-    setActiveId(newCollection.id);
-    if (onSelectCollection) onSelectCollection(newCollection);
+    
+    try {
+        await collectionService.create(newLabel);
+        toast.success("创建收藏夹成功");
+        setNewLabel('');
+        setIsCreating(false);
+        if (onRefresh) onRefresh();
+    } catch (error: any) {
+        logger.error("Failed to create collection", error, "Sidebar");
+        toast.error(error.message || "创建失败");
+    }
   };
 
   const startRename = (collection: Collection) => {
@@ -77,22 +102,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onSettingsClick, on
     setRenameLabel(collection.label);
   };
 
-  const handleRename = () => {
+  const handleRename = async () => {
     if (!renameLabel.trim() || !renamingId) {
       setRenamingId(null);
       return;
     }
-    setCollections(collections.map(c => 
-      c.id === renamingId ? { ...c, label: renameLabel } : c
-    ));
-    setRenamingId(null);
-    setRenameLabel('');
+
+    try {
+      await collectionService.update(renamingId, { name: renameLabel });
+      toast.success("重命名成功");
+      setRenamingId(null);
+      setRenameLabel('');
+      if (onRefresh) onRefresh();
+    } catch (error: any) {
+      logger.error("Failed to update collection", error, "Sidebar");
+      toast.error(error.message || "重命名失败");
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setCollections(collections.filter(c => c.id !== id));
-    if (activeId === id && collections.length > 0) {
-      setActiveId(collections[0].id);
+  const handleDelete = async (id: string) => {
+    if (confirm('确定要删除这个收藏夹吗？')) {
+      try {
+        await collectionService.delete(id);
+        toast.success("删除成功");
+        
+        if (activeId === id) {
+            setActiveId(null);
+            if (onSelectCollection) onSelectCollection(null);
+        }
+        
+        if (onRefresh) onRefresh();
+      } catch (error: any) {
+        logger.error("Failed to delete collection", error, "Sidebar");
+        toast.error(error.message || "删除失败");
+      }
     }
   };
 

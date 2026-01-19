@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { cn } from '@/lib/utils';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -8,6 +8,7 @@ import 'react-pdf/dist/Page/TextLayer.css';
 
 import { Layer, Annotation } from '@/types/reader';
 import { PDFPageOverlay } from './PDFPageOverlay';
+import { useAuthStore } from '@/store/use-auth-store';
 
 // Set worker src
 // Use a stable CDN or local file. Here we use unpkg with https protocol explicitly.
@@ -21,6 +22,10 @@ interface PDFViewerProps {
   layers?: Layer[];
   activeLayerId?: string;
   onAddAnnotation?: (annotation: Annotation) => void;
+  onPageChange?: (page: number) => void;
+  searchQuery?: string;
+  onUpdateAnnotation?: (annotation: Annotation) => void;
+  onDeleteAnnotation?: (id: string) => void;
 }
 
 export const PDFViewer: React.FC<PDFViewerProps> = ({ 
@@ -34,9 +39,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   onAddAnnotation,
   onUpdateAnnotation,
   onDeleteAnnotation
-}: PDFViewerProps & { 
-  onPageChange?: (page: number) => void;
-  searchQuery?: string;
 }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(initialPage);
@@ -44,13 +46,20 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const [viewMode, setViewMode] = useState<'pagination' | 'scroll'>('pagination');
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
+  const { token } = useAuthStore();
+
+  const options = useMemo(() => ({
+    httpHeaders: {
+      'Authorization': `Bearer ${token}`
+    }
+  }), [token]);
 
   // Sync internal state with props if needed, or just use internal
   useEffect(() => {
     if (initialPage !== pageNumber) {
       setPageNumber(initialPage);
     }
-  }, [initialPage]);
+  }, [initialPage, pageNumber]);
 
   // Notify parent on change
   const handlePageChange = (newPage: number) => {
@@ -145,15 +154,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       <div className="shadow-lg">
         <Document
           file={url}
+          options={options}
           onLoadSuccess={onDocumentLoadSuccess}
           loading={
-            <div className="flex items-center justify-center h-96 w-[600px] bg-white rounded-lg shadow-sm">
+            <div className="flex items-center justify-center h-[calc(100vh-200px)]">
                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             </div>
           }
           error={
-             <div className="flex items-center justify-center h-96 w-[600px] bg-white rounded-lg shadow-sm text-red-500">
-                Failed to load PDF.
+             <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-gray-500">
+                <p>无法加载 PDF 文件</p>
+                <p className="text-sm mt-2">请检查文件是否存在或权限是否正确</p>
              </div>
           }
         >

@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Mail, Lock, User as UserIcon, ArrowRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthModal } from './AuthModalContext';
+import { authService } from '@/services/auth.service';
+import { useAuthStore } from '@/store/use-auth-store';
+import { toast } from 'sonner';
 
 interface RegisterFormProps {
   className?: string;
@@ -12,17 +15,51 @@ interface RegisterFormProps {
 }
 
 export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal = false }) => {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    full_name: ''
+  });
+  
   const { setAuthView, closeAuthModal } = useAuthModal();
+  const login = useAuthStore((state) => state.login);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsLoading(false);
-    if (isModal) {
-      closeAuthModal();
+    
+    try {
+      // 1. Register
+      const user = await authService.register(formData.email, formData.password, formData.full_name);
+      
+      // 2. Auto Login (if API doesn't return token on register, we might need to login manually)
+      // Assuming register returns User. We need token.
+      // So we call login immediately.
+      const loginResponse = await authService.login(formData.email, formData.password);
+      
+      login(loginResponse.user, loginResponse.access_token);
+      toast.success('注册成功');
+      
+      if (isModal) {
+        closeAuthModal();
+      }
+      
+      router.push('/dashboard');
+    } catch (error: any) {
+      const errorMessage = error.message || '注册失败';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -65,9 +102,12 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal =
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 ml-1">用户名</label>
             <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
                 type="text" 
+                name="full_name"
+                value={formData.full_name}
+                onChange={handleChange}
                 placeholder="your_username"
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required
@@ -81,6 +121,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal =
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
                 type="email" 
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
                 placeholder="name@example.com"
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required
@@ -94,6 +137,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal =
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
                 type="password" 
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
                 placeholder="••••••••"
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required
@@ -101,35 +147,37 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal =
             </div>
           </div>
 
-          <div className="flex items-center justify-end text-xs">
-            <Link 
-              href="/login" 
-              onClick={handleLoginClick}
-              className="text-gray-500 hover:text-indigo-600 transition-colors font-medium"
-            >
-              已有账号？去登录
-            </Link>
-          </div>
-
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={isLoading}
-            className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:translate-y-0"
+            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                <span>注册</span>
-                <ArrowRight className="w-4 h-4" />
+                <span>注册账户</span>
+                <ArrowRight className="w-5 h-5" />
               </>
             )}
           </button>
         </form>
 
-        <div className="mt-8 pt-8 border-t border-gray-100 text-center">
-          <p className="text-xs text-gray-400">
-            注册即代表您同意我们的 <Link href="/terms" className="underline hover:text-gray-600">服务条款</Link> 和 <Link href="/privacy" className="underline hover:text-gray-600">隐私政策</Link>
+        <div className="mt-8 text-center">
+          <p className="text-sm text-gray-500">
+            已有账户？{' '}
+            {isModal ? (
+              <button 
+                onClick={handleLoginClick}
+                className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors"
+              >
+                立即登录
+              </button>
+            ) : (
+              <a href="/login" className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors">
+                立即登录
+              </a>
+            )}
           </p>
         </div>
       </div>

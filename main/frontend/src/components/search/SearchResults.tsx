@@ -2,20 +2,9 @@
 
 import React from 'react';
 import { FileText, User, Calendar, ExternalLink, Download, MoreHorizontal, Bookmark, Sparkles } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-
-export interface Paper {
-  id: string;
-  title: string;
-  authors: string[];
-  year: number;
-  source: string;
-  abstract?: string;
-  citations?: number;
-  isBookmarked?: boolean;
-  aiScore?: number;
-  aiReason?: string;
-}
+import { Paper } from '@/types/models';
 
 interface SearchResultsProps {
   results: Paper[];
@@ -25,6 +14,15 @@ interface SearchResultsProps {
 }
 
 export const SearchResults: React.FC<SearchResultsProps> = ({ results, className, onToggleBookmark, aiEnabled }) => {
+  const router = useRouter();
+
+  const handleOpenPaper = React.useCallback(
+    (paperId: string) => {
+      router.push(`/reader/${paperId}`);
+    },
+    [router]
+  );
+
   if (!results || results.length === 0) return null;
 
   return (
@@ -44,6 +42,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ results, className
             <div 
               key={paper.id} 
               className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-50/50 transition-colors group cursor-pointer"
+              onClick={() => handleOpenPaper(paper.id)}
             >
               {/* Title & Abstract Column */}
               <div className="col-span-6 pl-2">
@@ -125,19 +124,26 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ results, className
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (onToggleBookmark) onToggleBookmark(paper.id);
+                      onToggleBookmark?.(paper.id);
                     }}
                     className={cn(
                       "p-1.5 rounded-md transition-colors",
-                      paper.isBookmarked 
+                      paper.is_bookmarked 
                         ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100" 
                         : "text-gray-400 hover:text-gray-900 hover:bg-gray-100"
                     )}
-                    title={paper.isBookmarked ? "取消收藏" : "收藏"}
+                    title={paper.is_bookmarked ? "取消收藏" : "收藏"}
                   >
-                    <Bookmark className={cn("w-3.5 h-3.5", paper.isBookmarked && "fill-current")} />
+                    <Bookmark className={cn("w-3.5 h-3.5", paper.is_bookmarked && "fill-current")} />
                   </button>
-                   <button className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-md" title="查看详情">
+                   <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenPaper(paper.id);
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                    title="查看详情"
+                  >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </button>
                   <button className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-md" title="下载 PDF">

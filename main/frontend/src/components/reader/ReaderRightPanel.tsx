@@ -18,11 +18,12 @@ import { SettingsTab } from './tabs/SettingsTab';
 
 interface ReaderRightPanelProps {
   className?: string;
+  paperId: string;
 }
 
 type Tab = 'guide' | 'notes' | 'graph' | 'report' | 'settings';
 
-export const ReaderRightPanel: React.FC<ReaderRightPanelProps> = ({ className }) => {
+export const ReaderRightPanel: React.FC<ReaderRightPanelProps> = ({ className, paperId }) => {
   const [activeTab, setActiveTab] = useState<Tab>('guide');
   const [input, setInput] = useState('');
 
@@ -63,11 +64,11 @@ export const ReaderRightPanel: React.FC<ReaderRightPanelProps> = ({ className })
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden bg-gray-50/30 flex flex-col">
-        {activeTab === 'guide' && <GuideTab />}
-        {activeTab === 'notes' && <NotesTab />}
-        {activeTab === 'graph' && <GraphTab />}
-        {activeTab === 'report' && <ReportTab />}
-        {activeTab === 'settings' && <SettingsTab />}
+        {activeTab === 'guide' && <GuideTab paperId={paperId} />}
+        {activeTab === 'notes' && <NotesTab paperId={paperId} />}
+        {activeTab === 'graph' && <GraphTab paperId={paperId} />}
+        {activeTab === 'report' && <ReportTab paperId={paperId} />}
+        {activeTab === 'settings' && <SettingsTab paperId={paperId} />}
       </div>
     </aside>
   );

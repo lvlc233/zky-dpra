@@ -2,9 +2,13 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthModal } from './AuthModalContext';
+import { authService } from '@/services/auth.service';
+import { useAuthStore } from '@/store/use-auth-store';
 
 interface LoginFormProps {
   className?: string;
@@ -12,18 +16,43 @@ interface LoginFormProps {
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false }) => {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
+  
   const { setAuthView, closeAuthModal } = useAuthModal();
+  const login = useAuthStore((state) => state.login);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsLoading(false);
-    if (isModal) {
-      closeAuthModal();
+    
+    try {
+      const response = await authService.login(formData.email, formData.password);
+      login(response.user, response.access_token);
+      toast.success('登录成功');
+      
+      if (isModal) {
+        closeAuthModal();
+      }
+      
+      router.push('/dashboard');
+    } catch (error: any) {
+      const errorMessage = error.message || '登录失败，请检查账号密码';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [e.target.type === 'email' ? 'email' : 'password']: e.target.value
+    }));
   };
 
   const handleRegisterClick = (e: React.MouseEvent) => {
@@ -75,6 +104,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
                 type="email" 
+                value={formData.email}
+                onChange={handleChange}
                 placeholder="name@example.com"
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required
@@ -88,6 +119,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
                 type="password" 
+                value={formData.password}
+                onChange={handleChange}
                 placeholder="••••••••"
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required

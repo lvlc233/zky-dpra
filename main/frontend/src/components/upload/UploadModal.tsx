@@ -3,11 +3,18 @@
 import React, { useState, useRef, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, UploadCloud, FileText, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { paperService } from '@/services/paper.service';
+import { logger } from '@/lib/logger';
+
+import { useUploadStore } from '@/store/upload.store';
 
 interface UploadModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  // Compatibility props, optional now
+  isOpen?: boolean;
+  onClose?: () => void;
+  onUploadSuccess?: () => void;
 }
 
 interface FileItem {
@@ -17,7 +24,31 @@ interface FileItem {
   progress: number;
 }
 
-export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => {
+export const UploadModal: React.FC<UploadModalProps> = (props) => {
+  const uploadStore = useUploadStore();
+  
+  // Use store state if props are not provided, otherwise use props (for backward compatibility if needed)
+  const isControlled = props.isOpen !== undefined;
+  const show = isControlled ? props.isOpen : uploadStore.isOpen;
+  
+  const handleClose = useCallback(() => {
+    if (isControlled && props.onClose) {
+        props.onClose();
+    } else {
+        uploadStore.close();
+    }
+  }, [isControlled, props, uploadStore]);
+
+  const handleSuccess = () => {
+      // Trigger global success mechanism
+      uploadStore.triggerSuccess();
+      
+      // If props provided, also call it (legacy support)
+      if (isControlled && props.onUploadSuccess) {
+          props.onUploadSuccess();
+      }
+  };
+
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +100,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
   };
 
   const uploadFiles = async () => {
-    // Simulate upload process
     const pendingFiles = files.filter(f => f.status === 'pending');
     
     if (pendingFiles.length === 0) return;
@@ -79,39 +109,44 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
       f.status === 'pending' ? { ...f, status: 'uploading' } : f
     ));
 
-    // Simulate progress
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      setFiles(prev => prev.map(f => 
-        f.status === 'uploading' ? { ...f, progress: i } : f
-      ));
+    // Upload each file
+    for (const fileItem of pendingFiles) {
+        try {
+            await paperService.upload(fileItem.file, uploadStore.collectionId);
+            setFiles(prev => prev.map(f => 
+                f.id === fileItem.id ? { ...f, status: 'success', progress: 100 } : f
+            ));
+            toast.success(`文件 ${fileItem.file.name} 上传成功`);
+            
+            // Trigger success callback
+            handleSuccess();
+            
+        } catch (error: any) {
+            logger.error('Upload failed:', error, 'UploadModal');
+            setFiles(prev => prev.map(f => 
+                f.id === fileItem.id ? { ...f, status: 'error', progress: 0 } : f
+            ));
+            toast.error(`文件 ${fileItem.file.name} 上传失败: ${error.message || '未知错误'}`);
+        }
     }
-
-    // Mark as success
-    setFiles(prev => prev.map(f => 
-      f.status === 'uploading' ? { ...f, status: 'success', progress: 100 } : f
-    ));
-
-    // Close modal after a delay if all files are uploaded
-    setTimeout(() => {
-        // Optional: clear success files or close modal
-        // onClose(); 
-    }, 1500);
   };
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={onClose}>
+    <Dialog.Root open={show} onOpenChange={(open) => !open && handleClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 z-50" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-gray-100 bg-white p-6 shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-2xl">
+        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 animate-in fade-in" />
+        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%] bg-white rounded-xl shadow-2xl outline-none animate-in fade-in zoom-in-95 duration-200">
           
-          <div className="flex flex-col gap-1.5 text-center sm:text-left">
-            <Dialog.Title className="text-lg font-semibold leading-none tracking-tight text-gray-900">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-100">
+            <Dialog.Title className="text-lg font-semibold text-gray-900">
               上传论文
             </Dialog.Title>
-            <Dialog.Description className="text-sm text-gray-500">
-              拖拽或点击上传您的 PDF 论文文件，我们将自动解析并建立索引。
-            </Dialog.Description>
+            <Dialog.Close asChild>
+              <button onClick={handleClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </Dialog.Close>
           </div>
 
           <div
@@ -205,7 +240,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
 
           <div className="mt-6 flex justify-end gap-3">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
               取消
@@ -218,15 +253,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose }) => 
               {files.some(f => f.status === 'uploading') ? '上传中...' : '开始上传'}
             </button>
           </div>
-
-          <Dialog.Close asChild>
-            <button
-              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
-            >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </button>
-          </Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

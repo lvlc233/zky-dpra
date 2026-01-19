@@ -3,6 +3,9 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthModalProvider } from "@/components/auth/AuthModalContext";
 import { AuthModal } from "@/components/auth/AuthModal";
+import { UploadModal } from "@/components/upload/UploadModal";
+import { GlobalErrorListener } from "@/components/providers/GlobalErrorListener";
+import { Toaster } from 'sonner';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,10 +22,13 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className={inter.className}>
+        <GlobalErrorListener />
         <AuthModalProvider>
           {children}
           <AuthModal />
+          <UploadModal />
         </AuthModalProvider>
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   );

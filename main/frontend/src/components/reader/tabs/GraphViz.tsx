@@ -34,7 +34,11 @@ const MOCK_EDGES: GraphEdge[] = [
 // Component
 // ----------------------------------------------------------------------
 
-export default function GraphViz() {
+interface GraphVizProps {
+  paperId: string;
+}
+
+export default function GraphViz({ paperId }: GraphVizProps) {
   // 使用 useRef 确保容器引用
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<GraphCanvasRef | null>(null);
@@ -71,12 +75,18 @@ export default function GraphViz() {
           node: { 
             fill: '#4F46E5',
             activeFill: '#4338ca',
-            label: { color: '#1f2937', stroke: '#ffffff' }
+            opacity: 1,
+            selectedOpacity: 1,
+            inactiveOpacity: 0.2,
+            label: { color: '#1f2937', stroke: '#ffffff', activeColor: '#1f2937' }
           },
           edge: { 
             fill: '#94a3b8',
             activeFill: '#64748b',
-            label: { color: '#64748b', stroke: '#ffffff' }
+            opacity: 1,
+            selectedOpacity: 1,
+            inactiveOpacity: 0.2,
+            label: { color: '#64748b', stroke: '#ffffff', activeColor: '#64748b' }
           },
           arrow: { fill: '#94a3b8', activeFill: '#64748b' },
           ring: { fill: '#818cf8', activeFill: '#4f46e5' },

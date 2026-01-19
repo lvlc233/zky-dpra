@@ -5,103 +5,175 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar, Collection } from "@/components/layout/Sidebar";
 import { SearchBar } from "@/components/search/SearchBar";
 import { SearchFilters } from "@/components/search/SearchFilters";
-import { SearchResults, Paper } from "@/components/search/SearchResults";
+import { Paper } from "@/types/models";
+import { SearchResults } from "@/components/search/SearchResults";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import { UploadModal } from "@/components/upload/UploadModal";
 import { BookOpen, Sparkles } from 'lucide-react';
+import { useUploadStore } from "@/store/upload.store";
+
+import { searchService } from '@/services/search.service';
+import { paperService } from '@/services/paper.service';
+import { collectionService } from '@/services/collection.service';
+import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 export default function DashboardPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [searchResults, setSearchResults] = useState<Paper[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  // Upload modal is now controlled globally
   const [isSearching, setIsSearching] = useState(false);
   const [activeCollection, setActiveCollection] = useState<Collection | null>(null);
   const [isAIEnabled, setIsAIEnabled] = useState(false);
+  
+  const openUpload = useUploadStore((s) => s.open);
+  const setUploadCollectionId = useUploadStore((s) => s.setCollectionId);
+  const lastUploadTime = useUploadStore((s) => s.lastUploadTime);
 
-  const handleSearch = (query: string, useAI: boolean) => {
+  const loadCollections = React.useCallback(async () => {
+    try {
+      const list = await collectionService.getAll();
+      const mapped = list.map(c => ({
+        id: c.id,
+        label: c.name,
+        count: c.count || 0
+      }));
+      setCollections(mapped);
+    } catch (error: any) {
+      logger.error("Failed to load collections", error, 'DashboardPage');
+      toast.error("加载收藏夹失败");
+    }
+  }, []);
+
+  const loadRecentPapers = React.useCallback(async () => {
+    try {
+      setIsSearching(true);
+      const papers = await paperService.getList(1, 10);
+      setSearchResults(papers);
+    } catch (error: any) {
+      logger.error("Failed to load papers", error, 'DashboardPage');
+      toast.error(error.message || "加载失败");
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const loadCollectionPapers = React.useCallback(async (collectionId: string) => {
+    try {
+      setIsSearching(true);
+      const detail = await collectionService.getById(collectionId);
+      const papers = (detail as any)?.papers ?? [];
+      setSearchResults(papers);
+      setIsAIEnabled(false);
+      setHasSearched(true);
+    } catch (error: any) {
+      logger.error("Failed to load collection papers", error, 'DashboardPage');
+      toast.error(error.message || "加载收藏夹论文失败");
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const handleUploadSuccess = React.useCallback(() => {
+    if (activeCollection?.id) {
+      loadCollectionPapers(activeCollection.id);
+      return;
+    }
+    loadRecentPapers();
+  }, [activeCollection?.id, loadCollectionPapers, loadRecentPapers]);
+
+  React.useEffect(() => {
+    setUploadCollectionId(activeCollection?.id ?? null);
+  }, [activeCollection?.id, setUploadCollectionId]);
+
+  React.useEffect(() => {
+    return () => {
+      setUploadCollectionId(null);
+    };
+  }, [setUploadCollectionId]);
+
+  // Listen for upload success
+  React.useEffect(() => {
+    if (lastUploadTime > 0) {
+        handleUploadSuccess();
+    }
+  }, [handleUploadSuccess, lastUploadTime]);
+
+  // Initial load
+  React.useEffect(() => {
+    loadRecentPapers();
+    loadCollections();
+    
+    // Register global upload success callback for this page
+    // When upload succeeds, we want to refresh the list if we are on dashboard
+    // But since store is global, we need to be careful not to overwrite other callbacks if any
+    // For now, we can just hook into the store's open mechanism or listen to changes?
+    // Actually, simpler: pass a callback to open() if we triggered it. 
+    // But Navbar triggers it. 
+    // So we can subscribe to store changes or just reload periodically?
+    // Or better: The Navbar in DashboardPage is the same Navbar.
+    // The Navbar uses uploadStore.open(). 
+    // We can't easily pass a callback from Navbar if Navbar is generic.
+    // However, we can use a useEffect to listen to uploadStore.onUploadSuccess call? 
+    // No, onUploadSuccess in store is a callback function stored in state.
+    
+    // Alternative: Dashboard watches for "upload success event".
+    // Or we just reload when modal closes?
+  }, [loadCollections, loadRecentPapers]);
+
+  // Listen for upload success
+  // We can modify the store to have an event emitter or just a simple version flag?
+  // Let's keep it simple. The user just wants the modal to open globally.
+  // Auto-refreshing the dashboard list is a "nice to have".
+  // Let's add a "lastUploadTime" to the store so we can depend on it.
+  
+  // For now, let's remove the local UploadModal and Navbar prop passing.
+
+  const handleSearch = async (query: string, useAI: boolean) => {
     setIsSearching(true);
     setIsAIEnabled(useAI);
     
-    // Simulate API call
-    setTimeout(() => {
-      setHasSearched(true);
-      const mockResults: Paper[] = [
-        {
-          id: '1',
-          title: 'Attention Is All You Need',
-          authors: ['Ashish Vaswani', 'Noam Shazeer', 'Niki Parmar', 'Jakob Uszkoreit', 'Llion Jones', 'Aidan N. Gomez', 'Lukasz Kaiser', 'Illia Polosukhin'],
-          year: 2017,
-          source: 'NeurIPS',
-          abstract: 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.',
-          citations: 85000,
-          isBookmarked: true
-        },
-        {
-          id: '2',
-          title: 'BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding',
-          authors: ['Jacob Devlin', 'Ming-Wei Chang', 'Kenton Lee', 'Kristina Toutanova'],
-          year: 2018,
-          source: 'NAACL',
-          abstract: 'We introduce a new language representation model called BERT, which stands for Bidirectional Encoder Representations from Transformers. Unlike recent language representation models, BERT is designed to pre-train deep bidirectional representations from unlabeled text by jointly conditioning on both left and right context in all layers.',
-          citations: 62000,
-          isBookmarked: false
-        },
-        {
-          id: '3',
-          title: 'GPT-3: Language Models are Few-Shot Learners',
-          authors: ['Tom B. Brown', 'Benjamin Mann', 'Nick Ryder', 'Melanie Subbiah', 'Jared D. Kaplan', 'Prafulla Dhariwal', 'Arvind Neelakantan'],
-          year: 2020,
-          source: 'NeurIPS',
-          abstract: 'Recent work has demonstrated substantial gains on many NLP tasks and benchmarks by pre-training on a large corpus of text followed by fine-tuning on a specific task. While typically task-agnostic in architecture, this method still requires task-specific fine-tuning datasets of thousands or tens of thousands of examples. By contrast, humans can generally perform a new language task from only a few examples or from simple instructions.',
-          citations: 18000,
-          isBookmarked: false
-        },
-        {
-          id: '4',
-          title: 'Deep Residual Learning for Image Recognition',
-          authors: ['Kaiming He', 'Xiangyu Zhang', 'Shaoqing Ren', 'Jian Sun'],
-          year: 2016,
-          source: 'CVPR',
-          abstract: 'Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously. We explicitly reformulate the layers as learning residual functions with reference to the layer inputs, instead of learning unreferenced functions.',
-          citations: 150000,
-          isBookmarked: true
-        }
-      ];
-
-      // Simulate filtering by collection
-      let filtered = mockResults;
-      if (activeCollection) {
-        console.log(`Searching within collection: ${activeCollection.label}`);
-        filtered = mockResults.slice(0, 2); 
-      }
-      
-      // Simulate AI Enhancement
-      if (useAI) {
-         console.log("AI Search Enabled");
-         filtered = filtered.map(p => ({
-           ...p,
-           aiScore: Math.floor(Math.random() * (99 - 85) + 85),
-           aiReason: p.id === '1' ? "作为 Transformer 架构的开山之作，与您的研究方向「深度学习基础」高度相关。" :
-                     p.id === '2' ? "BERT 模型在 NLP 领域的预训练范式对您的项目具有重要的参考价值。" :
-                     "该论文提出了核心算法改进，在相关基准测试中表现优异，值得深入阅读。"
-         }));
-      }
-
-      setSearchResults(filtered);
-      setIsSearching(false);
-    }, 1000);
+    try {
+        const results = await searchService.search({
+            query,
+            page: 1,
+            page_size: 20,
+            filters: activeCollection ? { collection_id: activeCollection.id } : undefined
+        });
+        setHasSearched(true);
+        setSearchResults(results);
+    } catch (error: any) {
+        logger.error("Search failed", error, 'DashboardPage');
+        toast.error(error.message || "搜索失败");
+    } finally {
+        setIsSearching(false);
+    }
   };
 
   const handleToggleBookmark = (id: string) => {
     setSearchResults(prev => prev.map(p => 
-      p.id === id ? { ...p, isBookmarked: !p.isBookmarked } : p
+      p.id === id ? { ...p, is_bookmarked: !p.is_bookmarked } : p
     ));
+  };
+
+  const handleCollectionsClick = () => {
+    if (collections.length > 0) {
+        // Try to find "默认收藏夹" or use the first one
+        const defaultCol = collections.find(c => c.label.includes('默认')) || collections[0];
+        setActiveCollection(defaultCol);
+        loadCollectionPapers(defaultCol.id);
+    } else {
+        toast.info("暂无收藏夹");
+    }
   };
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      <Navbar />
+      <Navbar 
+        onCollectionsClick={handleCollectionsClick}
+      />
       
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
@@ -109,9 +181,16 @@ export default function DashboardPage() {
           onSettingsClick={() => setIsSettingsOpen(true)} 
           onSelectCollection={(collection) => {
              setActiveCollection(collection);
-             // Optional: reset search or auto-search when switching collections
-             setHasSearched(false); 
+             if (collection?.id) {
+               loadCollectionPapers(collection.id);
+               return;
+             }
+             setHasSearched(false);
+             loadRecentPapers();
           }}
+          collections={collections}
+          activeCollectionId={activeCollection?.id}
+          onRefresh={loadCollections}
         />
 
         {/* Main Content */}
@@ -132,7 +211,7 @@ export default function DashboardPage() {
             <SearchBar onSearch={handleSearch} />
             <SearchFilters 
               className="mt-4" 
-              onUploadClick={() => setIsUploadOpen(true)} 
+              onUploadClick={() => openUpload({ collectionId: activeCollection?.id ?? null })} 
             />
           </div>
 
@@ -175,8 +254,7 @@ export default function DashboardPage() {
       {/* Settings Modal */}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       
-      {/* Upload Modal */}
-      <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
+      {/* Upload Modal - Now global in Layout, removed from here */}
     </div>
   );
 }

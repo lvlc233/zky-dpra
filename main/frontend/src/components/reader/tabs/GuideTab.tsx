@@ -9,9 +9,16 @@ import {
   Send,
   Sparkles,
   Bot,
-  User
+  User,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { readerService } from '@/services/reader.service';
+import { chatService } from '@/services/chat.service';
+import { toast } from 'sonner';
+import { createParser } from 'eventsource-parser';
+import { useAuthStore } from '@/store/use-auth-store';
+import { logger } from '@/lib/logger';
 
 interface Message {
   id: string;
@@ -20,53 +27,154 @@ interface Message {
   timestamp: number;
 }
 
-export const GuideTab = () => {
+interface GuideTabProps {
+  paperId: string;
+}
+
+export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
   const [isSummaryOpen, setIsSummaryOpen] = useState(true);
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
+      id: 'welcome',
       role: 'ai',
       content: '你好！我是你的 AI 阅读助手。关于这篇论文，你想了解什么？你可以试着问我：\n1. 这篇论文的核心创新点是什么？\n2. 实验数据表现如何？',
       timestamp: Date.now()
     }
   ]);
+  const [summary, setSummary] = useState<string>('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const { token } = useAuthStore();
   const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom of chat
+  // Scroll to bottom
   useEffect(() => {
-    // Access the viewport element of Radix UI ScrollArea if possible, 
-    // or just use a dummy div at bottom. 
-    // For simplicity with standard ScrollArea, we might need a ref to the end.
-    const viewport = document.querySelector('[data-radix-scroll-area-viewport]');
-    if (viewport) {
-      viewport.scrollTop = viewport.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
+  // Init Session & Summary
+  useEffect(() => {
+      const init = async () => {
+          if (!paperId) return;
 
+          // 1. Get Summary
+          setIsGeneratingSummary(true);
+          try {
+              const summaryData = await readerService.getSummary(paperId);
+              if (summaryData && summaryData.content) {
+                  setSummary(summaryData.content);
+              } else {
+                  // If no summary, maybe trigger generation? Or just wait.
+                  // For now, let's try to generate if empty
+                   const genSummary = await readerService.generateSummary(paperId);
+                   setSummary(genSummary.content);
+              }
+          } catch (e) {
+              logger.error("Failed to get summary", e, 'GuideTab');
+              // toast.error("获取导读失败");
+          } finally {
+              setIsGeneratingSummary(false);
+          }
+
+          // 2. Create Chat Session
+          try {
+              const session = await chatService.createSession('paper_copilot', { paper_id: paperId });
+              setSessionId(session.id);
+          } catch (e) {
+              logger.error("Failed to create chat session", e, 'GuideTab');
+              toast.error("聊天服务连接失败");
+          }
+      };
+
+      init();
+  }, [paperId]);
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || !sessionId || isSending) return;
+
+    const userContent = inputValue.trim();
     const newUserMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: inputValue.trim(),
+      content: userContent,
       timestamp: Date.now()
     };
 
     setMessages(prev => [...prev, newUserMsg]);
     setInputValue('');
+    setIsSending(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const newAiMsg: Message = {
-        id: (Date.now() + 1).toString(),
+    // AI Message Placeholder
+    const aiMsgId = (Date.now() + 1).toString();
+    setMessages(prev => [...prev, {
+        id: aiMsgId,
         role: 'ai',
-        content: '这是一个模拟的 AI 回复。在实际应用中，这里会调用后端 API 基于 RAG 回答您的问题。',
+        content: '',
         timestamp: Date.now()
-      };
-      setMessages(prev => [...prev, newAiMsg]);
-    }, 1000);
+    }]);
+
+    try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/chat/sessions/${sessionId}/message`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ content: userContent }),
+        });
+
+        if (!response.ok) {
+            throw new Error(response.statusText);
+        }
+
+        if (!response.body) return;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        const parser = createParser({
+      onEvent: (event: any) => {
+        if (event.type === 'event') {
+          try {
+            // Check for [DONE]
+            if (event.data === '[DONE]') return;
+            
+            const data = JSON.parse(event.data);
+            const delta = data.content || "";
+            
+            setMessages(prev => prev.map(msg => 
+              msg.id === aiMsgId 
+                ? { ...msg, content: msg.content + delta }
+                : msg
+            ));
+          } catch (e) {
+            console.error("Parse error", e);
+          }
+        }
+      }
+    });
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            parser.feed(chunk);
+        }
+
+    } catch (error) {
+        console.error("Send message failed", error);
+        toast.error("发送消息失败");
+        setMessages(prev => prev.map(msg => 
+            msg.id === aiMsgId 
+            ? { ...msg, content: "抱歉，我遇到了一些问题，请稍后再试。" }
+            : msg
+        ));
+    } finally {
+        setIsSending(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -90,7 +198,16 @@ export const GuideTab = () => {
               论文导读
             </h3>
             {isSummaryOpen && (
-               <p className="text-xs text-gray-500 mt-1">AI 自动生成的论文核心内容摘要</p>
+               <div className="text-sm text-gray-600 leading-relaxed mt-2 p-1 max-h-60 overflow-y-auto">
+                 {isGeneratingSummary ? (
+                    <div className="flex items-center gap-2 text-indigo-600">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>正在生成导读...</span>
+                    </div>
+                 ) : (
+                    summary || "暂无导读内容"
+                 )}
+               </div>
             )}
           </div>
           {isSummaryOpen ? (
@@ -202,9 +319,13 @@ export const GuideTab = () => {
                     : "bg-indigo-600 text-white rounded-tr-none"
                 )}>
                   {msg.content}
+                  {msg.role === 'ai' && msg.content === '' && (
+                    <span className="inline-block w-2 h-4 bg-indigo-400 animate-pulse ml-1 align-middle"></span>
+                  )}
                 </div>
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
 

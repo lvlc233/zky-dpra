@@ -27,6 +27,18 @@ export const AuthModalProvider: React.FC<{ children: ReactNode }> = ({ children 
     setIsOpen(false);
   };
 
+  // Listen for unauthorized events to automatically open login modal
+  React.useEffect(() => {
+    const handleUnauthorized = () => {
+      openAuthModal('login');
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
+  }, []);
+
   return (
     <AuthModalContext.Provider value={{ isOpen, view, openAuthModal, closeAuthModal, setAuthView: setView }}>
       {children}

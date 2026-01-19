@@ -9,6 +9,8 @@ interface ReaderSidebarProps {
   className?: string;
   isCollapsed?: boolean;
   onNavigate?: (page: number) => void;
+  onToggleCollapse?: () => void;
+  toc?: any[];
   
   // Layer Management Props
   layers?: Layer[];
@@ -25,6 +27,8 @@ export const ReaderSidebar: React.FC<ReaderSidebarProps> = ({
   className,
   isCollapsed = false,
   onNavigate,
+  onToggleCollapse,
+  toc = [],
   layers = [],
   activeLayerId,
   onAddLayer,

@@ -2,7 +2,11 @@ import React from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Moon, Sun, Type, Monitor } from 'lucide-react';
 
-export const SettingsTab = () => {
+interface SettingsTabProps {
+  paperId: string;
+}
+
+export const SettingsTab: React.FC<SettingsTabProps> = ({ paperId }) => {
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 border-b border-gray-200">

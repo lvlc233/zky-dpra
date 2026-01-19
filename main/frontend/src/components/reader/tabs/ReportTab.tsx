@@ -274,7 +274,11 @@ const ReportList = ({
   );
 };
 
-export const ReportTab = () => {
+interface ReportTabProps {
+  paperId: string;
+}
+
+export const ReportTab: React.FC<ReportTabProps> = ({ paperId }) => {
   const [reports, setReports] = useState<ReportItem[]>(INITIAL_REPORTS);
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
 

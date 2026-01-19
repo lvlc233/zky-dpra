@@ -15,6 +15,10 @@ const GraphViz = dynamic(() => import('./GraphViz'), {
   )
 });
 
-export const GraphTab = () => {
-  return <GraphViz />;
+interface GraphTabProps {
+  paperId: string;
+}
+
+export const GraphTab: React.FC<GraphTabProps> = ({ paperId }) => {
+  return <GraphViz paperId={paperId} />;
 };

@@ -19,7 +19,11 @@ interface Note {
   pageRef?: number;
 }
 
-export const NotesTab = () => {
+interface NotesTabProps {
+  paperId: string;
+}
+
+export const NotesTab: React.FC<NotesTabProps> = ({ paperId }) => {
   const [notes, setNotes] = useState<Note[]>([
     { id: '1', content: '这一段关于 Agent 协作的描述很有启发，可以参考到我的毕设中。', timestamp: '2026-01-11 10:30', pageRef: 3 },
     { id: '2', content: '这里提到的性能对比数据，需要进一步查证引用来源 [12]。', timestamp: '2026-01-11 11:15', pageRef: 5 },
