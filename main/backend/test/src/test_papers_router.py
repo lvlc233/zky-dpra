@@ -34,8 +34,15 @@ def mock_user():
     return User(id=uuid4(), email="test@example.com")
 
 
+from service.collections.collection_service import CollectionService, get_collection_service
+
 @pytest.fixture
-def client(mock_paper_service, mock_arxiv_service, mock_user):
+def mock_collection_service():
+    return AsyncMock(spec=CollectionService)
+
+
+@pytest.fixture
+def client(mock_paper_service, mock_arxiv_service, mock_collection_service, mock_user):
     app = create_app()
     
     # Override dependencies
@@ -45,8 +52,12 @@ def client(mock_paper_service, mock_arxiv_service, mock_user):
     async def override_get_current_user():
         return mock_user
         
+    async def override_get_collection_service():
+        return mock_collection_service
+        
     app.dependency_overrides[get_paper_service] = override_get_paper_service
     app.dependency_overrides[get_arxiv_service] = lambda: mock_arxiv_service
+    app.dependency_overrides[get_collection_service] = override_get_collection_service
     app.dependency_overrides[get_current_user] = override_get_current_user
     
     return TestClient(app)
@@ -133,3 +144,5 @@ def test_arxiv_search_ok(client, mock_arxiv_service):
     data = resp.json()["data"]
     assert data["total_count"] == 1
     assert data["papers"][0]["title"] == "Test Paper"
+
+

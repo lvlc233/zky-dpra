@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.future import select
+from sqlalchemy import func, delete, Tuple
 from sqlalchemy.orm import selectinload
 from fastapi import Depends
 
@@ -219,6 +220,26 @@ class CollectionRepository:
         return result.scalars().all()
 
     @staticmethod
+    async def get_user_collections_with_counts(
+        session: AsyncSession, 
+        user_id: UUID, 
+        limit: int = 100, 
+        offset: int = 0
+    ) -> List[Tuple]:
+        """获取用户的收藏夹列表及其论文数量"""
+        statement = (
+            select(Collection, func.count(CollectionPaper.paper_id))
+            .outerjoin(CollectionPaper, Collection.id == CollectionPaper.collection_id)
+            .where(Collection.user_id == user_id)
+            .group_by(Collection.id)
+            .order_by(Collection.updated_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await session.execute(statement)
+        return result.all()
+
+    @staticmethod
     async def get_default_collection(session: AsyncSession, user_id: UUID) -> Optional[Collection]:
         statement = select(Collection).where(
             Collection.user_id == user_id,
@@ -285,6 +306,24 @@ class CollectionRepository:
             await session.commit()
             return True
         return False
+
+    @staticmethod
+    async def remove_paper_from_user_collections(
+        session: AsyncSession,
+        user_id: UUID,
+        paper_id: UUID
+    ) -> int:
+        """从用户的所有收藏夹中移除指定论文"""
+        # Find collection_ids for this user
+        subquery = select(Collection.id).where(Collection.user_id == user_id)
+        
+        statement = delete(CollectionPaper).where(
+            CollectionPaper.paper_id == paper_id,
+            CollectionPaper.collection_id.in_(subquery)
+        )
+        result = await session.execute(statement)
+        await session.commit()
+        return result.rowcount
 
     @staticmethod
     async def get_collection_papers(

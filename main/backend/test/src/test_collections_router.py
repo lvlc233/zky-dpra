@@ -7,7 +7,7 @@ from datetime import datetime
 
 from controller.api.app import create_app
 from service.collections.collection_service import CollectionService, get_collection_service
-from controller.api.collections.schema import CollectionResponse, CollectionDetailResponse
+from controller.api.collections.schema import CollectionResponse
 from service.papers.schema import PaperDTO
 from common.model.enums import PaperStatus
 from controller.api.auth.router import get_current_user
@@ -47,7 +47,6 @@ def _fake_collection_response(collection_id=None, user_id=None, name="Test Colle
         id=collection_id,
         user_id=user_id,
         name=name,
-        description="Test Description",
         created_at=datetime.now(),
         updated_at=datetime.now()
     )
@@ -60,8 +59,7 @@ def test_create_collection(client, mock_collection_service, mock_user):
     mock_collection_service.create_collection.return_value = mock_resp
     
     payload = {
-        "name": "New Collection",
-        "description": "Test Description"
+        "name": "New Collection"
     }
     
     resp = client.post(
@@ -71,7 +69,7 @@ def test_create_collection(client, mock_collection_service, mock_user):
     
     assert resp.status_code == 200
     data = resp.json()["data"]
-    assert data["id"] == str(collection_id)
+    assert data["collection_id"] == str(collection_id)
     assert data["name"] == "New Collection"
     
     mock_collection_service.create_collection.assert_called_once()
@@ -90,38 +88,10 @@ def test_get_collections(client, mock_collection_service, mock_user):
     
     assert resp.status_code == 200
     data = resp.json()["data"]
-    assert len(data["items"]) == 2
-    assert data["items"][0]["name"] == "C1"
-
-def test_get_collection_detail(client, mock_collection_service, mock_user):
-    user_id = mock_user.id
-    collection_id = uuid4()
-    
-    base_resp = _fake_collection_response(collection_id, user_id)
-    detail_resp = CollectionDetailResponse(
-        **base_resp.model_dump(),
-        papers=[]
-    )
-    
-    mock_collection_service.get_collection_detail.return_value = detail_resp
-    
-    resp = client.get(
-        f"/api/v1/collections/{collection_id}"
-    )
-    
-    assert resp.status_code == 200
-    data = resp.json()["data"]
-    assert data["id"] == str(collection_id)
-    assert "papers" in data
-
-def test_get_collection_detail_not_found(client, mock_collection_service):
-    mock_collection_service.get_collection_detail.return_value = None
-    
-    resp = client.get(
-        f"/api/v1/collections/{uuid4()}"
-    )
-    
-    assert resp.status_code == 404
+    assert len(data) == 2
+    assert data[0]["name"] == "C1"
+    assert "total" in data[0]
+    mock_collection_service.get_user_collections.assert_called_once()
 
 def test_update_collection(client, mock_collection_service, mock_user):
     user_id = mock_user.id
@@ -130,11 +100,11 @@ def test_update_collection(client, mock_collection_service, mock_user):
     mock_resp = _fake_collection_response(collection_id, user_id, "Updated Name")
     mock_collection_service.update_collection.return_value = mock_resp
     
-    payload = {"name": "Updated Name"}
+    payload = {"new_name": "Updated Name"}
     
-    resp = client.put(
+    resp = client.patch(
         f"/api/v1/collections/{collection_id}",
-        json=payload
+        params=payload
     )
     
     assert resp.status_code == 200
@@ -149,28 +119,6 @@ def test_delete_collection(client, mock_collection_service):
     
     assert resp.status_code == 200
 
-def test_add_paper_to_collection(client, mock_collection_service):
-    mock_collection_service.add_paper_to_collection.return_value = True
-    
-    payload = {"paper_id": str(uuid4())}
-    resp = client.post(
-        f"/api/v1/collections/{uuid4()}/papers",
-        json=payload
-    )
-    
-    assert resp.status_code == 200
-
-def test_add_paper_fail(client, mock_collection_service):
-    mock_collection_service.add_paper_to_collection.return_value = False
-    
-    payload = {"paper_id": str(uuid4())}
-    resp = client.post(
-        f"/api/v1/collections/{uuid4()}/papers",
-        json=payload
-    )
-    
-    assert resp.status_code == 400
-
 def test_remove_paper(client, mock_collection_service):
     mock_collection_service.remove_paper_from_collection.return_value = True
     
@@ -179,3 +127,34 @@ def test_remove_paper(client, mock_collection_service):
     )
     
     assert resp.status_code == 200
+
+def test_move_paper_ok(client, mock_collection_service, mock_user):
+    paper_id = uuid4()
+    collection_id = uuid4()
+    
+    mock_collection_service.move_paper.return_value = True
+    
+    resp = client.patch(
+        f"/api/v1/collections/{collection_id}/papers/move/{paper_id}"
+    )
+    
+    assert resp.status_code == 200
+    assert resp.json()["data"] is True
+    
+    mock_collection_service.move_paper.assert_called_once()
+    args, kwargs = mock_collection_service.move_paper.call_args
+    assert args[0] == paper_id
+    assert args[1] == collection_id
+    assert args[2] == mock_user.id
+
+def test_move_paper_fail(client, mock_collection_service):
+    paper_id = uuid4()
+    collection_id = uuid4()
+    
+    mock_collection_service.move_paper.return_value = False
+    
+    resp = client.patch(
+        f"/api/v1/collections/{collection_id}/papers/move/{paper_id}"
+    )
+    
+    assert resp.status_code == 400

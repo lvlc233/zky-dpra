@@ -9,14 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from base.pg.service import CollectionRepository, PaperRepository, SessionDep, UserRepository
-from base.pg.entity import Collection, Paper
-from controller.api.collections.schema import (
-    CollectionCreate, 
-    CollectionUpdate, 
-    CollectionResponse, 
-    CollectionDetailResponse
-)
-from service.papers.schema import PaperDTO
+from base.pg.entity import Collection
+from service.collections.schema import CollectionDTO
+
 
 
 class CollectionService:
@@ -27,25 +22,7 @@ class CollectionService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    def _collection_to_response(self, collection: Collection) -> CollectionResponse:
-        """实体转响应模型"""
-        return CollectionResponse.model_validate(collection)
 
-    def _paper_to_dto(self, paper: Paper) -> PaperDTO:
-        """Paper实体转DTO"""
-        # 注意: 这里的转换逻辑应与PaperService保持一致
-        return PaperDTO(
-            id=paper.id,
-            user_id=paper.user_id,
-            title=paper.title,
-            authors=paper.authors,
-            abstract=paper.abstract,
-            file_key=paper.file_key,
-            file_url=paper.file_url,
-            status=paper.status,
-            error_message=paper.error_message,
-            created_at=paper.created_at
-        )
 
     async def ensure_default_collection(self, user_id: UUID) -> Collection:
         user = await UserRepository.get_user_by_id(self.session, user_id)
@@ -60,10 +37,10 @@ class CollectionService:
             collection = Collection(
                 user_id=user_id,
                 name="默认收藏夹",
-                description="系统默认收藏夹",
                 is_default=True,
             )
             return await CollectionRepository.create_collection(self.session, collection)
+
         except IntegrityError:
             await self.session.rollback()
             default_collection = await CollectionRepository.get_default_collection(self.session, user_id)
@@ -71,69 +48,77 @@ class CollectionService:
                 return default_collection
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建默认收藏夹失败")
 
-    async def create_collection(self, user_id: UUID, data: CollectionCreate) -> CollectionResponse:
+    async def create_collection(self, user_id: UUID, name:str) -> CollectionDTO:
         """创建收藏夹"""
-        user = await UserRepository.get_user_by_id(self.session, user_id)
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
-
         collection = Collection(
             user_id=user_id,
-            name=data.name,
-            description=data.description
+            name=name,
         )
         created = await CollectionRepository.create_collection(self.session, collection)
-        return self._collection_to_response(created)
+        return CollectionDTO.model_validate(created)
 
     async def get_user_collections(
         self, 
         user_id: UUID, 
         limit: int = 100, 
         offset: int = 0
-    ) -> List[CollectionResponse]:
+    ) -> List[CollectionDTO]:
         """获取用户收藏夹列表"""
         if offset == 0:
             await self.ensure_default_collection(user_id)
-        collections = await CollectionRepository.get_user_collections(
+        results = await CollectionRepository.get_user_collections_with_counts(
             self.session, user_id, limit, offset
         )
-        return [self._collection_to_response(c) for c in collections]
+        
+        responses = []
+        for collection, count in results:
+            resp = CollectionDTO.model_validate(collection)
+            resp.total = count
+            responses.append(resp)
+            
+        return responses
 
-    async def get_collection_detail(self, collection_id: UUID, user_id: UUID) -> Optional[CollectionDetailResponse]:
-        """获取收藏夹详情（包含论文列表）"""
-        collection = await CollectionRepository.get_collection_by_id(self.session, collection_id)
-        if not collection or collection.user_id != user_id:
-            return None
+    async def move_paper(self, paper_id: UUID, target_collection_id: UUID, user_id: UUID) -> bool:
+        """移动论文到指定收藏夹"""
+        # 1. Check target collection
+        target_collection = await CollectionRepository.get_collection_by_id(self.session, target_collection_id)
+        if not target_collection or target_collection.user_id != user_id:
+            return False 
+            
+        # 2. Check paper exists
+        paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
+        if not paper or paper.user_id != user_id:
+             return False
+             
+        # 3. Remove from all user's collections
+        await CollectionRepository.remove_paper_from_user_collections(self.session, user_id, paper_id)
         
-        # 获取关联的论文
-        papers = await CollectionRepository.get_collection_papers(self.session, collection_id)
+        # 4. Add to target
+        await CollectionRepository.add_paper_to_collection(self.session, target_collection_id, paper_id)
         
-        response = CollectionDetailResponse.model_validate(collection)
-        response.papers = [self._paper_to_dto(p) for p in papers]
-        return response
+        return True
+
 
     async def update_collection(
         self, 
         collection_id: UUID, 
         user_id: UUID, 
-        data: CollectionUpdate
-    ) -> Optional[CollectionResponse]:
+        new_name: Optional[str] = None,
+    ) -> Optional[CollectionDTO]:
         """更新收藏夹"""
         collection = await CollectionRepository.get_collection_by_id(self.session, collection_id)
         if not collection or collection.user_id != user_id:
             return None
 
-        if collection.is_default and data.name is not None and data.name != collection.name:
+        if collection.is_default and new_name is not None and new_name != collection.name:
+            # TODO: 这里要自定义异常。这里的HTTP都要
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="默认收藏夹不允许重命名")
 
-        if data.name is not None:
-            collection.name = data.name
-        if data.description is not None:
-            collection.description = data.description
-        
+        if new_name is not None:
+            collection.name = new_name      
         collection.updated_at = datetime.now()
         updated = await CollectionRepository.update_collection(self.session, collection)
-        return self._collection_to_response(updated)
+        return CollectionDTO.model_validate(updated)
 
     async def delete_collection(self, collection_id: UUID, user_id: UUID) -> bool:
         """删除收藏夹"""
@@ -143,7 +128,7 @@ class CollectionService:
 
         if collection.is_default:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="默认收藏夹不允许删除")
-        
+        # TODO: 这里有没有联表删除,就是删除该收藏夹下的论文。
         return await CollectionRepository.delete_collection(self.session, collection)
 
     async def add_paper_to_collection(

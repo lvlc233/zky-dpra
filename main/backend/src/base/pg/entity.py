@@ -310,10 +310,6 @@ class Collection(SQLModel, table=True):
         index=True,
         sa_column_kwargs={"comment": "收藏夹名称"}
     )
-    description: Optional[str] = Field(
-        default=None,
-        sa_column_kwargs={"comment": "描述"}
-    )
     is_default: bool = Field(
         default=False,
         index=True,
