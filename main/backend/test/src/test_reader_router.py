@@ -6,7 +6,7 @@ from datetime import datetime
 
 from controller.api.app import create_app
 from base.pg.entity import User
-from service.reader.schema import LayerResponse, LayerListResponse, AnnotationResponse, LayerCreate, AnnotationCreate
+from service.reader.schema import LayerDTO, LayerListDTO, AnnotationDTO
 from service.reader.reader_service import get_reader_service, ReaderService
 from controller.api.auth.router import get_current_user
 
@@ -39,8 +39,8 @@ def test_get_paper_layers(client, mock_reader_service, mock_user):
     paper_id = uuid4()
     layer_id = uuid4()
     
-    mock_layers = LayerListResponse(layers=[
-        LayerResponse(
+    mock_layers = LayerListDTO(layers=[
+        LayerDTO(
             id=layer_id,
             paper_id=paper_id,
             user_id=mock_user.id,
@@ -67,7 +67,7 @@ def test_create_layer(client, mock_reader_service, mock_user):
     paper_id = uuid4()
     layer_in = {"name": "New Layer", "type": "user", "visible": True}
     
-    mock_response = LayerResponse(
+    mock_response = LayerDTO(
         id=uuid4(),
         paper_id=paper_id,
         user_id=mock_user.id,
@@ -96,7 +96,7 @@ def test_create_annotation(client, mock_reader_service):
         "color": "#FFFF00"
     }
     
-    mock_response = AnnotationResponse(
+    mock_response = AnnotationDTO(
         id=uuid4(),
         layer_id=layer_id,
         type="highlight",
@@ -119,7 +119,7 @@ def test_update_layer(client, mock_reader_service, mock_user):
     layer_id = uuid4()
     layer_in = {"name": "Updated Layer", "visible": False}
     
-    mock_response = LayerResponse(
+    mock_response = LayerDTO(
         id=layer_id,
         paper_id=uuid4(),
         user_id=mock_user.id,

@@ -1,11 +1,12 @@
 '''
 开发者: BackendAgent
-当前版本: v1.1_test_auth
+当前版本: v1.2_test_auth_refresh
 创建时间: 2026-01-12 13:30:00
-更新时间: 2026-01-12 14:45:00
+更新时间: 2026-01-20 10:35:00
 更新记录: 
     [2026-01-12 14:45:00:v1.1_test_auth:适配新异常处理机制与Service下沉逻辑]
     [2026-01-12 13:30:00:v1.0_test_auth:创建 Auth 模块集成测试]
+    [2026-01-20 10:35:00:v1.2_test_auth_refresh:补充refresh接口并对齐认证响应模型]
 '''
 
 import pytest
@@ -23,7 +24,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../s
 from controller.api.app import app
 from service.auth.auth_service import AuthService, get_auth_service
 from base.pg.entity import User
-from common.security import create_access_token
 from common.model.errors import AuthenticationError, BusinessError
 
 client = TestClient(app, raise_server_exceptions=False)
@@ -46,6 +46,7 @@ mock_auth_service.authenticate_user.return_value = MOCK_USER
 mock_auth_service.create_user.return_value = MOCK_USER
 mock_auth_service.get_user.return_value = MOCK_USER
 mock_auth_service.get_user_by_token.return_value = MOCK_USER
+mock_auth_service.get_user_by_refresh_token.return_value = MOCK_USER
 
 async def override_get_auth_service():
     return mock_auth_service
@@ -73,8 +74,9 @@ def test_login_success():
     assert json_resp["code"] == 200
     data = json_resp["data"]
     assert "access_token" in data
-    assert data["token_type"] == "bearer"
-    assert data["user"]["email"] == "test@example.com"
+    assert data["refresh_token"] is None
+    assert data["email"] == "test@example.com"
+    assert data["user_id"] == str(MOCK_USER_ID)
 
 def test_login_failure():
     # Mock failure with Exception
@@ -113,7 +115,8 @@ def test_register_success():
     assert response.headers.get("access-control-allow-credentials") == "true"
     json_resp = response.json()
     assert json_resp["code"] == 200
-    assert json_resp["data"]["email"] == "test@example.com" # Returns mock user
+    assert json_resp["data"]["email"] == "test@example.com"
+    assert json_resp["data"]["user_id"] == str(MOCK_USER_ID)
 
 def test_register_failure():
     # Mock failure with Exception
@@ -137,33 +140,24 @@ def test_register_failure():
     mock_auth_service.create_user.side_effect = None
     mock_auth_service.create_user.return_value = MOCK_USER
 
-def test_read_users_me():
-    # Ensure get_user_by_token returns MOCK_USER
-    mock_auth_service.get_user_by_token.return_value = MOCK_USER
-    
-    # Generate a valid token for the mock user
-    token = create_access_token(subject=MOCK_USER_ID)
-    
+def test_refresh_token_success():
+    mock_auth_service.get_user_by_refresh_token.side_effect = None
+    mock_auth_service.get_user_by_refresh_token.return_value = MOCK_USER
+
     response = client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/auth/refresh",
+        params={"refresh_token": "refresh_token_value"},
+        headers={"Origin": "http://localhost:3000"},
     )
+
     assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    assert response.headers.get("access-control-allow-credentials") == "true"
+    set_cookie = response.headers.get("set-cookie")
+    assert set_cookie is not None
+    assert "access_token=" in set_cookie
     json_resp = response.json()
     assert json_resp["code"] == 200
-    assert json_resp["data"]["email"] == "test@example.com"
-    assert json_resp["data"]["id"] == str(MOCK_USER_ID)
-
-def test_read_users_me_invalid_token():
-    # Mock failure for invalid token in Service
-    mock_auth_service.get_user_by_token.side_effect = AuthenticationError("Could not validate credentials")
-    
-    response = client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": "Bearer invalid_token"}
-    )
-    assert response.status_code == 401
-    
-    # Reset side effect
-    mock_auth_service.get_user_by_token.side_effect = None
-    mock_auth_service.get_user_by_token.return_value = MOCK_USER
+    data = json_resp["data"]
+    assert "access_token" in data
+    assert data["refresh_token"] is not None

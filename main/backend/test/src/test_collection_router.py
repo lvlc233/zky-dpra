@@ -65,9 +65,10 @@ def test_create_collection(client, mock_collection_service):
         json=data,
     )
     
-    assert response.status_code == 201
-    assert response.json()["id"] == str(collection_id)
-    assert response.json()["name"] == data["name"]
+    assert response.status_code == 200
+    payload = response.json()["data"]
+    assert payload["id"] == str(collection_id)
+    assert payload["name"] == data["name"]
     mock_collection_service.create_collection.assert_called_once()
 
 def test_get_collections(client, mock_collection_service):
@@ -88,8 +89,9 @@ def test_get_collections(client, mock_collection_service):
     )
     
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["id"] == str(collection_id)
+    payload = response.json()["data"]
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["id"] == str(collection_id)
     mock_collection_service.get_user_collections.assert_called_once()
 
 def test_get_collection_detail(client, mock_collection_service):
@@ -123,9 +125,10 @@ def test_get_collection_detail(client, mock_collection_service):
     )
     
     assert response.status_code == 200
-    assert response.json()["id"] == str(collection_id)
-    assert len(response.json()["papers"]) == 1
-    assert response.json()["papers"][0]["id"] == str(paper_id)
+    payload = response.json()["data"]
+    assert payload["id"] == str(collection_id)
+    assert len(payload["papers"]) == 1
+    assert payload["papers"][0]["id"] == str(paper_id)
 
 def test_get_collection_detail_not_found(client, mock_collection_service):
     collection_id = uuid4()
@@ -158,7 +161,7 @@ def test_update_collection(client, mock_collection_service):
     )
     
     assert response.status_code == 200
-    assert response.json()["name"] == "Updated Name"
+    assert response.json()["data"]["name"] == "Updated Name"
 
 def test_delete_collection(client, mock_collection_service):
     user_id = uuid4()
@@ -169,7 +172,7 @@ def test_delete_collection(client, mock_collection_service):
         f"/api/v1/collections/{collection_id}",
     )
     
-    assert response.status_code == 204
+    assert response.status_code == 200
 
 def test_delete_collection_not_found(client, mock_collection_service):
     user_id = uuid4()
@@ -195,7 +198,7 @@ def test_add_paper_to_collection(client, mock_collection_service):
         json=data,
     )
     
-    assert response.status_code == 201
+    assert response.status_code == 200
     assert response.json()["message"] == "添加成功"
 
 def test_add_paper_to_collection_fail(client, mock_collection_service):
@@ -224,7 +227,7 @@ def test_remove_paper_from_collection(client, mock_collection_service):
         f"/api/v1/collections/{collection_id}/papers/{paper_id}",
     )
     
-    assert response.status_code == 204
+    assert response.status_code == 200
 
 def test_remove_paper_from_collection_fail(client, mock_collection_service):
     user_id = uuid4()

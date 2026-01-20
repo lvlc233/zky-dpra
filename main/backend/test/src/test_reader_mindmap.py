@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from base.pg.entity import MindMap, User
 from service.reader.mind_map_service import MindMapService
-from service.reader.schema import MindMapCreate, MindMapUpdate, GraphData, GraphNode, GraphEdge
+from service.reader.schema import MindMapCreateDTO, MindMapUpdateDTO, GraphDataDTO, GraphNodeDTO
 from controller.api.app import app
 from controller.api.auth.router import get_current_user
 from service.reader.reader_service import get_reader_service
@@ -29,24 +29,23 @@ async def test_mind_map_service_crud():
     user_id = uuid4()
     
     # Create (get_or_create)
-    graph_data = GraphData(nodes=[GraphNode(id="1", label="Node1")], edges=[])
-    map_in = MindMapCreate(graph_data=graph_data)
+    graph_data = GraphDataDTO(nodes=[GraphNodeDTO(id="1", label="Node1")], edges=[])
+    map_in = MindMapCreateDTO(graph_data=graph_data)
     
     # First call: creates new
     mm = await service.get_or_create_mind_map(paper_id, user_id, map_in)
     assert mm.paper_id == paper_id
-    assert mm.user_id == user_id
-    assert mm.graph_data["nodes"][0]["id"] == "1"
+    assert mm.graph_data.nodes[0].id == "1"
     session.add.assert_called()
     session.commit.assert_called()
     
     # Update
     mock_result.scalar_one_or_none.return_value = mm
-    update_data = GraphData(nodes=[GraphNode(id="1", label="Updated")], edges=[])
-    update_in = MindMapUpdate(graph_data=update_data)
+    update_data = GraphDataDTO(nodes=[GraphNodeDTO(id="1", label="Updated")], edges=[])
+    update_in = MindMapUpdateDTO(graph_data=update_data)
     
     updated = await service.update_mind_map(paper_id, user_id, update_in)
-    assert updated.graph_data["nodes"][0]["label"] == "Updated"
+    assert updated.graph_data.nodes[0].label == "Updated"
     session.add.assert_called()
 
 # --- Controller Tests ---

@@ -60,7 +60,7 @@ def test_upload_paper_ok(client, mock_paper_service, mock_user):
     resp = client.post("/api/v1/papers/upload", files=files)
 
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["data"]
     assert data["paper_id"] == paper_id
     assert data["status"] == PaperStatus.PENDING.value
     
@@ -110,7 +110,7 @@ def test_get_paper_status_ok(client, mock_paper_service, mock_user):
     resp = client.get(f"/api/v1/papers/{paper_id}/status")
 
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["data"]
     assert data["paper_id"] == str(paper_id)
     assert data["status"] == PaperStatus.PENDING.value
 
@@ -130,6 +130,6 @@ def test_arxiv_search_ok(client, mock_arxiv_service):
     resp = client.get("/api/v1/papers/search/test")
     
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["data"]
     assert data["total_count"] == 1
     assert data["papers"][0]["title"] == "Test Paper"

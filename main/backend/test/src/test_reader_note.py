@@ -4,9 +4,9 @@ from uuid import uuid4
 from datetime import datetime
 from fastapi.testclient import TestClient
 
-from base.pg.entity import Note, User
+from base.pg.entity import User
 from service.reader.note_service import NoteService
-from service.reader.schema import NoteCreate, NoteUpdate
+from service.reader.schema import NoteCreateDTO, NoteUpdateDTO
 from controller.api.app import app
 from controller.api.auth.router import get_current_user
 from service.reader.reader_service import get_reader_service
@@ -31,7 +31,7 @@ async def test_note_service_crud():
     user_id = uuid4()
     
     # Create
-    note_in = NoteCreate(title="Test Note", content="Markdown Content")
+    note_in = NoteCreateDTO(title="Test Note", content="Markdown Content")
     note = await service.create_note(paper_id, user_id, note_in)
     assert note.title == "Test Note"
     assert note.content == "Markdown Content"
@@ -46,7 +46,7 @@ async def test_note_service_crud():
     assert fetched.id == note.id
     
     # Update
-    update_in = NoteUpdate(content="Updated Content")
+    update_in = NoteUpdateDTO(content="Updated Content")
     updated = await service.update_note(note.id, user_id, update_in)
     assert updated.content == "Updated Content"
     
@@ -98,10 +98,15 @@ def test_create_note_api(client, mock_user_obj, mock_note_service):
     paper_id = uuid4()
     note_data = {"title": "New Note", "content": "Content"}
     
-    mock_note = Note(
-        id=uuid4(), paper_id=paper_id, user_id=mock_user_obj.id,
-        title="New Note", content="Content", created_at=datetime.now(), updated_at=datetime.now()
-    )
+    mock_note = {
+        "id": uuid4(),
+        "paper_id": paper_id,
+        "user_id": mock_user_obj.id,
+        "title": "New Note",
+        "content": "Content",
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
+    }
     mock_note_service.create_note.return_value = mock_note
     
     response = client.post(f"/api/v1/reader/papers/{paper_id}/notes", json=note_data)
@@ -113,10 +118,15 @@ def test_update_note_api(client, mock_user_obj, mock_note_service):
     note_id = uuid4()
     update_data = {"content": "Updated"}
     
-    mock_note = Note(
-        id=note_id, paper_id=uuid4(), user_id=mock_user_obj.id,
-        title="Old", content="Updated", created_at=datetime.now(), updated_at=datetime.now()
-    )
+    mock_note = {
+        "id": note_id,
+        "paper_id": uuid4(),
+        "user_id": mock_user_obj.id,
+        "title": "Old",
+        "content": "Updated",
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
+    }
     mock_note_service.update_note.return_value = mock_note
     
     response = client.put(f"/api/v1/reader/notes/{note_id}", json=update_data)

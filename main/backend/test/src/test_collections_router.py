@@ -69,8 +69,8 @@ def test_create_collection(client, mock_collection_service, mock_user):
         json=payload
     )
     
-    assert resp.status_code == 201
-    data = resp.json()
+    assert resp.status_code == 200
+    data = resp.json()["data"]
     assert data["id"] == str(collection_id)
     assert data["name"] == "New Collection"
     
@@ -89,9 +89,9 @@ def test_get_collections(client, mock_collection_service, mock_user):
     )
     
     assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 2
-    assert data[0]["name"] == "C1"
+    data = resp.json()["data"]
+    assert len(data["items"]) == 2
+    assert data["items"][0]["name"] == "C1"
 
 def test_get_collection_detail(client, mock_collection_service, mock_user):
     user_id = mock_user.id
@@ -110,7 +110,7 @@ def test_get_collection_detail(client, mock_collection_service, mock_user):
     )
     
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["data"]
     assert data["id"] == str(collection_id)
     assert "papers" in data
 
@@ -138,7 +138,7 @@ def test_update_collection(client, mock_collection_service, mock_user):
     )
     
     assert resp.status_code == 200
-    assert resp.json()["name"] == "Updated Name"
+    assert resp.json()["data"]["name"] == "Updated Name"
 
 def test_delete_collection(client, mock_collection_service):
     mock_collection_service.delete_collection.return_value = True
@@ -147,7 +147,7 @@ def test_delete_collection(client, mock_collection_service):
         f"/api/v1/collections/{uuid4()}"
     )
     
-    assert resp.status_code == 204
+    assert resp.status_code == 200
 
 def test_add_paper_to_collection(client, mock_collection_service):
     mock_collection_service.add_paper_to_collection.return_value = True
@@ -158,7 +158,7 @@ def test_add_paper_to_collection(client, mock_collection_service):
         json=payload
     )
     
-    assert resp.status_code == 201
+    assert resp.status_code == 200
 
 def test_add_paper_fail(client, mock_collection_service):
     mock_collection_service.add_paper_to_collection.return_value = False
@@ -178,4 +178,4 @@ def test_remove_paper(client, mock_collection_service):
         f"/api/v1/collections/{uuid4()}/papers/{uuid4()}"
     )
     
-    assert resp.status_code == 204
+    assert resp.status_code == 200

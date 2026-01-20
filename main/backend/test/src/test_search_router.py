@@ -67,7 +67,7 @@ def test_search_papers(client, mock_search_service, mock_user):
     )
     
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["data"]
     assert data["total"] == 1
     assert data["items"][0]["title"] == "Test Paper"
     

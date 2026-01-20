@@ -101,7 +101,7 @@ async def test_create_summary(client, db_session):
     db_session.execute.side_effect = [mock_result_summary, mock_result_paper]
     
     service = SummaryService(db_session)
-    from service.reader.schema import SummaryCreate
+    from service.reader.schema import SummaryCreateDTO
     
     # Mock _generate_summary_content to bypass LLM/LangChain
     with patch.object(service, '_generate_summary_content', new_callable=AsyncMock) as mock_gen:
@@ -109,7 +109,7 @@ async def test_create_summary(client, db_session):
         
         summary = await service.get_or_create_summary(
             paper.id, 
-            SummaryCreate(summary_type="abstract_rewrite")
+            SummaryCreateDTO(summary_type="abstract_rewrite")
         )
         
         assert summary.content == "Mocked Summary Content"
