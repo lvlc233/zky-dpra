@@ -46,36 +46,22 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=F
 # 这个接口去service层解析token,service验证token是否有效,如果有效,就返回user信息。
 async def get_current_user(
     request: Request,
-    token: Annotated[Optional[str], Depends(oauth2_scheme)],
-    service: AuthServiceDep
+    service: AuthServiceDep,
+    token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    query_token: Annotated[Optional[str], Query(alias="token")] = None,
 ) -> User:
     """
     获取当前登录用户 (Dependency)
-    从请求头中->从数据库中。
+    鉴权顺序: Header (Bearer) -> Query Param (?token=) -> Cookie (access_token)
     
     Logic delegated to AuthService.
     """
-    resolved_token = token
-    if not resolved_token:
-        resolved_token = request.cookies.get("access_token")
+    resolved_token = token or query_token or request.cookies.get("access_token")
 
     if not resolved_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     # 这里会解析jwt和从数据库中获取用户信息。
     return await service.get_user_by_token(resolved_token)
-
-# TODO: 为什么还要有个for_file的?上传文件的问题卡在了什么地方嘛?
-# async def get_current_user_for_file(
-#     request: Request,
-#     service: AuthServiceDep,
-#     token: Optional[str] = None,
-#     header_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-# ) -> User:
-#     resolved_token = token or header_token or request.cookies.get("access_token")
-#     if not resolved_token:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-
-#     return await service.get_user_by_token(resolved_token)
 
 # TODO: 接入第三方登录 (Google/GitHub), 计划单独开设 /auth/oauth/{provider} 接口
 

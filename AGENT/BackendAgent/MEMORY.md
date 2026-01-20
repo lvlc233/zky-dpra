@@ -145,6 +145,12 @@
 
 ### 类型检查 (2026-01-20)
 应该使用mypy进行类型检查，以确保代码的类型安全。
+### 数据库架构重构 (2026-01-20)
+- **AgentSession 确立**: 废弃并移除了 `ChatSession` 实体。
+- **单一会话实体**: `AgentSession` 成为管理所有对话和 Agent 运行上下文的唯一实体。
+- **关联关系**: `AgentSession` 直接通过 `paper_id` 关联 `Paper`，通过 `user_id` 关联 `User`。
+- **修正**: 修复了 SQLAlchemy Mapper 错误，确保 `User` 和 `Paper` 的反向关系 (`back_populates`) 正确指向 `AgentSession`。
+
 ---
-**最后更新**: 2026年01月20日 10:00
-**记忆版本**: v1.10
+**最后更新**: 2026年01月20日 11:30
+**记忆版本**: v1.11

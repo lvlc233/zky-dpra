@@ -208,7 +208,7 @@ class Paper(SQLModel, table=True):
     summaries: List["PaperSummary"] = Relationship(back_populates="paper")
     layers: List["Layer"] = Relationship(back_populates="paper")
     reports: List["Report"] = Relationship(back_populates="paper")
-    chat_sessions: List["ChatSession"] = Relationship(back_populates="paper")
+    chat_sessions: List["AgentSession"] = Relationship(back_populates="paper")
     notes: List["Note"] = Relationship(back_populates="paper")
     mind_map: Optional["MindMap"] = Relationship(back_populates="paper")
 
@@ -402,7 +402,10 @@ class SearchHistory(SQLModel, table=True):
         sa_type=PGUUID(as_uuid=True),
         sa_column_kwargs={"comment": "用户ID"}
     )
-    query: str = Field(
+    
+    user: Optional["User"] = Relationship()
+
+    session_name: str = Field(
         index=True,
         sa_column_kwargs={"comment": "搜索关键词"}
     )
@@ -625,6 +628,7 @@ class Note(SQLModel, table=True):
 
     # 关联关系
     paper: Paper = Relationship(back_populates="notes")
+    user: User = Relationship(back_populates="notes")
 
 class MindMap(SQLModel, table=True):
     """
@@ -832,8 +836,6 @@ class Annotation(SQLModel, table=True):
     layer: Layer = Relationship(back_populates="annotations")
 
 
-
-
 class AgentSession(SQLModel, table=True):
     """
     Agent 会话表
@@ -855,12 +857,14 @@ class AgentSession(SQLModel, table=True):
         sa_type=PGUUID(as_uuid=True),
         sa_column_kwargs={"comment": "用户ID"}
     )
+    user: Optional["User"] = Relationship(back_populates="agent_sessions")
 
-    chat_session_id: Optional[UUID] = Field(
+    paper_id: Optional[UUID] = Field(
         default=None,
-        foreign_key="chat_sessions.id",
+        foreign_key="papers.id",
+        index=True,
         sa_type=PGUUID(as_uuid=True),
-        sa_column_kwargs={"comment": "关联的聊天会话ID"}
+        sa_column_kwargs={"comment": "关联论文ID(可选)"}
     )
 
     thread_id: str = Field(
@@ -885,6 +889,9 @@ class AgentSession(SQLModel, table=True):
         default_factory=datetime.now,
         sa_column_kwargs={"comment": "更新时间"}
     )
+
+    # 关联关系
+    paper: Optional["Paper"] = Relationship(back_populates="chat_sessions")
 
 
 class Job(SQLModel, table=True):

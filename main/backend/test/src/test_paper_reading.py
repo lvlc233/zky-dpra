@@ -8,7 +8,7 @@ from controller.api.app import create_app
 from service.papers.paper_service import PaperService, get_paper_service
 from service.papers.schema import PaperDTO
 from common.model.enums import PaperStatus
-from controller.api.auth.router import get_current_user, get_current_user_for_file
+from controller.api.auth.router import get_current_user
 from base.pg.entity import User
 
 @pytest.fixture
@@ -24,7 +24,6 @@ def client(mock_paper_service, current_user):
     app = create_app()
     app.dependency_overrides[get_paper_service] = lambda: mock_paper_service
     app.dependency_overrides[get_current_user] = lambda: current_user
-    app.dependency_overrides[get_current_user_for_file] = lambda: current_user
     return TestClient(app)
 
 def test_get_paper_file_success(client, mock_paper_service, current_user, tmp_path):

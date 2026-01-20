@@ -60,8 +60,8 @@ class LoginResponse(BaseModel):
 转换函数
 """
 def _build_user_public_response(user: User) -> UserPublicResponse:
-    settings_data = user.settings or {}
-    settings = Settings(**settings_data) if isinstance(settings_data, dict) else Settings()
+    settings_data = user.settings
+    settings = Settings.model_validate(settings_data)
     return UserPublicResponse(
         user_id=user.id,
         email=user.email,
