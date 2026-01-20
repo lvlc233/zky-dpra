@@ -20,6 +20,7 @@ from common.logger import logger
 from common.model.errors import AuthenticationError, BusinessError, NotFoundError
 
 from base.pg.service import SessionDep
+# 这里就直接返回User吧,权限特殊点。
 
 class AuthService:
     """

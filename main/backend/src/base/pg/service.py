@@ -84,6 +84,13 @@ class UserRepository:
         result = await session.execute(statement)
         return result.scalar_one_or_none()
 
+    @staticmethod
+    async def update_user(session: AsyncSession, user: User) -> User:
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
 
 class PaperRepository:
     """论文相关的数据访问层"""
