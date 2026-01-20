@@ -1,12 +1,13 @@
 '''
 开发者: BackendAgent
-当前版本: v1.2_config
+当前版本: v1.3_config
 创建时间: 2026年01月08日 11:30
-更新时间: 2026年01月16日 10:00
+更新时间: 2026年01月20日 10:35
 更新记录:
     [2026年01月08日 11:30:v1.0_config:创建数据库配置模块]
     [2026年01月09日 15:45:v1.1_config:添加Embedding服务配置(本地ONNX/云端SiliconFlow)]
     [2026年01月16日 10:00:v1.2_config:修复transformers缓存路径警告]
+    [2026年01月20日 10:35:v1.3_config:新增Refresh Token过期配置用于认证刷新]
 '''
 
 from typing import Optional, Literal
@@ -30,7 +31,8 @@ class Settings(BaseSettings):
     # JWT配置
     jwt_secret_key: str = "your-secret-key-here"
     jwt_algorithm: str = "HS256"
-    jwt_expiration_minutes: int = 30
+    jwt_expiration_minutes: int = 180
+    jwt_refresh_expiration_days: int = 7
 
     # 文件上传配置
     upload_dir: str = "uploads"
