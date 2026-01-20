@@ -1,10 +1,11 @@
 '''
 开发者: BackendAgent
-当前版本: v1.0_auth_service
+当前版本: v1.1_auth_service
 创建时间: 2026-01-12 13:00:00
-更新时间: 2026-01-12 13:00:00
+更新时间: 2026-01-20 10:35:00
 更新记录: 
     [2026-01-12 13:00:00:v1.0_auth_service:创建认证服务，实现登录、注册逻辑]
+    [2026-01-20 10:35:00:v1.1_auth_service:补充Refresh Token校验获取用户逻辑]
 '''
 
 from uuid import UUID
@@ -14,7 +15,7 @@ from fastapi import Depends
 
 from base.pg.entity import User, Collection
 from base.pg.service import UserRepository, CollectionRepository
-from common.security import get_password_hash, verify_password, decode_access_token
+from common.security import get_password_hash, verify_password, decode_access_token, decode_refresh_token
 from common.logger import logger
 from common.model.errors import AuthenticationError, BusinessError, NotFoundError
 
@@ -33,7 +34,7 @@ class AuthService:
     
     def __init__(self, session: AsyncSession):
         self.session = session
-
+    # 用于登录
     async def authenticate_user(self, email: str, password: str) -> User:
         """
         验证用户登录
@@ -62,7 +63,7 @@ class AuthService:
             raise AuthenticationError(message="Inactive user")
             
         return user
-
+    # 用于注册
     async def create_user(self, email: str, password: str, full_name: Optional[str] = None) -> User:
         """
         创建新用户
@@ -105,6 +106,7 @@ class AuthService:
         logger.info(f"新用户注册成功: {email}")
         return created_user
 
+    # 下面的用于权限验证。
     async def get_user(self, user_id: UUID) -> User:
         """根据ID获取用户"""
         user = await UserRepository.get_user_by_id(self.session, user_id)
@@ -131,6 +133,9 @@ class AuthService:
         payload = decode_access_token(token)
         if payload is None:
             raise AuthenticationError(message="Could not validate credentials")
+
+        if payload.get("type") == "refresh":
+            raise AuthenticationError(message="Invalid token type")
         
         user_id_str = payload.get("sub")
         if user_id_str is None:
@@ -148,32 +153,44 @@ class AuthService:
             
         return user
 
-# TODO: 为什么要在鉴权这里,搞一个更新用户设置的方法?有问题吧
-    async def update_user_settings(self, user_id: UUID, settings_data: dict) -> User:
+    async def get_user_by_refresh_token(self, token: str) -> User:
         """
-        更新用户设置
+        通过 Refresh Token 获取当前用户->用于获取user_id,然后生成新的access_token
+        (用于 Dependency)
         
         Args:
-            user_id: 用户ID
-            settings_data: 新的设置数据 (字典)
+            token: Refresh Token字符串
             
         Returns:
-            User: 更新后的用户对象
+            User: 当前登录用户
+            
+        Raises:
+            AuthenticationError: Token 无效或过期
+            NotFoundError: 用户不存在
         """
+        # 解码token
+        payload = decode_refresh_token(token)
+        if payload is None:
+            raise AuthenticationError(message="Could not validate refresh token")
+
+        if payload.get("type") != "refresh":
+            raise AuthenticationError(message="Invalid token type")
+
+        user_id_str = payload.get("sub")
+        if user_id_str is None:
+            raise AuthenticationError(message="Token missing subject")
+
+        try:
+            user_id = UUID(user_id_str)
+        except ValueError:
+            raise AuthenticationError(message="Invalid user ID in token")
+
         user = await self.get_user(user_id)
-        if not user.settings:
-            user.settings = {}
-        
-        # Merge settings
-        # 这里进行简单的合并，如果有更复杂的逻辑可以扩展
-        current_settings = dict(user.settings)
-        current_settings.update(settings_data)
-        user.settings = current_settings
-        
-        self.session.add(user)
-        await self.session.commit()
-        await self.session.refresh(user)
+        if not user.is_active:
+            raise AuthenticationError(message="Inactive user")
+
         return user
+
 
 async def get_auth_service(session: SessionDep) -> AuthService:
     """获取 AuthService 实例"""

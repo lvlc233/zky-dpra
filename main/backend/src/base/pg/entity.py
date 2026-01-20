@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, JSON, Text, UniqueConstraint
+from sqlalchemy import Column, JSON, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from pgvector.sqlalchemy import Vector
 from sqlmodel import Field, Relationship, SQLModel
@@ -94,8 +94,10 @@ class User(SQLModel, table=True):
         sa_column_kwargs={"comment": "账号最后更新时间"}
     )
     
-    settings: Optional[dict] = Field(
-        sa_column=Column(JSON, comment="用户个性化设置")
+    settings: Settings = Field(
+        default_factory=Settings,
+        sa_type=PydanticJSON(Settings),
+        sa_column_kwargs={"comment": "用户个性化设置"}
     )
 
     # 关联关系
@@ -664,7 +666,7 @@ class MindMap(SQLModel, table=True):
     # 存储图数据: { "nodes": [...], "edges": [...] }
     # 节点结构: { "id": "...", "label": "...", "data": {...} }
     # 边结构: { "id": "...", "source": "...", "target": "...", "label": "..." }
-    # TODO: 考虑是否对象映射。
+    # TODO: 考虑是否对象映射。也准备改为对象映射吧。
     graph_data: dict = Field(
         default_factory=dict,
         sa_column=Column(JSON, comment="图数据(JSON):包含nodes和edges")
