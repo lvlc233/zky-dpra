@@ -1,216 +1,158 @@
 from uuid import UUID
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
-from loguru import logger
+from typing import List, Annotated
 
-from service.reader.summary_service import SummaryService
-from service.reader.note_service import NoteService
-from service.reader.mind_map_service import MindMapService
+from fastapi import APIRouter, Depends
+from controller.response import Response
 from service.reader.reader_service import ReaderServiceDep
-from service.reader.schema import (
-    LayerCreate, LayerResponse, LayerListResponse, LayerUpdate,
-    AnnotationCreate, AnnotationResponse, AnnotationUpdate,
-    SummaryCreate, SummaryResponse,
-    NoteCreate, NoteResponse, NoteUpdate,
-    MindMapCreate, MindMapUpdate, MindMapResponse
-)
+from service.reader.toc_service import TocService
+from service.reader.view_service import ViewService
+from service.reader.note_service import NoteService
+from service.reader.summary_service import SummaryService
+from service.reader.mind_map_service import MindMapService
+from service.reader.history_service import HistoryService
+from service.reader.job_service import JobService
 from base.pg.service import SessionDep
 from controller.api.auth.router import get_current_user
 from base.pg.entity import User
-from controller.response import Response
+from controller.api.reader.schema import (
+    PaperReaderMetaResponse, TocResponse, ViewResponse,
+    NoteMetaResponse, NoteResponse, AISummaryResponse,
+    MindMapResponse, RecordResponse, MessageResponse, JobListResponse
+)
 
-router = APIRouter(prefix="/reader", tags=["reader"])
+router = APIRouter(prefix="/papers", tags=["reader"])
 
-@router.post("/papers/{paper_id}/summary", response_model=Response[SummaryResponse])
-async def generate_summary(
-    paper_id: UUID,
-    summary_in: SummaryCreate,
-    session: SessionDep,
-    current_user: User = Depends(get_current_user)
-):
-    """生成或获取论文摘要"""
-    summary_service = SummaryService(session)
-    summary = await summary_service.get_or_create_summary(paper_id, summary_in)
-    return Response.success(data=summary)
+# Service Dependencies
+def get_toc_service(session: SessionDep) -> TocService:
+    return TocService(session)
 
-@router.get("/papers/{paper_id}/summary", response_model=Response[SummaryResponse])
-async def get_summary(
-    paper_id: UUID,
-    summary_type: str,
-    session: SessionDep,
-    current_user: User = Depends(get_current_user)
-):
-    """获取论文摘要"""
-    summary_service = SummaryService(session)
-    summary = await summary_service.get_summary(paper_id, summary_type)
-    if not summary:
-        raise HTTPException(status_code=404, detail="Summary not found")
-    return Response.success(data=summary)
+def get_view_service(session: SessionDep) -> ViewService:
+    return ViewService(session)
 
-# --- Layers ---
+def get_note_service(session: SessionDep) -> NoteService:
+    return NoteService(session)
 
-@router.get("/papers/{paper_id}/layers", response_model=Response[LayerListResponse])
-async def get_paper_layers(
-    paper_id: UUID,
+def get_summary_service(session: SessionDep) -> SummaryService:
+    return SummaryService(session)
+
+def get_mind_map_service(session: SessionDep) -> MindMapService:
+    return MindMapService(session)
+
+def get_history_service(session: SessionDep) -> HistoryService:
+    return HistoryService(session)
+
+def get_job_service(session: SessionDep) -> JobService:
+    return JobService(session)
+
+TocServiceDep = Annotated[TocService, Depends(get_toc_service)]
+ViewServiceDep = Annotated[ViewService, Depends(get_view_service)]
+NoteServiceDep = Annotated[NoteService, Depends(get_note_service)]
+SummaryServiceDep = Annotated[SummaryService, Depends(get_summary_service)]
+MindMapServiceDep = Annotated[MindMapService, Depends(get_mind_map_service)]
+HistoryServiceDep = Annotated[HistoryService, Depends(get_history_service)]
+JobServiceDep = Annotated[JobService, Depends(get_job_service)]
+
+
+@router.get("/{paper_id}/meta", response_model=Response[PaperReaderMetaResponse])
+async def get_paper_meta(
+    paper_id: UUID, 
     service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """获取论文的所有图层"""
-    layers = await service.get_layers_by_paper(paper_id)
-    return Response.success(data=layers)
+    """获取论文元数据"""
+    data = await service.get_paper_meta(paper_id, current_user.id)
+    return Response.success(PaperReaderMetaResponse.model_validate(data.model_dump()))
 
-@router.post("/papers/{paper_id}/layers", response_model=Response[LayerResponse])
-async def create_layer(
-    paper_id: UUID,
-    layer_in: LayerCreate,
-    service: ReaderServiceDep,
+@router.get("/{paper_id}/toc", response_model=Response[TocResponse])
+async def get_toc(
+    paper_id: UUID, 
+    service: TocServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """创建新图层"""
-    layer = await service.create_layer(paper_id, current_user.id, layer_in)
-    return Response.success(data=layer)
+    """获取论文目录"""
+    data = await service.get_toc(paper_id, current_user.id)
+    return Response.success(TocResponse(items=data.items))
 
-@router.put("/layers/{layer_id}", response_model=Response[LayerResponse])
-async def update_layer(
-    layer_id: UUID,
-    layer_in: LayerUpdate,
-    service: ReaderServiceDep,
+@router.get("/{paper_id}/views", response_model=Response[List[ViewResponse]])
+async def get_views(
+    paper_id: UUID, 
+    service: ViewServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """更新图层"""
-    updated = await service.update_layer(layer_id, layer_in)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Layer not found")
-    return Response.success(data=updated)
+    """获取论文视图"""
+    data = await service.get_views(paper_id, current_user.id)
+    return Response.success(data)
 
-@router.delete("/layers/{layer_id}")
-async def delete_layer(
-    layer_id: UUID,
-    service: ReaderServiceDep,
+@router.get("/{paper_id}/notes", response_model=Response[NoteMetaResponse])
+async def get_notes(
+    paper_id: UUID, 
+    service: NoteServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """删除图层"""
-    success = await service.delete_layer(layer_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Layer not found")
-    return Response.success(message="Layer deleted successfully")
+    """获取论文笔记列表"""
+    data = await service.get_notes_meta(paper_id, current_user.id)
+    return Response.success(NoteMetaResponse(items=data))
 
-# --- Annotations ---
-
-@router.post("/layers/{layer_id}/annotations", response_model=Response[AnnotationResponse])
-async def create_annotation(
-    layer_id: UUID,
-    anno_in: AnnotationCreate,
-    service: ReaderServiceDep,
+@router.get("/{paper_id}/notes/{note_id}", response_model=Response[NoteResponse])
+async def get_note_detail(
+    paper_id: UUID, 
+    note_id: UUID, 
+    service: NoteServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """添加标注"""
-    # 这里可以添加额外的权限检查，确保 layer 属于当前用户或可见
-    annotation = await service.create_annotation(layer_id, anno_in)
-    return Response.success(data=annotation)
+    """获取笔记详情"""
+    data = await service.get_note_detail(paper_id, note_id, current_user.id)
+    return Response.success(NoteResponse.model_validate(data.model_dump()))
 
-@router.put("/annotations/{anno_id}", response_model=Response[AnnotationResponse])
-async def update_annotation(
-    anno_id: UUID,
-    anno_in: AnnotationUpdate,
-    service: ReaderServiceDep,
+@router.get("/{paper_id}/ai/summary", response_model=Response[AISummaryResponse])
+async def get_ai_summary(
+    paper_id: UUID, 
+    service: SummaryServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """更新标注"""
-    updated = await service.update_annotation(anno_id, anno_in)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Annotation not found")
-    return Response.success(data=updated)
+    """获取论文AI总结"""
+    data = await service.get_ai_summary(paper_id, current_user.id)
+    if data:
+        return Response.success(AISummaryResponse(summary_config=data.summary_config))
+    return Response.success(AISummaryResponse(summary_config={}))
 
-@router.delete("/annotations/{anno_id}")
-async def delete_annotation(
-    anno_id: UUID,
-    service: ReaderServiceDep,
+@router.get("/{paper_id}/ai/mind_map", response_model=Response[MindMapResponse])
+async def get_mind_map(
+    paper_id: UUID, 
+    service: MindMapServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """删除标注"""
-    success = await service.delete_annotation(anno_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Annotation not found")
-    return Response.success(msg="Annotation deleted successfully")
+    """获取论文AI脑图"""
+    data = await service.get_mind_map_data(paper_id, current_user.id)
+    return Response.success(MindMapResponse(nodes=data.nodes, edges=data.edges))
 
-# --- Notes ---
-
-@router.get("/papers/{paper_id}/notes", response_model=Response[list[NoteResponse]])
-async def get_paper_notes(
-    paper_id: UUID,
-    session: SessionDep,
+@router.get("/{paper_id}/ai/history", response_model=Response[List[RecordResponse]])
+async def get_ai_history(
+    paper_id: UUID, 
+    service: HistoryServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """获取论文的笔记列表"""
-    note_service = NoteService(session)
-    notes = await note_service.get_notes_by_paper(paper_id, current_user.id)
-    return Response.success(data=notes)
+    """获取论文AI历史"""
+    data = await service.get_ai_history(paper_id, current_user.id)
+    return Response.success(data)
 
-@router.post("/papers/{paper_id}/notes", response_model=Response[NoteResponse])
-async def create_note(
-    paper_id: UUID,
-    note_in: NoteCreate,
-    session: SessionDep,
+@router.get("/{paper_id}/ai/record/{record_id}", response_model=Response[MessageResponse])
+async def get_record_detail(
+    paper_id: UUID, 
+    record_id: UUID, 
+    service: HistoryServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """创建新笔记"""
-    note_service = NoteService(session)
-    note = await note_service.create_note(paper_id, current_user.id, note_in)
-    return Response.success(data=note)
+    """获取AI阅读记录详情"""
+    data = await service.get_record_detail(paper_id, record_id, current_user.id)
+    return Response.success(MessageResponse(items=data))
 
-@router.put("/notes/{note_id}", response_model=Response[NoteResponse])
-async def update_note(
-    note_id: UUID,
-    note_in: NoteUpdate,
-    session: SessionDep,
+@router.get("/{paper_id}/jobs", response_model=Response[JobListResponse])
+async def get_jobs(
+    paper_id: UUID, 
+    service: JobServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """更新笔记"""
-    note_service = NoteService(session)
-    updated = await note_service.update_note(note_id, current_user.id, note_in)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Note not found")
-    return Response.success(data=updated)
-
-@router.delete("/notes/{note_id}")
-async def delete_note(
-    note_id: UUID,
-    session: SessionDep,
-    current_user: User = Depends(get_current_user)
-):
-    """删除笔记"""
-    note_service = NoteService(session)
-    success = await note_service.delete_note(note_id, current_user.id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Note not found")
-    return Response.success(message="Note deleted successfully")
-
-# --- Mind Maps ---
-
-@router.get("/papers/{paper_id}/graph", response_model=Response[MindMapResponse])
-async def get_paper_mind_map(
-    paper_id: UUID,
-    session: SessionDep,
-    current_user: User = Depends(get_current_user)
-):
-    """获取论文的思维导图"""
-    mm_service = MindMapService(session)
-    # 获取或创建空导图
-    mm = await mm_service.get_or_create_mind_map(paper_id, current_user.id)
-    return Response.success(data=mm)
-
-@router.put("/papers/{paper_id}/graph", response_model=Response[MindMapResponse])
-async def update_paper_mind_map(
-    paper_id: UUID,
-    map_in: MindMapUpdate,
-    session: SessionDep,
-    current_user: User = Depends(get_current_user)
-):
-    """更新论文的思维导图"""
-    mm_service = MindMapService(session)
-    updated = await mm_service.update_mind_map(paper_id, current_user.id, map_in)
-    if not updated:
-        # 理论上 get_or_create 保证了存在，但为了安全
-        updated = await mm_service.get_or_create_mind_map(paper_id, current_user.id, MindMapCreate(graph_data=map_in.graph_data))
-    return Response.success(data=updated)
+    """获取当前论文处理任务"""
+    data = await service.get_jobs(paper_id, current_user.id)
+    return Response.success(JobListResponse(items=data))

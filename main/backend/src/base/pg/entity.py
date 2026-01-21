@@ -606,6 +606,10 @@ class Note(SQLModel, table=True):
         default=None,
         sa_column_kwargs={"comment": "笔记标题"}
     )
+    page: Optional[int] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "笔记对应的页码"}
+    )
     content: str = Field(
         sa_column_kwargs={"comment": "笔记内容(Markdown)"}
     )
@@ -861,6 +865,11 @@ class AgentSession(SQLModel, table=True):
         index=True,
         sa_type=PGUUID(as_uuid=True),
         sa_column_kwargs={"comment": "关联论文ID(可选)"}
+    )
+
+    title: Optional[str] = Field(
+        default=None,
+        sa_column_kwargs={"comment": "会话标题"}
     )
 
     thread_id: str = Field(

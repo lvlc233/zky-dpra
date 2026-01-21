@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from fastapi import Depends
 
 from base.config import settings
-from base.pg.entity import User, Paper, Collection, CollectionPaper, PaperChunk, PaperSummary, Layer, Annotation
+from base.pg.entity import User, Paper, Collection, CollectionPaper, PaperChunk, PaperSummary, Layer, Annotation, Note, MindMap, AgentSession, Job
 from common.model.enums import PaperStatus
 
 logger = logging.getLogger(__name__)
@@ -349,16 +349,91 @@ class ReaderRepository:
     """阅读器相关的数据访问层"""
 
     @staticmethod
-    async def get_layers_by_paper(session: AsyncSession, paper_id: UUID) -> List[Layer]:
-        """获取论文的所有图层(包含标注)"""
+    async def get_layers_by_paper(session: AsyncSession, paper_id: UUID, user_id: Optional[UUID] = None) -> List[Layer]:
         statement = (
             select(Layer)
             .options(selectinload(Layer.annotations))
             .where(Layer.paper_id == paper_id)
-            .order_by(Layer.created_at)
+        )
+        if user_id is not None:
+            statement = statement.where(Layer.user_id == user_id)
+        statement = statement.order_by(Layer.created_at)
+        result = await session.execute(statement)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_notes_by_paper(session: AsyncSession, paper_id: UUID, user_id: UUID) -> List[Note]:
+        statement = (
+            select(Note)
+            .where(Note.paper_id == paper_id, Note.user_id == user_id)
+            .order_by(Note.created_at)
         )
         result = await session.execute(statement)
         return result.scalars().all()
+
+    @staticmethod
+    async def get_note_detail(session: AsyncSession, paper_id: UUID, note_id: UUID, user_id: UUID) -> Optional[Note]:
+        statement = select(Note).where(
+            Note.id == note_id,
+            Note.paper_id == paper_id,
+            Note.user_id == user_id
+        )
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_note_by_id(session: AsyncSession, note_id: UUID, user_id: UUID) -> Optional[Note]:
+        statement = select(Note).where(Note.id == note_id, Note.user_id == user_id)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_summaries_by_paper(session: AsyncSession, paper_id: UUID, user_id: UUID) -> List[PaperSummary]:
+        statement = (
+            select(PaperSummary)
+            .join(Paper)
+            .where(PaperSummary.paper_id == paper_id, Paper.user_id == user_id)
+        )
+        result = await session.execute(statement)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_summary_by_type(session: AsyncSession, paper_id: UUID, summary_type: str) -> Optional[PaperSummary]:
+        statement = select(PaperSummary).where(
+            PaperSummary.paper_id == paper_id,
+            PaperSummary.summary_type == summary_type
+        )
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_mind_map_by_paper(session: AsyncSession, paper_id: UUID, user_id: UUID) -> Optional[MindMap]:
+        statement = select(MindMap).where(
+            MindMap.paper_id == paper_id,
+            MindMap.user_id == user_id
+        )
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_history_by_paper(session: AsyncSession, paper_id: UUID, user_id: UUID) -> List[AgentSession]:
+        statement = (
+            select(AgentSession)
+            .where(AgentSession.paper_id == paper_id, AgentSession.user_id == user_id)
+            .order_by(AgentSession.created_at)
+        )
+        result = await session.execute(statement)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_session_detail(session: AsyncSession, paper_id: UUID, record_id: UUID, user_id: UUID) -> Optional[AgentSession]:
+        statement = select(AgentSession).where(
+            AgentSession.id == record_id,
+            AgentSession.paper_id == paper_id,
+            AgentSession.user_id == user_id
+        )
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
 
     @staticmethod
     async def create_layer(session: AsyncSession, layer: Layer) -> Layer:

@@ -8,14 +8,14 @@
 from uuid import UUID
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
 from fastapi import HTTPException, status
 from loguru import logger
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
 
 from base.pg.entity import Paper, PaperSummary
-from service.reader.schema import SummaryCreate, SummaryResponse
+from base.pg.service import ReaderRepository, PaperRepository
+from service.reader.schema import SummaryCreateDTO, SummaryDTO, AISummary
 
 class SummaryService:
     def __init__(self, session: AsyncSession):
@@ -23,37 +23,33 @@ class SummaryService:
         # TODO: 从配置读取模型参数
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
 
-    async def get_summary(self, paper_id: UUID, summary_type: str) -> Optional[SummaryResponse]:
+    async def get_ai_summary(self, paper_id: UUID, user_id: UUID) -> Optional[AISummary]:
+        summaries = await ReaderRepository.get_summaries_by_paper(self.session, paper_id, user_id)
+        
+        if not summaries:
+            return None
+            
+        config = {s.summary_type: s.content for s in summaries}
+        return AISummary(summary_config=config)
+
+    async def get_summary(self, paper_id: UUID, summary_type: str) -> Optional[SummaryDTO]:
         """获取论文摘要"""
-        stmt = select(PaperSummary).where(
-            PaperSummary.paper_id == paper_id,
-            PaperSummary.summary_type == summary_type
-        )
-        result = await self.session.execute(stmt)
-        summary = result.scalar_one_or_none()
+        summary = await ReaderRepository.get_summary_by_type(self.session, paper_id, summary_type)
         
         if summary:
-            return SummaryResponse.model_validate(summary)
+            return SummaryDTO.model_validate(summary)
         return None
 
-    async def get_or_create_summary(self, paper_id: UUID, create_in: SummaryCreate) -> SummaryResponse:
+    async def get_or_create_summary(self, paper_id: UUID, create_in: SummaryCreateDTO) -> SummaryDTO:
         """获取或生成论文摘要"""
-        # TODO: 这里也是没有用仓储。 
         # 1. 检查是否存在已有摘要
-        stmt = select(PaperSummary).where(
-            PaperSummary.paper_id == paper_id,
-            PaperSummary.summary_type == create_in.summary_type
-        )
-        result = await self.session.execute(stmt)
-        summary = result.scalar_one_or_none()
+        summary = await ReaderRepository.get_summary_by_type(self.session, paper_id, create_in.summary_type)
         
         if summary:
-            return SummaryResponse.model_validate(summary)
+            return SummaryDTO.model_validate(summary)
 
         # 2. 获取论文内容
-        paper_stmt = select(Paper).where(Paper.id == paper_id)
-        paper_result = await self.session.execute(paper_stmt)
-        paper = paper_result.scalar_one_or_none()
+        paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
         
         if not paper:
             raise HTTPException(
@@ -74,7 +70,7 @@ class SummaryService:
         await self.session.commit()
         await self.session.refresh(new_summary)
         
-        return SummaryResponse.model_validate(new_summary)
+        return SummaryDTO.model_validate(new_summary)
 
     # TODO: 这里等Agent实现吧。
     async def _generate_summary_content(self, paper: Paper, summary_type: str) -> str:

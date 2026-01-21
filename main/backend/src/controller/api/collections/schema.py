@@ -1,7 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class CollectionResponse(BaseModel):
     """收藏夹响应模型"""
@@ -13,9 +13,10 @@ class CollectionResponse(BaseModel):
     updated_at: datetime = Field(..., description="更新时间")
     total: int = Field(0, description="收藏夹下的论文数量")
     
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True
+    )
 
 class CreateCollectionRequest(BaseModel):
     name: str = Field(..., description="收藏夹名称")

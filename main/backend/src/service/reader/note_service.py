@@ -2,27 +2,45 @@ from uuid import UUID
 from typing import List, Optional
 from datetime import datetime
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy import select
-
+from fastapi import HTTPException
 from base.pg.entity import Note
-from service.reader.schema import NoteCreate, NoteUpdate
+from base.pg.service import ReaderRepository
+from service.reader.schema import NoteCreateDTO, NoteUpdateDTO, NoteDTO, NoteMeta
 
-# TODO: 还是一样的仓储层定义问题。
+
 class NoteService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_notes_by_paper(self, paper_id: UUID, user_id: UUID) -> List[Note]:
-        stmt = select(Note).where(Note.paper_id == paper_id, Note.user_id == user_id).order_by(Note.created_at.desc())
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+    async def get_notes_by_paper(self, paper_id: UUID, user_id: UUID) -> List[NoteDTO]:
+        notes = await ReaderRepository.get_notes_by_paper(self.session, paper_id, user_id)
+        return [NoteDTO.model_validate(note) for note in notes]
+    
+    async def get_notes_meta(self, paper_id: UUID, user_id: UUID) -> List[NoteMeta]:
+        notes = await ReaderRepository.get_notes_by_paper(self.session, paper_id, user_id)
+        
+        items = [
+            NoteMeta(
+                id=n.id,
+                title=n.title,
+                page=n.page,
+                created_at=n.created_at
+            ) for n in notes
+        ]
+        return items
+
+    async def get_note_detail(self, paper_id: UUID, note_id: UUID, user_id: UUID) -> NoteDTO:
+        note = await ReaderRepository.get_note_detail(self.session, paper_id, note_id, user_id)
+        
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+            
+        return NoteDTO.model_validate(note)
 
     async def get_note(self, note_id: UUID, user_id: UUID) -> Optional[Note]:
-        stmt = select(Note).where(Note.id == note_id, Note.user_id == user_id)
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        return await ReaderRepository.get_note_by_id(self.session, note_id, user_id)
 
-    async def create_note(self, paper_id: UUID, user_id: UUID, note_in: NoteCreate) -> Note:
+    async def create_note(self, paper_id: UUID, user_id: UUID, note_in: NoteCreateDTO) -> NoteDTO:
         note = Note(
             paper_id=paper_id,
             user_id=user_id,
@@ -32,9 +50,9 @@ class NoteService:
         self.session.add(note)
         await self.session.commit()
         await self.session.refresh(note)
-        return note
+        return NoteDTO.model_validate(note)
 
-    async def update_note(self, note_id: UUID, user_id: UUID, note_in: NoteUpdate) -> Optional[Note]:
+    async def update_note(self, note_id: UUID, user_id: UUID, note_in: NoteUpdateDTO) -> Optional[NoteDTO]:
         note = await self.get_note(note_id, user_id)
         if not note:
             return None
@@ -48,7 +66,7 @@ class NoteService:
         self.session.add(note)
         await self.session.commit()
         await self.session.refresh(note)
-        return note
+        return NoteDTO.model_validate(note)
 
     async def delete_note(self, note_id: UUID, user_id: UUID) -> bool:
         note = await self.get_note(note_id, user_id)
