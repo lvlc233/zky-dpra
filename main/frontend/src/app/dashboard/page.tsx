@@ -16,6 +16,7 @@ import { searchService } from '@/services/search.service';
 import { paperService } from '@/services/paper.service';
 import { collectionService } from '@/services/collection.service';
 import { toast } from 'sonner';
+import { useAuthStore } from '@/store/use-auth-store';
 import { logger } from '@/lib/logger';
 
 export default function DashboardPage() {
@@ -28,24 +29,31 @@ export default function DashboardPage() {
   const [activeCollection, setActiveCollection] = useState<Collection | null>(null);
   const [isAIEnabled, setIsAIEnabled] = useState(false);
   
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const openUpload = useUploadStore((s) => s.open);
   const setUploadCollectionId = useUploadStore((s) => s.setCollectionId);
   const lastUploadTime = useUploadStore((s) => s.lastUploadTime);
 
   const loadCollections = React.useCallback(async () => {
+    if (!isAuthenticated) {
+        setCollections([]);
+        return;
+    }
     try {
       const list = await collectionService.getAll();
       const mapped = list.map(c => ({
-        id: c.id,
+        collection_id: c.collection_id,
         label: c.name,
         count: c.count || 0
       }));
       setCollections(mapped);
     } catch (error: any) {
       logger.error("Failed to load collections", error, 'DashboardPage');
-      toast.error("加载收藏夹失败");
+      // Silent fail or toast? If not logged in, api throws 401. 
+      // But we checked isAuthenticated. 
+      // toast.error("加载收藏夹失败");
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const loadRecentPapers = React.useCallback(async () => {
     try {
@@ -77,16 +85,16 @@ export default function DashboardPage() {
   }, []);
 
   const handleUploadSuccess = React.useCallback(() => {
-    if (activeCollection?.id) {
-      loadCollectionPapers(activeCollection.id);
+    if (activeCollection?.collection_id) {
+      loadCollectionPapers(activeCollection.collection_id);
       return;
     }
     loadRecentPapers();
-  }, [activeCollection?.id, loadCollectionPapers, loadRecentPapers]);
+  }, [activeCollection?.collection_id, loadCollectionPapers, loadRecentPapers]);
 
   React.useEffect(() => {
-    setUploadCollectionId(activeCollection?.id ?? null);
-  }, [activeCollection?.id, setUploadCollectionId]);
+    setUploadCollectionId(activeCollection?.collection_id ?? null);
+  }, [activeCollection?.collection_id, setUploadCollectionId]);
 
   React.useEffect(() => {
     return () => {
@@ -101,10 +109,27 @@ export default function DashboardPage() {
     }
   }, [handleUploadSuccess, lastUploadTime]);
 
-  // Initial load
+  // Initial load & Auth change
   React.useEffect(() => {
-    loadRecentPapers();
+    // loadRecentPapers();
     loadCollections();
+
+    // Inject Mock Data for detail page testing
+    const MOCK_DATA: Paper = {
+        paper_id: 'mock-id-001',
+        title: 'DeepPaper: A Deep Learning Approach for Academic Paper Research',
+        url: 'https://arxiv.org/pdf/2601.14047',
+        file_url: 'https://arxiv.org/pdf/2601.14047',
+        authors: ['Frontend Agent', 'User'],
+        summary: '这是一个用于测试详情页面的模拟数据。点击此处进入详情页面查看效果。',
+        published_at: '2026-01-21',
+        source: 'Mock System',
+        tags: ['Mock', 'Test', 'Agent'],
+        status: 'success'
+    } as any;
+
+    setSearchResults([MOCK_DATA]);
+    setHasSearched(true);
     
     // Register global upload success callback for this page
     // When upload succeeds, we want to refresh the list if we are on dashboard
@@ -120,7 +145,7 @@ export default function DashboardPage() {
     // No, onUploadSuccess in store is a callback function stored in state.
     
     // Alternative: Dashboard watches for "upload success event".
-    // Or we just reload when modal closes?
+    // Or we just reload periodically when modal closes?
   }, [loadCollections, loadRecentPapers]);
 
   // Listen for upload success
@@ -132,18 +157,22 @@ export default function DashboardPage() {
   // For now, let's remove the local UploadModal and Navbar prop passing.
 
   const handleSearch = async (query: string, useAI: boolean) => {
+    if (!query || !query.trim()) {
+        toast.error("请输入搜索内容");
+        return;
+    }
     setIsSearching(true);
     setIsAIEnabled(useAI);
     
     try {
-        const results = await searchService.search({
+        const response = await searchService.search({
             query,
             page: 1,
             limit: 20,
             filters: activeCollection ? { collection_id: activeCollection.id } : undefined
         });
         setHasSearched(true);
-        setSearchResults(results);
+        setSearchResults(response.items || []);
     } catch (error: any) {
         logger.error("Search failed", error, 'DashboardPage');
         toast.error(error.message || "搜索失败");
@@ -211,7 +240,7 @@ export default function DashboardPage() {
             <SearchBar onSearch={handleSearch} />
             <SearchFilters 
               className="mt-4" 
-              onUploadClick={() => openUpload({ collectionId: activeCollection?.id ?? null })} 
+              onUploadClick={() => openUpload({ collectionId: activeCollection?.collection_id ?? null })} 
             />
           </div>
 

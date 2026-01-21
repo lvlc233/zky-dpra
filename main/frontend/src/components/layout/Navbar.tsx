@@ -45,7 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({ className, onCollectionsClick })
 
       {/* Navigation Links - Centered Group */}
       <nav className="hidden md:flex items-center gap-2 p-1 bg-gray-100/50 rounded-full border border-gray-200/50 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <NavItem href="/dashboard" icon={<Search className="w-4 h-4" />}>搜索论文</NavItem>
+        {/* <NavItem href="/dashboard" icon={<Search className="w-4 h-4" />}>搜索论文</NavItem> */}
         <NavItem 
           onClick={handleUploadClick}
           icon={<Upload className="w-4 h-4" />}

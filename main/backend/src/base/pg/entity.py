@@ -130,8 +130,6 @@ class Paper(SQLModel, table=True):
         - status: 枚举类型 (PaperStatus)，管理论文处理生命周期。
         - 关联:
             - chunks: 一对多关联 PaperChunk，用于RAG检索。
-            - layers: 一对多关联 Layer，用于阅读器标注。
-            - reports: 一对多关联 Report，用于生成的研究报告。
     """
     __tablename__ = "papers"
     __table_args__ = {"comment": "论文表: 存储论文元数据、文件路径及处理状态"}
@@ -206,8 +204,7 @@ class Paper(SQLModel, table=True):
     user: User = Relationship(back_populates="papers")
     chunks: List["PaperChunk"] = Relationship(back_populates="paper")
     summaries: List["PaperSummary"] = Relationship(back_populates="paper")
-    layers: List["Layer"] = Relationship(back_populates="paper")
-    reports: List["Report"] = Relationship(back_populates="paper")
+    annotations: List["Annotation"] = Relationship(back_populates="paper")
     chat_sessions: List["AgentSession"] = Relationship(back_populates="paper")
     notes: List["Note"] = Relationship(back_populates="paper")
     mind_map: Optional["MindMap"] = Relationship(back_populates="paper")
@@ -480,87 +477,6 @@ class PaperSummary(SQLModel, table=True):
     # 关联关系
     paper: Paper = Relationship(back_populates="summaries")
 
-class Report(SQLModel, table=True):
-    """
-    研究报告表模型 (Report Model)
-
-    注释者: BackendAgent
-    注释时间: 2026-01-12 07:50:00
-
-    用途:
-        存储 Agent 生成的深度研究报告。
-
-    使用场景:
-        - 深度调研 (Deep Research): 基于单篇或多篇论文生成的综合分析报告。
-        - 相关工作 (Related Work): 自动生成的文献综述。
-        - 报告查看与导出 (Markdown 格式)。
-
-    内部实现:
-        - 继承自 SQLModel，对应数据库表 'reports'。
-        - paper_id: 外键关联 Papers 表 (目前设计为关联单篇，未来可能需要关联多篇或通过 Tags 关联)。
-        - type: 报告类型 ('deep_research', 'related_work')。
-        - status: 生成状态流转 ('generating' -> 'completed' / 'failed')，用于前端轮询或 SSE 通知。
-        - content: 存储 Markdown 格式的报告正文。
-    """
-    __tablename__ = "reports"
-    __table_args__ = {"comment": "研究报告表: 存储Agent生成的分析报告"}
-
-    id: UUID = Field(
-        default_factory=uuid4,
-        primary_key=True,
-        sa_type=PGUUID(as_uuid=True),
-        sa_column_kwargs={"comment": "报告ID"}
-    )
-    paper_id: UUID = Field(
-        foreign_key="papers.id",
-        index=True,
-        sa_type=PGUUID(as_uuid=True),
-        sa_column_kwargs={"comment": "基于的论文ID"}
-    )
-    user_id: UUID = Field(
-        foreign_key="users.id",
-        index=True,
-        sa_type=PGUUID(as_uuid=True),
-        sa_column_kwargs={"comment": "所属用户ID"}
-    )
-
-    title: str = Field(
-        sa_column_kwargs={"comment": "报告标题"}
-    )
-    type: str = Field(
-        sa_column_kwargs={"comment": "报告类型(deep_research/related_work)"}
-    )
-    status: str = Field(
-        default="generating",
-        sa_column_kwargs={"comment": "生成状态(generating/completed/failed)"}
-    )
-    content: Optional[str] = Field(
-        default=None,
-        sa_column_kwargs={"comment": "报告正文(Markdown)"}
-    )
-    summary: Optional[str] = Field(
-        default=None,
-        sa_column_kwargs={"comment": "报告摘要"}
-    )
-    job_id: Optional[UUID] = Field(
-        default=None,
-        foreign_key="jobs.id",
-        index=True,
-        sa_type=PGUUID(as_uuid=True),
-        sa_column_kwargs={"comment": "关联任务ID(可选)"}
-    )
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        sa_column_kwargs={"comment": "创建时间"}
-    )
-    updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        sa_column_kwargs={"comment": "更新时间"}
-    )
-
-    # 关联关系
-    paper: Paper = Relationship(back_populates="reports")
-
 class Note(SQLModel, table=True):
     """
     笔记表模型 (Note Model)
@@ -697,78 +613,6 @@ class MindMap(SQLModel, table=True):
     user: User = Relationship(back_populates="mind_maps")
 
 
-class Layer(SQLModel, table=True):
-    """
-    阅读器图层表模型 (Reader Layer Model)
-
-    注释者: BackendAgent
-    注释时间: 2026-01-12 07:50:00
-
-    用途:
-        支持 PDF 阅读器的多图层标注功能，类似 Photoshop 图层概念。
-
-    使用场景:
-        - 多人协作: 区分 "我的标注"、"团队标注"、"AI 自动标注"。
-        - 标注分类: 区分 "高亮层"、"翻译层"、"笔记层"。
-        - 控制标注的可见性 (visible 字段)。
-
-    内部实现:
-        - 继承自 SQLModel，对应数据库表 'layers'。
-        - paper_id: 外键关联 Papers 表。
-        - type: 图层类型 ('user' 为用户创建, 'system' 为系统生成)。
-        - 关联:
-            - annotations: 一对多关联 Annotation，该图层下的所有具体标注。
-    """
-    __tablename__ = "layers"
-    __table_args__ = {"comment": "阅读器图层表: 支持多层级标注管理"}
-
-    id: UUID = Field(
-        default_factory=uuid4,
-        primary_key=True,
-        sa_type=PGUUID(as_uuid=True),
-        sa_column_kwargs={"comment": "图层ID"}
-    )
-    paper_id: UUID = Field(
-        foreign_key="papers.id",
-        index=True,
-        sa_type=PGUUID(as_uuid=True),
-        sa_column_kwargs={"comment": "所属论文ID"}
-    )
-    user_id: UUID = Field(
-        foreign_key="users.id",
-        index=True,
-        sa_type=PGUUID(as_uuid=True),
-        sa_column_kwargs={"comment": "创建者用户ID"}
-    )
-
-    name: str = Field(
-        sa_column_kwargs={"comment": "图层名称"}
-    )
-    type: str = Field(
-        default="user",
-        sa_column_kwargs={"comment": "图层类型(user/system)"}
-    )
-    visible: bool = Field(
-        default=True,
-        sa_column_kwargs={"comment": "是否可见"}
-    )
-    created_at: datetime = Field(
-        default_factory=datetime.now, 
-        sa_column_kwargs={"comment": "创建时间"}
-    )
-    updated_at: datetime = Field(
-        default_factory=datetime.now,
-        sa_column_kwargs={"comment": "更新时间"}
-    )
-
-
-
-
-    # 关联关系
-    paper: Paper = Relationship(back_populates="layers")
-    annotations: List["Annotation"] = Relationship(back_populates="layer")
-
-
 class Annotation(SQLModel, table=True):
     """
     标注表模型 (Annotation Model)
@@ -786,7 +630,7 @@ class Annotation(SQLModel, table=True):
 
     内部实现:
         - 继承自 SQLModel，对应数据库表 'annotations'。
-        - layer_id: 外键关联 Layers 表，必须依附于某个图层。
+        - paper_id: 外键关联 Papers 表。
         - rects: JSON 字段，存储标注在 PDF 页面上的几何坐标 (x, y, width, height, pageIndex)，前端利用此信息渲染。
         - content: 存储笔记内容或翻译结果文本。
         - color: 标注颜色，支持个性化配置。
@@ -800,11 +644,11 @@ class Annotation(SQLModel, table=True):
         sa_type=PGUUID(as_uuid=True),
         sa_column_kwargs={"comment": "标注ID"}
     )
-    layer_id: UUID = Field(
-        foreign_key="layers.id",
+    paper_id: UUID = Field(
+        foreign_key="papers.id",
         index=True,
         sa_type=PGUUID(as_uuid=True),
-        sa_column_kwargs={"comment": "所属图层ID"}
+        sa_column_kwargs={"comment": "所属论文ID"}
     )
 
     type: str = Field(
@@ -833,7 +677,7 @@ class Annotation(SQLModel, table=True):
     )
     
     # 关联关系
-    layer: Layer = Relationship(back_populates="annotations")
+    paper: Paper = Relationship(back_populates="annotations")
 
 
 class AgentSession(SQLModel, table=True):

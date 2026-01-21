@@ -13,7 +13,7 @@ import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from loguru import logger
 # 尝试导入Marker依赖
@@ -47,8 +47,7 @@ class PDFParseResult(BaseModel):
     pages: List[str] = Field(default_factory=list, description="按页分割的文本")
     toc: List = Field(default_factory=list, description="目录结构 (Table of Contents)")
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 class BasePDFParser(ABC):
     """PDF解析器基类"""

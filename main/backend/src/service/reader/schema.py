@@ -18,7 +18,7 @@ class AnnotationUpdateDTO(BaseModel):
 
 class AnnotationDTO(BaseModel):
     id: UUID
-    layer_id: UUID
+    paper_id: UUID
     type: str
     rects: List[Dict[str, Any]]
     content: Optional[str] = None
@@ -26,34 +26,6 @@ class AnnotationDTO(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class LayerCreateDTO(BaseModel):
-    name: str
-    type: str = "user"
-    visible: bool = True
-
-
-class LayerUpdateDTO(BaseModel):
-    name: Optional[str] = None
-    visible: Optional[bool] = None
-
-
-class LayerDTO(BaseModel):
-    id: UUID
-    paper_id: UUID
-    user_id: UUID
-    name: str
-    type: str = "user"
-    visible: bool = True
-    created_at: datetime
-    annotations: List[AnnotationDTO] = []
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class LayerListDTO(BaseModel):
-    layers: List[LayerDTO]
 
 
 class SummaryCreateDTO(BaseModel):
@@ -153,21 +125,19 @@ class Rect(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class AnnotationRequest(BaseModel):
+    type: Literal['highlight','translation','note'] = Field(..., description="注解类型[高光,翻译,随笔内容]")
+    rect: List[Dict[str, float]] = Field(..., description="标注区域的几何坐标")
+    content: str = Field(..., description="注解内容[随笔内容,翻译内容]")
+    color: str = Field(..., description="RGB/Hex")
+
+
 class Annotation(BaseModel):
     annotation_id: UUID = Field(..., alias="id", description="标注ID")
     type: Literal['highlight', 'translation', 'note'] = Field(..., description="标注类型(highlight/note/translate)")
     rect: List[Rect] = Field(..., description="标注区域坐标(JSON数组)")
     content: Optional[str] = Field(None, description="标注内容(笔记/翻译结果)")
     color: Optional[str] = Field(None, description="标注颜色(Hex/RGB)")
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class View(BaseModel):
-    view_id: UUID = Field(..., alias="id", description="图层ID")
-    name: str = Field(..., description="图层名称")
-    enable: bool = Field(..., alias="visible", description="是否可见")
-    annotations: List[Annotation] = Field(..., description="视图注解")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -248,7 +218,7 @@ class PaperReaderMeta(BaseModel):
     file_url: Optional[str] = None
     summary: Optional[AISummary] = None
     toc: Optional[Toc] = None
-    views: List[View]
+    annotations: List[Annotation]
     notes: List[NoteMeta]
     mind_map: Optional[MindMap] = None
     history: List[Record]

@@ -21,7 +21,8 @@ from controller.api.auth.router import router as auth_router, users_router
 from controller.api.reader.router import router as reader_router
 from controller.api.collections.router import router as collections_router
 from controller.api.search.router import router as search_router
-from controller.api.users.settings_router import router as settings_router
+from controller.api.settings.settings_router import router as settings_router
+from controller.api.jobs.router import router as jobs_router
 
 # 导入异常处理器
 from controller.response import global_exception_handler
@@ -81,11 +82,10 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(users_router, prefix="/api/v1")
     app.include_router(reader_router, prefix="/api/v1")
-    app.include_router(chat_router, prefix="/api/v1")
-    app.include_router(reports_router, prefix="/api/v1")
     app.include_router(collections_router, prefix="/api/v1")
     app.include_router(search_router, prefix="/api/v1")
     app.include_router(settings_router, prefix="/api/v1")
+    app.include_router(jobs_router, prefix="/api/v1")
 
     @app.get("/")
     async def root():

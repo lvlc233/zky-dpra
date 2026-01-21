@@ -1,8 +1,8 @@
 import request from '@/lib/request';
 
 export interface ChatSession {
-  id: string;
-  title?: string; // Doc doesn't explicitly say title, but usually sessions have titles.
+  session_id: string;
+  title?: string;
   agent_type: string;
   created_at?: string;
 }
@@ -14,30 +14,15 @@ export interface ChatMessage {
 
 export const chatService = {
   createSession: async (agentType: string, context?: any): Promise<ChatSession> => {
-    const data = await request.post('/chat/sessions', { agent_type: agentType, context });
-    const response = data as ChatSession & Record<string, unknown>;
-    return {
-      ...response,
-      id: (response as { sessionId?: string; session_id?: string }).sessionId ?? (response as { session_id?: string }).session_id ?? response.id,
-    };
+    return request.post('/chat/sessions', { agent_type: agentType, context });
   },
 
   getSessions: async (): Promise<ChatSession[]> => {
-    const data = await request.get('/chat/sessions');
-    const list = (data as ChatSession[]) ?? [];
-    return list.map((session) => ({
-      ...session,
-      id: (session as { sessionId?: string; session_id?: string }).sessionId ?? (session as { session_id?: string }).session_id ?? session.id,
-    }));
+    return request.get('/chat/sessions');
   },
 
-  getSession: async (id: string): Promise<ChatSession> => {
-    const data = await request.get(`/chat/sessions/${id}`);
-    const session = data as ChatSession & Record<string, unknown>;
-    return {
-      ...session,
-      id: (session as { sessionId?: string; session_id?: string }).sessionId ?? (session as { session_id?: string }).session_id ?? session.id,
-    };
+  getSession: async (sessionId: string): Promise<ChatSession> => {
+    return request.get(`/chat/sessions/${sessionId}`);
   },
 
   getMessages: async (sessionId: string): Promise<ChatMessage[]> => {

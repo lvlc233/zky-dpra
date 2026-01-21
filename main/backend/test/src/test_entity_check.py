@@ -1,6 +1,6 @@
 
 from sqlmodel import SQLModel, create_engine
-from base.pg.entity import Layer, Annotation
+from base.pg.entity import Annotation
 
 def test_entity_relationships():
     # This should trigger mapper configuration

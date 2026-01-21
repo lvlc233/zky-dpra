@@ -1,57 +1,32 @@
 import request from '@/lib/request';
-import { Collection, Paper } from '@/types/models';
-
-const mapPaper = (paper: Paper & Record<string, unknown>): Paper => {
-  const mappedId = (paper as { paper_id?: string }).paper_id ?? paper.id;
-  return {
-    ...paper,
-    id: mappedId,
-  };
-};
-
-const mapCollection = (collection: Collection & Record<string, unknown>): Collection => {
-  const mappedId = (collection as { collection_id?: string }).collection_id ?? collection.id;
-  const mappedCount = (collection as { total?: number }).total ?? collection.count;
-  return {
-    ...collection,
-    id: mappedId,
-    count: mappedCount,
-  };
-};
+import { CollectionResponse } from '@/types/api';
 
 export const collectionService = {
-  getAll: async (): Promise<Collection[]> => {
-    const data = await request.get('/collections');
-    const list = (data as Collection[]) ?? [];
-    return list.map((item) => mapCollection(item));
+  getAll: async (): Promise<CollectionResponse[]> => {
+    return request.get('/collections');
   },
 
-  getById: async (id: string): Promise<Collection & { papers: Paper[] }> => {
-    const data = await request.get(`/collections/${id}`);
-    const mapped = mapCollection(data as Collection);
-    const papers = ((data as { papers?: Paper[] }).papers ?? []).map((paper) => mapPaper(paper));
-    return { ...mapped, papers };
+  getById: async (collectionId: string): Promise<CollectionResponse> => {
+    return request.get(`/collections/${collectionId}`);
   },
 
-  create: async (name: string): Promise<Collection> => {
-    const data = await request.post('/collections', { name });
-    return mapCollection(data as Collection);
+  create: async (name: string): Promise<CollectionResponse> => {
+    return request.post('/collections', { name });
   },
 
-  update: async (id: string, name: string): Promise<Collection> => {
-    const data = await request.patch(`/collections/${id}`, { new_name: name });
-    return mapCollection(data as Collection);
+  update: async (collectionId: string, name: string): Promise<void> => {
+    return request.patch(`/collections/${collectionId}`, { new_name: name });
   },
 
-  delete: async (id: string): Promise<{ success: boolean }> => {
-    return request.delete(`/collections/${id}`);
+  delete: async (collectionId: string): Promise<void> => {
+    return request.delete(`/collections/${collectionId}`);
   },
 
-  addPaper: async (collectionId: string, paperId: string): Promise<void> => {
-    return request.patch(`/papers/move/${paperId}`, { collection_id: collectionId });
+  movePaper: async (collectionId: string, paperId: string): Promise<void> => {
+    return request.patch(`/collections/${collectionId}/papers/move/${paperId}`);
   },
 
   removePaper: async (paperId: string): Promise<void> => {
-    return request.delete(`/papers/${paperId}`);
-  }
+    return request.delete(`/collections/papers/${paperId}`);
+  },
 };

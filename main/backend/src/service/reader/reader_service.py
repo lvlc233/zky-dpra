@@ -1,18 +1,18 @@
 import json
 from typing import List, Optional, Annotated, Dict
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from base.pg.entity import Paper, Layer, Note, MindMap, AgentSession, Job, PaperSummary, Annotation as AnnotationEntity
-from base.pg.service import SessionDep
+from base.pg.entity import Paper, Note, MindMap, AgentSession, Job, PaperSummary, Annotation as AnnotationEntity
+from base.pg.service import SessionDep, ReaderRepository, PaperRepository
 from service.reader.schema import (
-    Toc, TocItem, View, NoteMeta, AISummary, Record,
+    Toc, TocItem, NoteMeta, AISummary, Record,
     Job as JobSchema, Rect, Annotation, MindMap as MindMapSchema,
-    MindMapNode, MindMapEdge, PaperReaderMeta
+    MindMapNode, MindMapEdge, PaperReaderMeta, AnnotationRequest
 )
 
 
@@ -25,7 +25,7 @@ class ReaderService:
             select(Paper)
             .where(Paper.id == paper_id, Paper.user_id == user_id)
             .options(
-                selectinload(Paper.layers).selectinload(Layer.annotations),
+                selectinload(Paper.annotations),
                 selectinload(Paper.notes),
                 selectinload(Paper.summaries),
                 selectinload(Paper.mind_map),
@@ -55,33 +55,24 @@ class ReaderService:
             except Exception:
                 toc = None # Handle parsing error or empty
 
-        # Views (Layers)
-        views = []
-        for layer in paper.layers:
-            annotations = []
-            for ann in layer.annotations:
-                # Parse rects (List[dict] -> List[Rect])
-                rects_list = []
-                if ann.rects:
-                    for r in ann.rects:
-                        try:
-                            rects_list.append(Rect(**r))
-                        except:
-                            pass
-                
-                annotations.append(Annotation(
-                    id=ann.id,
-                    type=ann.type,
-                    rect=rects_list,
-                    content=ann.content,
-                    color=ann.color
-                ))
+        # Annotations
+        annotations = []
+        for ann in paper.annotations:
+            # Parse rects (List[dict] -> List[Rect])
+            rects_list = []
+            if ann.rects:
+                for r in ann.rects:
+                    try:
+                        rects_list.append(Rect(**r))
+                    except:
+                        pass
             
-            views.append(View(
-                id=layer.id,
-                name=layer.name,
-                visible=layer.visible,
-                annotations=annotations
+            annotations.append(Annotation(
+                id=ann.id,
+                type=ann.type,
+                rect=rects_list,
+                content=ann.content,
+                color=ann.color
             ))
 
         # Notes
@@ -147,12 +138,82 @@ class ReaderService:
             file_url=paper.file_url,
             summary=ai_summary,
             toc=toc,
-            views=views,
+            annotations=annotations,
             notes=notes_meta,
             mind_map=mind_map,
             history=history,
             jobs=jobs_dto
         )
+
+    async def get_annotations(self, paper_id: UUID, user_id: UUID) -> List[Annotation]:
+        annotations = await ReaderRepository.get_annotations_by_paper(self.session, paper_id, user_id)
+        
+        result = []
+        for ann in annotations:
+            rects_list = []
+            if ann.rects:
+                for r in ann.rects:
+                    try:
+                        rects_list.append(Rect(**r))
+                    except:
+                        pass
+            
+            result.append(Annotation(
+                id=ann.id,
+                type=ann.type,
+                rect=rects_list,
+                content=ann.content,
+                color=ann.color
+            ))
+        return result
+
+    async def add_annotation(self, paper_id: UUID, req: AnnotationRequest, user_id: UUID) -> None:
+        paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
+        if not paper or paper.user_id != user_id:
+             raise HTTPException(status_code=404, detail="Paper not found")
+             
+        annotation = AnnotationEntity(
+            id=uuid4(),
+            paper_id=paper_id,
+            type=req.type,
+            rects=[r for r in req.rect], 
+            content=req.content,
+            color=req.color
+        )
+        await ReaderRepository.create_annotation(self.session, annotation)
+
+    async def update_annotation(self, paper_id: UUID, annotation_id: UUID, req: AnnotationRequest, user_id: UUID) -> None:
+        annotation = await ReaderRepository.get_annotation_by_id(self.session, annotation_id)
+        if not annotation:
+             raise HTTPException(status_code=404, detail="Annotation not found")
+        
+        if annotation.paper_id != paper_id:
+             raise HTTPException(status_code=400, detail="Annotation does not belong to this paper")
+
+        paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
+        if not paper or paper.user_id != user_id:
+             raise HTTPException(status_code=403, detail="Permission denied")
+
+        annotation.type = req.type
+        annotation.rects = [r for r in req.rect]
+        annotation.content = req.content
+        annotation.color = req.color
+        
+        await ReaderRepository.update_annotation(self.session, annotation)
+
+    async def delete_annotation(self, paper_id: UUID, annotation_id: UUID, user_id: UUID) -> None:
+        annotation = await ReaderRepository.get_annotation_by_id(self.session, annotation_id)
+        if not annotation:
+             raise HTTPException(status_code=404, detail="Annotation not found")
+             
+        if annotation.paper_id != paper_id:
+             raise HTTPException(status_code=400, detail="Annotation does not belong to this paper")
+
+        paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
+        if not paper or paper.user_id != user_id:
+             raise HTTPException(status_code=403, detail="Permission denied")
+             
+        await ReaderRepository.delete_annotation(self.session, annotation)
 
 def get_reader_service(session: SessionDep) -> ReaderService:
     return ReaderService(session)

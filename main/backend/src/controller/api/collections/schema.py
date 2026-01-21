@@ -3,6 +3,9 @@ from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
+from service.papers.schema import PaperMeta
+
+
 class CollectionResponse(BaseModel):
     """收藏夹响应模型"""
     name: str = Field(..., description="收藏夹名称")
@@ -17,6 +20,10 @@ class CollectionResponse(BaseModel):
         from_attributes=True,
         populate_by_name=True
     )
+
+class CollectionDetailResponse(BaseModel):
+    """收藏夹详情响应"""
+    items: List[PaperMeta]
 
 class CreateCollectionRequest(BaseModel):
     name: str = Field(..., description="收藏夹名称")

@@ -17,13 +17,23 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Header, Form, Request
-from fastapi.responses import Response, FileResponse
+from fastapi.responses import Response as FastAPIResponse, FileResponse
 
-from controller.api.papers.schema import PaperFetchRequest, PaperStatusResponse
-from controller.api.auth.router import get_current_user, get_current_user_for_file
+from controller.api.papers.schema import (
+    PaperFetchRequest,
+    PaperStatusResponse,
+    PapersUploadWebRequest,
+    PapersUploadResponse,
+)
+from controller.api.collections.schema import (
+    CollectionResponse,
+)
+from controller.api.auth.router import get_current_user
+from controller.response import Response
 from service.papers.schema import PaperListResponse, PaperInfo, PaperUploadResponse
 from service.papers.arxiv_service import ArxivService
 from service.papers.paper_service import PaperService, PaperProcessingService, PaperServiceDep
+from service.collections.collection_service import CollectionServiceDep
 from base.arxiv.client import ArxivClient
 from base.arxiv.parser import ArxivXmlParser
 from base.pg.entity import User
@@ -94,7 +104,7 @@ def _log_background_task_result(task: asyncio.Task) -> None:
         logger.exception("论文处理后台任务失败")
 
 
-@router.post("/fetch", response_model=PaperListResponse)
+@router.post("/fetch", response_model=Response[PaperListResponse])
 async def fetch_papers(
     request: PaperFetchRequest,
     service: ArxivService = Depends(get_arxiv_service)
@@ -193,7 +203,7 @@ async def fetch_papers(
         )
 
         logger.info("论文获取完成，返回响应")
-        return response
+        return Response.success(data=response)
     # TODO: 最好还是要有个全局异常处理器。
     except HTTPException:
         # 已定义的HTTP异常，直接抛出
@@ -208,7 +218,18 @@ async def fetch_papers(
         )
 
 
-@router.post("/upload", response_model=PaperUploadResponse)
+@router.post("/upload/web", response_model=Response[list[PapersUploadResponse]])
+async def upload_paper_from_web(
+    request: PapersUploadWebRequest,
+    paper_service: PaperServiceDep,
+    current_user: User = Depends(get_current_user),
+):
+    """从网络URL直接上传论文"""
+    data = await paper_service.upload_papers_from_web(request, current_user.id)
+    return Response.success(data=data)
+
+
+@router.post("/upload", response_model=Response[PaperUploadResponse])
 async def upload_paper(
     paper_service: PaperServiceDep,
     file: UploadFile = File(...),
@@ -232,7 +253,7 @@ async def upload_paper(
             content_type=file.content_type or "application/pdf",
             collection_id=collection_id,
         )
-        return response
+        return Response.success(data=response)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -246,7 +267,7 @@ async def upload_paper(
         )
 
 
-@router.get("/{paper_id}/status", response_model=PaperStatusResponse)
+@router.get("/{paper_id}/status", response_model=Response[PaperStatusResponse])
 async def get_paper_status(
     paper_id: str,
     request: Request,
@@ -270,7 +291,7 @@ async def get_paper_status(
             detail="论文不存在或无访问权限",
         )
     # TODO:状态用sse发送通知会不会好点
-    return PaperStatusResponse(
+    return Response.success(data=PaperStatusResponse(
         paper_id=str(paper.id),
         status=paper.status.value,
         title=paper.title,
@@ -282,10 +303,10 @@ async def get_paper_status(
         updated_at=paper.created_at,
         toc=paper.toc,
         file_url=_resolve_file_url(request, paper.file_url or f"/api/v1/papers/{paper.id}/file")
-    )
+    ))
 
 
-@router.post("/{paper_id}/process", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{paper_id}/process", response_model=Response[dict], status_code=status.HTTP_202_ACCEPTED)
 async def trigger_paper_processing(
     paper_id: str,
     paper_service: PaperServiceDep,
@@ -312,10 +333,10 @@ async def trigger_paper_processing(
 
     task = asyncio.create_task(processing_service.process_pdf(paper_uuid))
     task.add_done_callback(_log_background_task_result)
-    return {"paper_id": str(paper_uuid), "status": "accepted"}
+    return Response.success(data={"paper_id": str(paper_uuid), "status": "accepted"})
 
 
-@router.get("/list", response_model=list[PaperStatusResponse])
+@router.get("/list", response_model=Response[list[PaperStatusResponse]])
 async def list_user_papers(
     request: Request,
     paper_service: PaperServiceDep,
@@ -324,7 +345,7 @@ async def list_user_papers(
     current_user: User = Depends(get_current_user),
 ):
     papers = await paper_service.get_user_papers(user_id=current_user.id, limit=limit, offset=offset)
-    return [
+    return Response.success(data=[
         PaperStatusResponse(
             paper_id=str(p.id),
             status=p.status.value,
@@ -339,14 +360,14 @@ async def list_user_papers(
             file_url=_resolve_file_url(request, p.file_url)
         )
         for p in papers
-    ]
+    ])
 
 
 @router.get("/{paper_id}/file")
 async def get_paper_file(
     paper_id: str,
     paper_service: PaperServiceDep,
-    current_user: User = Depends(get_current_user_for_file),
+    current_user: User = Depends(get_current_user),
 ):
     logger.info(f"接收到获取论文文件请求: paper_id={paper_id}, user_id={current_user.id}")
 
@@ -382,7 +403,7 @@ async def get_paper_file(
         internal_uri = f"{INTERNAL_UPLOADS_LOCATION_PREFIX}{paper.file_key}"
         internal_uri = quote(internal_uri, safe="/")
         # TODO:这两种有什么区别嘛?
-        return Response(
+        return FastAPIResponse(
             status_code=status.HTTP_200_OK,
             media_type="application/pdf",
             headers={
@@ -400,7 +421,7 @@ async def get_paper_file(
     )
 
 
-@router.delete("/{paper_id}")
+@router.delete("/{paper_id}", response_model=Response[dict])
 async def delete_paper(
     paper_id: str,
     paper_service: PaperServiceDep,
@@ -420,10 +441,10 @@ async def delete_paper(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="论文不存在或无访问权限",
         )
-    return {"paper_id": paper_id, "deleted": True}
+    return Response.success(data={"paper_id": paper_id, "deleted": True})
 
 
-@router.get("/search/test", response_model=PaperListResponse)
+@router.get("/search/test", response_model=Response[PaperListResponse])
 async def test_arxiv_search(
     service: ArxivService = Depends(get_arxiv_service)
 ):
@@ -441,15 +462,15 @@ async def test_arxiv_search(
     query = "AI Agent"
     papers = await service.search_papers(query=query, max_results=5)
     
-    return PaperListResponse(
+    return Response.success(data=PaperListResponse(
         papers=papers,
         total_count=len(papers),
         source="arXiv",
         fetch_url=f"search: {query}"
-    )
+    ))
 
 
-@router.get("/{paper_id}", response_model=PaperStatusResponse)
+@router.get("/{paper_id}", response_model=Response[PaperStatusResponse])
 async def get_paper_by_id(
     paper_id: str,
     request: Request,
@@ -473,7 +494,7 @@ async def get_paper_by_id(
             detail="论文不存在或无访问权限",
         )
 
-    return PaperStatusResponse(
+    return Response.success(data=PaperStatusResponse(
         paper_id=str(paper.id),
         status=paper.status.value,
         title=paper.title,
@@ -485,4 +506,4 @@ async def get_paper_by_id(
         updated_at=paper.created_at,
         toc=paper.toc,
         file_url=_resolve_file_url(request, paper.file_url or f"/api/v1/papers/{paper.id}/file")
-    )
+    ))

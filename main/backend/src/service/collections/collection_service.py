@@ -10,9 +10,8 @@ from loguru import logger
 
 from base.pg.service import CollectionRepository, PaperRepository, SessionDep, UserRepository
 from base.pg.entity import Collection
-from service.collections.schema import CollectionDTO
-
-
+from service.collections.schema import CollectionDTO, CollectionDetailDTO
+from service.papers.schema import PaperMeta
 
 class CollectionService:
     """
@@ -77,6 +76,32 @@ class CollectionService:
             responses.append(resp)
             
         return responses
+
+    async def get_collection_details(self, collection_id: UUID, user_id: UUID) -> CollectionDetailDTO:
+        """获取收藏夹详情（包含论文列表）"""
+        # 1. Check collection exists and belongs to user
+        collection = await CollectionRepository.get_collection_by_id(self.session, collection_id)
+        if not collection or collection.user_id != user_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="收藏夹不存在")
+        
+        # 2. Fetch papers (default limit 1000 to simulate 'all')
+        papers = await CollectionRepository.get_collection_papers(self.session, collection_id, limit=1000)
+        
+        items = []
+        for p in papers:
+            items.append(PaperMeta(
+                paper_id=p.id,
+                url=p.file_url,
+                title=p.title,
+                authors=p.authors if p.authors else [],
+                summary=p.abstract,
+                published_at=p.created_at,
+                source=p.source_type or "PDF",
+                tags=[], # Tags not available in Paper entity yet
+                references_number=None
+            ))
+            
+        return CollectionDetailDTO(items=items)
 
     async def move_paper(self, paper_id: UUID, target_collection_id: UUID, user_id: UUID) -> bool:
         """移动论文到指定收藏夹"""

@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import uuid
+import httpx
 from pathlib import Path
 from typing import List, Optional, Annotated
 from urllib.parse import urlparse
@@ -32,6 +33,7 @@ from arq.connections import RedisSettings
 # 导入 Business Models / DTOs
 from service.papers.schema import PaperUploadResponse, PaperDTO, PaperInfo
 from common.model.enums import PaperStatus
+from controller.api.papers.schema import PapersUploadWebRequest, PapersUploadResponse
 
 # 导入 Entities (仅用于与 Repository 交互)
 from base.pg.entity import Paper, PaperChunk, User, Collection
@@ -75,6 +77,58 @@ class PaperService:
             toc=paper.toc
         )
 
+    async def upload_papers_from_web(self, req: PapersUploadWebRequest, user_id: UUID) -> List[PapersUploadResponse]:
+        """
+        从网络URL上传论文
+        """
+        responses = []
+        
+        async with httpx.AsyncClient() as client:
+            for url in req.urls:
+                try:
+                    # 1. Download
+                    logger.info(f"Downloading from web: {url}")
+                    resp = await client.get(url, follow_redirects=True, timeout=30.0)
+                    resp.raise_for_status()
+                    
+                    content_type = resp.headers.get("content-type", "application/pdf")
+                    
+                    # Extract filename
+                    filename = url.split("/")[-1]
+                    # remove query params
+                    if "?" in filename:
+                        filename = filename.split("?")[0]
+                        
+                    if not filename.lower().endswith(".pdf"):
+                        filename += ".pdf"
+                    
+                    # 2. Upload using existing logic
+                    upload_resp = await self.upload_paper(
+                        file_content=resp.content,
+                        filename=filename,
+                        user_id=user_id,
+                        content_type=content_type,
+                        collection_id=req.collection_id
+                    )
+                    
+                    responses.append(PapersUploadResponse(
+                        paper_id=uuid.UUID(upload_resp.paper_id),
+                        title=filename, 
+                        status=upload_resp.status,
+                        message=upload_resp.message
+                    ))
+                    
+                except Exception as e:
+                    logger.error(f"Failed to upload from web: {url}, error: {e}")
+                    responses.append(PapersUploadResponse(
+                        paper_id=uuid.uuid4(), 
+                        title=url,
+                        status="failed",
+                        message=str(e)
+                    ))
+                    
+        return responses
+
     async def upload_paper(
         self,
         file_content: bytes,
@@ -84,7 +138,6 @@ class PaperService:
         collection_id: UUID | None = None,
     ) -> PaperUploadResponse:
         """
-        TODO: 是否要再支持下网络上传和存储呢?(当初的架构好像是有包括的。)
         上传论文文件
         """
         logger.info(f"开始上传论文: {filename}, 用户ID: {user_id}")

@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from fastapi import Depends
 
 from base.config import settings
-from base.pg.entity import User, Paper, Collection, CollectionPaper, PaperChunk, PaperSummary, Layer, Annotation, Note, MindMap, AgentSession, Job
+from base.pg.entity import User, Paper, Collection, CollectionPaper, PaperChunk, PaperSummary, Annotation, Note, MindMap, AgentSession, Job
 from common.model.enums import PaperStatus
 
 logger = logging.getLogger(__name__)
@@ -349,15 +349,20 @@ class ReaderRepository:
     """阅读器相关的数据访问层"""
 
     @staticmethod
-    async def get_layers_by_paper(session: AsyncSession, paper_id: UUID, user_id: Optional[UUID] = None) -> List[Layer]:
+    async def get_annotations_by_paper(session: AsyncSession, paper_id: UUID, user_id: Optional[UUID] = None) -> List[Annotation]:
         statement = (
-            select(Layer)
-            .options(selectinload(Layer.annotations))
-            .where(Layer.paper_id == paper_id)
+            select(Annotation)
+            .where(Annotation.paper_id == paper_id)
         )
         if user_id is not None:
-            statement = statement.where(Layer.user_id == user_id)
-        statement = statement.order_by(Layer.created_at)
+            # Check paper ownership or annotation ownership if needed. 
+            # Usually annotations are tied to paper, and paper is tied to user.
+            # But here we join Paper to check user_id if we want strict check.
+            # Or just assume caller checked paper access.
+            # Given previous implementation, let's join Paper to be safe.
+            statement = statement.join(Paper).where(Paper.user_id == user_id)
+            
+        statement = statement.order_by(Annotation.created_at)
         result = await session.execute(statement)
         return result.scalars().all()
 
@@ -434,21 +439,6 @@ class ReaderRepository:
         )
         result = await session.execute(statement)
         return result.scalar_one_or_none()
-
-    @staticmethod
-    async def create_layer(session: AsyncSession, layer: Layer) -> Layer:
-        """创建图层"""
-        session.add(layer)
-        await session.commit()
-        await session.refresh(layer)
-        return layer
-
-    @staticmethod
-    async def get_layer_by_id(session: AsyncSession, layer_id: UUID) -> Optional[Layer]:
-        """获取图层详情"""
-        statement = select(Layer).where(Layer.id == layer_id)
-        result = await session.execute(statement)
-        return result.scalar_one_or_none()
         
     @staticmethod
     async def create_annotation(session: AsyncSession, annotation: Annotation) -> Annotation:
@@ -477,20 +467,5 @@ class ReaderRepository:
     async def delete_annotation(session: AsyncSession, annotation: Annotation) -> bool:
         """删除标注"""
         await session.delete(annotation)
-        await session.commit()
-        return True
-
-    @staticmethod
-    async def update_layer(session: AsyncSession, layer: Layer) -> Layer:
-        """更新图层"""
-        session.add(layer)
-        await session.commit()
-        await session.refresh(layer)
-        return layer
-
-    @staticmethod
-    async def delete_layer(session: AsyncSession, layer: Layer) -> bool:
-        """删除图层"""
-        await session.delete(layer)
         await session.commit()
         return True

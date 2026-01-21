@@ -1,58 +1,95 @@
 import request from '@/lib/request';
-import { UploadResponse, PaperStatusResponse } from '@/types/api';
-import { Paper } from '@/types/models';
-
-const mapPaper = (paper: Paper & Record<string, unknown>): Paper => {
-  const mappedId = (paper as { paper_id?: string }).paper_id ?? paper.id;
-  return {
-    ...paper,
-    id: mappedId,
-  };
-};
+import { PapersUploadResponse, PaperReaderMetaResponse, JobListResponse, JobResponse, SearchedPaperMetaResponse } from '@/types/api';
+import { Paper, Job } from '@/types/models';
 
 export const paperService = {
-  upload: async (file: File, collectionId?: string | null): Promise<UploadResponse> => {
+  uploadLocal: async (files: File[], collectionId?: string): Promise<PapersUploadResponse[]> => {
     const formData = new FormData();
-    formData.append('files', file);
+    files.forEach(file => formData.append('files', file));
     if (collectionId) {
       formData.append('collection_id', collectionId);
     }
     return request.post('/papers/upload/local', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
 
-  fetchFromUrl: async (url: string, collectionId?: string | null): Promise<UploadResponse[]> => {
-    const payload: { urls: string[]; collection_id?: string | null } = { urls: [url] };
-    if (collectionId !== undefined) {
-      payload.collection_id = collectionId;
-    }
-    return request.post('/papers/upload/web', payload);
+  uploadWeb: async (urls: string[], collectionId?: string): Promise<PapersUploadResponse[]> => {
+    return request.post('/papers/upload/web', { urls, collection_id: collectionId });
   },
 
+  // Get list of papers from backend
   getList: async (page = 1, limit = 10): Promise<Paper[]> => {
-    const data = await request.get('/papers', { params: { page, limit, sort: 'created_at' } });
-    const items = (data as { items?: Paper[] }).items ?? (data as Paper[]);
-    return items.map((paper) => mapPaper(paper));
+     const offset = (page - 1) * limit;
+     const items: any[] = await request.get('/papers/list', { 
+        params: { limit, offset } 
+    });
+
+    return items.map(item => ({
+         paper_id: item.paper_id,
+          title: item.title,
+          url: item.file_url,
+          authors: item.authors || [],
+          summary: item.abstract,
+          published_at: item.created_at,
+          source: 'Upload',
+          tags: [],
+          status: item.status === 'completed' ? 'success' : (item.status === 'pending' ? 'processing' : item.status)
+      }));
+  },
+
+  getMeta: async (paperId: string): Promise<PaperReaderMetaResponse> => {
+    return request.get(`/papers/${paperId}/meta`);
+  },
+
+  getJobs: async (paperId: string): Promise<JobListResponse> => {
+    return request.get(`/papers/${paperId}/jobs`);
+  },
+
+  createJob: async (paperId: string, type: Job['type'], options?: any): Promise<JobResponse> => {
+    return request.post(`/papers/${paperId}/jobs`, { type, options });
+  },
+
+  getJob: async (jobId: string): Promise<JobResponse> => {
+    return request.get(`/jobs/${jobId}`);
   },
 
   getById: async (id: string): Promise<Paper> => {
-    const data = await request.get(`/papers/${id}`);
-    return mapPaper(data as Paper);
-  },
+    if (id === 'mock-id-001') {
+        return {
+          paper_id: 'mock-id-001',
+          title: 'DeepPaper: A Deep Learning Approach for Academic Paper Research',
+          url: 'https://arxiv.org/pdf/2601.14047',
+          file_url: 'https://arxiv.org/pdf/2601.14047',
+          authors: ['Frontend Agent', 'User'],
+          summary: '这是一个用于测试详情页面的模拟数据。它展示了 Agent 如何通过 Mock 数据来驱动前端开发。',
+          published_at: '2026-01-21',
+          source: 'Mock System',
+          tags: ['Mock', 'Test', 'Agent'],
+          status: 'success'
+        } as unknown as Paper;
+      }
+      return request.get(`/papers/${id}`);
+    },
 
-  getStatus: async (id: string): Promise<PaperStatusResponse> => {
+    getStatus: async (id: string): Promise<PaperStatusResponse> => {
+      if (id === 'mock-id-001') {
+        return {
+          paper_id: 'mock-id-001',
+          status: 'completed',
+          file_url: 'https://arxiv.org/pdf/2601.14047',
+          progress: 100,
+          step: 'done',
+          toc: [
+            { title: 'Abstract', page: 1 },
+            { title: '1. Introduction', page: 1 },
+            { title: '2. Methodology', page: 2 },
+            { title: '3. Experiments', page: 3 },
+            { title: '4. Conclusion', page: 4 }
+          ],
+          message: 'Mock processing complete'
+        };
+      }
     return request.get(`/papers/${id}/status`);
   },
-
-  process: async (id: string): Promise<{ status: string }> => {
-    return request.post(`/papers/${id}/process`);
-  },
-
-  delete: async (id: string): Promise<{ success: boolean }> => {
-    // Not documented but standard.
-    return request.delete(`/papers/${id}`);
-  }
 };

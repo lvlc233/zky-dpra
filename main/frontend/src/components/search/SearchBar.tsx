@@ -35,6 +35,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ className, onSearch }) => 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!query.trim()) return;
     if (onSearch) {
       onSearch(query, useAI);
     }
@@ -47,25 +48,25 @@ export const SearchBar: React.FC<SearchBarProps> = ({ className, onSearch }) => 
           "flex items-center w-full h-14 pl-6 pr-2 bg-white rounded-2xl border transition-all duration-300 shadow-sm",
           "hover:shadow-md hover:border-indigo-200",
           "focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 focus-within:shadow-xl",
-          useAI ? "border-indigo-200 bg-indigo-50/30" : "border-gray-200"
+          "border-gray-200"
         )}>
           <Search className={cn(
             "w-5 h-5 mr-3 transition-colors duration-300",
-            useAI ? "text-indigo-600" : "text-gray-400 group-hover:text-gray-600"
+            "text-gray-400 group-hover:text-gray-600"
           )} />
           
           <input 
             type="text" 
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={useAI ? "AI 深度搜索中..." : "搜索论文标题、作者、关键词..."}
+            placeholder={"搜索论文标题、作者、关键词..."}
             className="flex-1 h-full bg-transparent border-none outline-none text-gray-900 placeholder:text-gray-400 text-base"
           />
 
           {/* Right Actions Group */}
           <div className="flex items-center gap-3 pl-3 border-l border-gray-100">
-            {/* AI Toggle */}
-            <div className={cn(
+            {/* AI Toggle - Removed per request */}
+            {/* <div className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer select-none",
               useAI ? "bg-indigo-100 text-indigo-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
             )} onClick={() => setUseAI(!useAI)}>
@@ -76,7 +77,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ className, onSearch }) => 
                 <Sparkles className="w-3.5 h-3.5" />
               </div>
               <span className="text-sm font-medium">AI</span>
-            </div>
+            </div> */}
 
             {/* Settings Button */}
             <button 

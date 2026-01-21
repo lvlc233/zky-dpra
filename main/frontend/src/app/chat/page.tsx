@@ -69,7 +69,7 @@ export default function ChatPage() {
     try {
       const newSession = await chatService.createSession('research_assistant');
       setSessions((prev) => [newSession, ...prev]);
-      setActiveSessionId(newSession.id);
+      setActiveSessionId(newSession.session_id);
     } catch (error) {
       toast.error("创建会话失败");
     }

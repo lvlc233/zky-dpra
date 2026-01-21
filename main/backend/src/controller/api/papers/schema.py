@@ -12,6 +12,7 @@
 
 from typing import Optional, List
 from datetime import datetime
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 
@@ -59,6 +60,20 @@ class PaperUploadRequest(BaseModel):
     '''
     title: Optional[str] = None
     authors: Optional[str] = None  # JSON字符串格式
+
+
+class PapersUploadWebRequest(BaseModel):
+    """网络论文上传请求"""
+    urls: List[str] = Field(..., description="论文的url列表,需要指向pdf")
+    collection_id: Optional[UUID] = Field(None, description="默认指向默认收藏夹")
+
+
+class PapersUploadResponse(BaseModel):
+    """论文上传响应"""
+    paper_id: UUID = Field(..., description="论文全局唯一标识")
+    title: str = Field(..., description="论文标题")
+    status: str = Field(..., description="处理状态")  # Literal['processing','success','failed']
+    message: Optional[str] = None
 
 
 class PaperStatusResponse(BaseModel):

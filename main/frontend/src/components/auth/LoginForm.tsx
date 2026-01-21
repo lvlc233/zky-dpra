@@ -32,7 +32,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
     
     try {
       const response = await authService.login(formData.email, formData.password);
-      login(response.user, response.access_token);
+      login(response, response.access_token);
       toast.success('登录成功');
       
       if (isModal) {

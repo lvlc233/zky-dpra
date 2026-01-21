@@ -20,12 +20,12 @@ interface PDFViewerProps {
   className?: string;
   initialPage?: number;
   layers?: Layer[];
-  activeLayerId?: string;
+  activeViewId?: string;
   onAddAnnotation?: (annotation: Annotation) => void;
   onPageChange?: (page: number) => void;
   searchQuery?: string;
   onUpdateAnnotation?: (annotation: Annotation) => void;
-  onDeleteAnnotation?: (id: string) => void;
+  onDeleteAnnotation?: (annotationId: string) => void;
 }
 
 export const PDFViewer: React.FC<PDFViewerProps> = ({ 
@@ -35,7 +35,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   onPageChange,
   searchQuery = '',
   layers = [],
-  activeLayerId = '',
+  activeViewId = '',
   onAddAnnotation,
   onUpdateAnnotation,
   onDeleteAnnotation
@@ -182,7 +182,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 pageIndex={pageNumber - 1} // 0-based
                 scale={scale}
                 layers={layers}
-                activeLayerId={activeLayerId}
+                activeViewId={activeViewId}
                 onAddAnnotation={onAddAnnotation}
                 onUpdateAnnotation={onUpdateAnnotation}
                 onDeleteAnnotation={onDeleteAnnotation}
@@ -205,7 +205,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                   pageIndex={index} // 0-based
                   scale={scale}
                   layers={layers}
-                  activeLayerId={activeLayerId}
+                  activeViewId={activeViewId}
                   onAddAnnotation={onAddAnnotation}
                   onUpdateAnnotation={onUpdateAnnotation}
                   onDeleteAnnotation={onDeleteAnnotation}

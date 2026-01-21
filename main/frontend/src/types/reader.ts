@@ -9,7 +9,7 @@ export interface Rect {
 }
 
 export interface Annotation {
-  id: string;
+  annotation_id: string;
   type: AnnotationType;
   rects: Rect[]; // Support multi-line highlights
   content?: string; // For notes or translation
@@ -18,7 +18,7 @@ export interface Annotation {
 }
 
 export interface Layer {
-  id: string;
+  view_id: string;
   name: string;
   type: 'system' | 'user';
   visible: boolean;

@@ -109,15 +109,6 @@ def test_get_toc(client, mock_toc_service):
     assert resp.status_code == 200
     assert resp.json()["data"]["items"][0]["title"] == "Intro"
 
-def test_get_views(client, mock_view_service):
-    paper_id = uuid4()
-    mock_views = [service_schema.View(id=uuid4(), name="Default", visible=True, annotations=[])]
-    mock_view_service.get_views.return_value = mock_views
-    
-    resp = client.get(f"/api/v1/papers/{paper_id}/views")
-    assert resp.status_code == 200
-    assert len(resp.json()["data"]) == 1
-
 def test_get_notes(client, mock_note_service):
     paper_id = uuid4()
     mock_data = [

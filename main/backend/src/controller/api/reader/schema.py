@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 from service.reader.schema import (
-    TocItem, Toc, Annotation, View, NoteMeta, AISummary,
-    MindMapNode, MindMapEdge, MindMap, Record, Message,  Job
+    TocItem, Toc, Annotation, NoteMeta, AISummary,
+    MindMapNode, MindMapEdge, MindMap, Record, Message,  Job, JobResult
 )
 
 
@@ -16,7 +16,7 @@ class PaperReaderMetaResponse(BaseModel):
     url: Optional[str] = Field(None, alias="file_url", description="文件访问URL")
     summary: Optional[AISummary] = Field(None, description="论文AI总结")
     toc: Optional[Toc] = Field(None, description="论文目录结构")
-    views: List[View] = Field(..., description="论文视图")
+    annotations: List[Annotation] = Field(..., description="论文标注")
     notes: List[NoteMeta] = Field(..., description="论文笔记")
     mind_map: Optional[MindMap] = Field(None, description="论文AI脑图")
     history: List[Record] = Field(..., description="论文AI历史记录")
@@ -27,21 +27,6 @@ class PaperReaderMetaResponse(BaseModel):
 
 class TocResponse(BaseModel):
     items: List[TocItem]
-
-
-class ViewResponse(BaseModel):
-    view_id: UUID = Field(..., alias="id", description="视图id")
-    name: str = Field(..., description="视图名")
-    enable: bool = Field(..., alias="visible", description="开启状态")
-    
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class AnnotationRequest(BaseModel):
-    type: Literal['highlight','translation','note'] = Field(..., description="注解类型[高光,翻译,随笔内容]")
-    rect: List[Dict[str, float]] = Field(..., description="标注区域的几何坐标")
-    content: str = Field(..., description="注解内容[随笔内容,翻译内容]")
-    color: str = Field(..., description="RGB/Hex")
 
 
 class AnnotationResponse(BaseModel):
@@ -82,6 +67,46 @@ class RecordResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     items: List[Message]
+
+
+class JobCreateRequest(BaseModel):
+    """创建任务请求"""
+    job_type: Literal['toc', 'summary', 'mind_map', 'deep_research', 'chat'] = Field(..., description="作业类型")
+    params: Optional[Dict[str, Any]] = Field(None, description="任务参数")
+
+
+class JobResponse(BaseModel):
+    """任务响应"""
+    id: UUID
+    job_type: str
+    status: str
+    progress: float
+    stage: Optional[str] = None
+    result: Optional[JobResult] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobEventPayload(BaseModel):
+    """SSE事件负载"""
+    job_id: UUID
+    type: str
+    status: str
+    progress: Optional[float] = None
+    stage: Optional[str] = None
+    result: Optional[JobResult] = None
+    error: Optional[str] = None
+
+
+class SSEDataEnvelope(BaseModel):
+    """SSE数据信封"""
+    code: int = 200
+    message: str = "ok"
+    state: Literal['start', 'progress', 'end', 'error']
+    payload: Optional[JobEventPayload] = None
 
 
 class JobListResponse(BaseModel):

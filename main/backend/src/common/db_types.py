@@ -25,7 +25,10 @@ class PydanticJSON(TypeDecorator, Generic[T]):
         """
         super().__init__()
         self.pydantic_model = pydantic_model
-        self.impl = sa_column_type
+        if isinstance(sa_column_type, type):
+            self.impl = sa_column_type()
+        else:
+            self.impl = sa_column_type
 
     def process_bind_param(self, value: Optional[T], dialect) -> Any:
         # Python -> DB: 如果是 Pydantic 对象，转为字典/JSON

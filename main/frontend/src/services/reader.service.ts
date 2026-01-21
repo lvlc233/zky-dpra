@@ -1,58 +1,81 @@
 import request from '@/lib/request';
-import { Layer, Annotation } from '@/types/models';
-import { SummaryResponse, GraphResponse } from '@/types/api';
+import { 
+  PaperReaderMetaResponse, TocResponse, ViewResponse, AnnotationResponse, 
+  NoteMetaResponse, NoteResponse, AISummaryResponse, MindMapResponse, 
+  RecordResponse, MessageResponse, Annotation
+} from '@/types/api';
+import { View } from '@/types/models';
 
 export const readerService = {
-  // Summary
-  getSummary: async (paperId: string, type = 'default'): Promise<SummaryResponse> => {
-    return request.get(`/papers/${paperId}/summary`, { params: { summary_type: type } });
+  getMeta: async (paperId: string): Promise<PaperReaderMetaResponse> => {
+    return request.get(`/papers/${paperId}/meta`);
   },
 
-  generateSummary: async (paperId: string, type = 'default'): Promise<SummaryResponse> => {
-    return request.post(`/papers/${paperId}/summary`, { summary_type: type });
+  getToc: async (paperId: string): Promise<TocResponse> => {
+    return request.get(`/papers/${paperId}/toc`);
   },
 
-  // Layers
-  getLayers: async (paperId: string): Promise<{ layers: Layer[] }> => {
-    return request.get(`/papers/${paperId}/layers`);
+  // Views
+  getViews: async (paperId: string): Promise<ViewResponse[]> => {
+    return request.get(`/papers/${paperId}/views`);
   },
 
-  createLayer: async (paperId: string, name: string, type: 'system' | 'user'): Promise<Layer> => {
-    return request.post(`/papers/${paperId}/layers`, { name, type });
+  createView: async (paperId: string, name: string): Promise<ViewResponse> => {
+    return request.post(`/papers/${paperId}/views`, { name });
   },
 
-  updateLayer: async (layerId: string, data: Partial<Layer>): Promise<Layer> => {
-    return request.put(`/layers/${layerId}`, data);
+  updateView: async (paperId: string, viewId: string, enable: boolean): Promise<void> => {
+    return request.patch(`/papers/${paperId}/views/${viewId}/enable`, { enable });
   },
 
-  deleteLayer: async (layerId: string): Promise<void> => {
-    return request.delete(`/layers/${layerId}`);
+  renameView: async (paperId: string, viewId: string, name: string): Promise<void> => {
+    return request.patch(`/papers/${paperId}/views/${viewId}/rename`, { name });
+  },
+
+  deleteView: async (paperId: string, viewId: string): Promise<void> => {
+    return request.delete(`/papers/${paperId}/views/${viewId}`);
   },
 
   // Annotations
-  addAnnotation: async (layerId: string, annotation: Omit<Annotation, 'id'>): Promise<Annotation> => {
-    return request.post(`/layers/${layerId}/annotations`, annotation);
+  getAnnotations: async (paperId: string, viewId: string): Promise<AnnotationResponse> => {
+    return request.get(`/papers/${paperId}/views/${viewId}/annotations`);
   },
 
-  updateAnnotation: async (annoId: string, data: Partial<Annotation>): Promise<Annotation> => {
-    return request.put(`/annotations/${annoId}`, data);
+  addAnnotation: async (paperId: string, viewId: string, data: Omit<Annotation, 'annotation_id'>): Promise<void> => {
+    return request.post(`/papers/${paperId}/views/${viewId}/annotations`, data);
   },
 
-  deleteAnnotation: async (annoId: string): Promise<void> => {
-    return request.delete(`/annotations/${annoId}`);
+  updateAnnotation: async (paperId: string, viewId: string, annotationId: string, data: Omit<Annotation, 'annotation_id'>): Promise<void> => {
+    return request.put(`/papers/${paperId}/views/${viewId}/annotations/${annotationId}`, data);
+  },
+
+  deleteAnnotation: async (paperId: string, viewId: string, annotationId: string): Promise<void> => {
+    return request.delete(`/papers/${paperId}/views/${viewId}/annotations/${annotationId}`);
   },
 
   // Notes
-  getNotes: async (paperId: string): Promise<any[]> => {
+  getNotes: async (paperId: string): Promise<NoteMetaResponse> => {
     return request.get(`/papers/${paperId}/notes`);
   },
 
-  createNote: async (paperId: string, content: string): Promise<any> => {
-    return request.post(`/papers/${paperId}/notes`, { content });
+  getNote: async (paperId: string, noteId: string): Promise<NoteResponse> => {
+    return request.get(`/papers/${paperId}/notes/${noteId}`);
   },
 
-  // Graph
-  getGraph: async (paperId: string): Promise<GraphResponse> => {
-    return request.get(`/papers/${paperId}/graph`);
+  // AI
+  getSummary: async (paperId: string): Promise<AISummaryResponse> => {
+    return request.get(`/papers/${paperId}/ai/summary`);
+  },
+
+  getMindMap: async (paperId: string): Promise<MindMapResponse> => {
+    return request.get(`/papers/${paperId}/ai/mind_map`);
+  },
+
+  getHistory: async (paperId: string): Promise<RecordResponse[]> => {
+    return request.get(`/papers/${paperId}/ai/history`);
+  },
+
+  getRecord: async (paperId: string, recordId: string): Promise<MessageResponse> => {
+    return request.get(`/papers/${paperId}/ai/record/${recordId}`);
   }
 };

@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, Body
 from controller.response import Response
 from service.reader.reader_service import ReaderServiceDep
 from service.reader.toc_service import TocService
-from service.reader.view_service import ViewService
 from service.reader.note_service import NoteService
 from service.reader.summary_service import SummaryService
 from service.reader.mind_map_service import MindMapService
@@ -15,20 +14,18 @@ from base.pg.service import SessionDep
 from controller.api.auth.router import get_current_user
 from base.pg.entity import User
 from controller.api.reader.schema import (
-    PaperReaderMetaResponse, TocResponse, ViewResponse,
+    PaperReaderMetaResponse, TocResponse,
     NoteMetaResponse, NoteResponse, AISummaryResponse,
     MindMapResponse, RecordResponse, MessageResponse, JobListResponse,
-    AnnotationResponse, AnnotationRequest
+    AnnotationResponse, JobResponse, JobCreateRequest
 )
+from service.reader.schema import AnnotationRequest
 
 router = APIRouter(prefix="/papers", tags=["reader"])
 
 # Service Dependencies
 def get_toc_service(session: SessionDep) -> TocService:
     return TocService(session)
-
-def get_view_service(session: SessionDep) -> ViewService:
-    return ViewService(session)
 
 def get_note_service(session: SessionDep) -> NoteService:
     return NoteService(session)
@@ -46,7 +43,6 @@ def get_job_service(session: SessionDep) -> JobService:
     return JobService(session)
 
 TocServiceDep = Annotated[TocService, Depends(get_toc_service)]
-ViewServiceDep = Annotated[ViewService, Depends(get_view_service)]
 NoteServiceDep = Annotated[NoteService, Depends(get_note_service)]
 SummaryServiceDep = Annotated[SummaryService, Depends(get_summary_service)]
 MindMapServiceDep = Annotated[MindMapService, Depends(get_mind_map_service)]
@@ -73,16 +69,6 @@ async def get_toc(
     """获取论文目录"""
     data = await service.get_toc(paper_id, current_user.id)
     return Response.success(TocResponse(items=data.items))
-
-@router.get("/{paper_id}/views", response_model=Response[List[ViewResponse]])
-async def get_views(
-    paper_id: UUID, 
-    service: ViewServiceDep,
-    current_user: User = Depends(get_current_user)
-):
-    """获取论文视图"""
-    data = await service.get_views(paper_id, current_user.id)
-    return Response.success(data)
 
 @router.get("/{paper_id}/notes", response_model=Response[NoteMetaResponse])
 async def get_notes(
@@ -159,103 +145,61 @@ async def get_jobs(
     return Response.success(JobListResponse(items=data))
 
 
-@router.post("/{paper_id}/views", response_model=Response[ViewResponse])
-async def create_view(
+@router.post("/{paper_id}/jobs", response_model=Response[JobResponse])
+async def create_job(
     paper_id: UUID,
-    name: str = Body(..., embed=True),
-    service: ViewServiceDep = None,
+    req: JobCreateRequest,
+    service: JobServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """创建视图"""
-    data = await service.create_view(paper_id, name, current_user.id)
+    """创建任务"""
+    data = await service.create_job(paper_id, req, current_user.id)
     return Response.success(data)
 
 
-@router.patch("/{paper_id}/views/{view_id}/rename")
-async def rename_view(
-    paper_id: UUID,
-    view_id: UUID,
-    name: str = Body(..., embed=True),
-    service: ViewServiceDep = None,
-    current_user: User = Depends(get_current_user)
-):
-    """重命名视图"""
-    await service.rename_view(view_id, name, current_user.id)
-    return Response.success()
-
-
-@router.patch("/{paper_id}/views/{view_id}/enable")
-async def enable_view(
-    paper_id: UUID,
-    view_id: UUID,
-    enable: bool = Body(..., embed=True),
-    service: ViewServiceDep = None,
-    current_user: User = Depends(get_current_user)
-):
-    """启用/关闭视图"""
-    await service.enable_view(view_id, enable, current_user.id)
-    return Response.success()
-
-
-@router.delete("/{paper_id}/views/{view_id}")
-async def delete_view(
-    paper_id: UUID,
-    view_id: UUID,
-    service: ViewServiceDep = None,
-    current_user: User = Depends(get_current_user)
-):
-    """删除视图"""
-    await service.delete_view(view_id, current_user.id)
-    return Response.success()
-
-
-@router.get("/{paper_id}/views/{view_id}/annotations", response_model=Response[AnnotationResponse])
+@router.get("/{paper_id}/annotations", response_model=Response[AnnotationResponse])
 async def get_annotations(
     paper_id: UUID,
-    view_id: UUID,
-    service: ViewServiceDep = None,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
-    """获取视图注解"""
-    data = await service.get_annotations(paper_id, view_id, current_user.id)
-    return Response.success(data)
+    """获取论文注解"""
+    data = await service.get_annotations(paper_id, current_user.id)
+    return Response.success(AnnotationResponse(items=data))
 
 
-@router.post("/{paper_id}/views/{view_id}/annotations")
+@router.post("/{paper_id}/annotations")
 async def add_annotation(
     paper_id: UUID,
-    view_id: UUID,
     req: AnnotationRequest,
-    service: ViewServiceDep = None,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """对论文进行标注"""
-    await service.add_annotation(paper_id, view_id, req, current_user.id)
+    await service.add_annotation(paper_id, req, current_user.id)
     return Response.success()
 
 
-@router.delete("/{paper_id}/views/{view_id}/annotations/{annotation_id}")
+@router.delete("/{paper_id}/annotations/{annotation_id}")
 async def delete_annotation(
     paper_id: UUID,
-    view_id: UUID,
     annotation_id: UUID,
-    service: ViewServiceDep = None,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """删除标注"""
-    await service.delete_annotation(paper_id, view_id, annotation_id, current_user.id)
+    await service.delete_annotation(paper_id, annotation_id, current_user.id)
     return Response.success()
 
 
-@router.put("/{paper_id}/views/{view_id}/annotations/{annotation_id}")
+@router.put("/{paper_id}/annotations/{annotation_id}")
 async def update_annotation(
     paper_id: UUID,
-    view_id: UUID,
     annotation_id: UUID,
     req: AnnotationRequest,
-    service: ViewServiceDep = None,
+    service: ReaderServiceDep,
     current_user: User = Depends(get_current_user)
 ):
     """修改标注"""
-    await service.update_annotation(paper_id, view_id, annotation_id, req, current_user.id)
+    await service.update_annotation(paper_id, annotation_id, req, current_user.id)
     return Response.success()

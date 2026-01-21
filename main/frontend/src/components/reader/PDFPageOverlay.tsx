@@ -7,7 +7,7 @@ interface PDFPageOverlayProps {
   pageIndex: number; // 0-based
   scale: number;
   layers: Layer[];
-  activeLayerId: string;
+  activeViewId: string;
   onAddAnnotation?: (annotation: Annotation) => void;
   onUpdateAnnotation?: (annotation: Annotation) => void;
   onDeleteAnnotation?: (annotationId: string) => void;
@@ -34,7 +34,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
   pageIndex,
   scale,
   layers,
-  activeLayerId,
+  activeViewId,
   onAddAnnotation,
   onUpdateAnnotation,
   onDeleteAnnotation
@@ -146,9 +146,9 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
         // Actually we can, because this useEffect depends on visibleAnnotations
         
         // Logic from handleAnnotationClick:
-        setActiveAnnotationId(annotation.id);
-        setNoteContent(annotation.content || '');
-        setTranslationResult(annotation.type === 'translate' ? (annotation.content || '') : '');
+      setActiveAnnotationId(annotation.annotation_id);
+      setNoteContent(annotation.content || '');
+      setTranslationResult(annotation.type === 'translate' ? (annotation.content || '') : '');
         
         const firstRect = annotation.rects.find(r => r.pageIndex === pageIndex);
         if (firstRect) {
@@ -172,7 +172,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
       const annotation = findAnnotationAt(x, y);
 
       if (annotation && annotation.type === 'note') {
-         setHoveredAnnotationId(annotation.id);
+         setHoveredAnnotationId(annotation.annotation_id);
          // Position tooltip
          const rect = annotation.rects.find(r => r.pageIndex === pageIndex);
          if (rect) {
@@ -306,7 +306,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
     }
 
     const newAnnotation: Annotation = {
-      id: newId,
+      annotation_id: newId,
       type,
       rects: selectedRects,
       createdAt: Date.now(),
@@ -339,7 +339,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
     e.stopPropagation();
     e.preventDefault();
     
-    setActiveAnnotationId(annotation.id);
+    setActiveAnnotationId(annotation.annotation_id);
     setNoteContent(annotation.content || '');
     setTranslationResult(annotation.type === 'translate' ? (annotation.content || '') : '');
     
@@ -355,7 +355,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
 
   const handleUpdateColor = (color: string) => {
     if (!activeAnnotationId || !onUpdateAnnotation) return;
-    const annotation = visibleAnnotations.find(a => a.id === activeAnnotationId);
+    const annotation = visibleAnnotations.find(a => a.annotation_id === activeAnnotationId);
     if (annotation) {
       onUpdateAnnotation({ ...annotation, color });
     }
@@ -363,7 +363,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
 
   const handleSaveNote = () => {
     if (!activeAnnotationId || !onUpdateAnnotation) return;
-    const annotation = visibleAnnotations.find(a => a.id === activeAnnotationId);
+    const annotation = visibleAnnotations.find(a => a.annotation_id === activeAnnotationId);
     if (annotation) {
       onUpdateAnnotation({ ...annotation, content: noteContent });
       setActiveAnnotationId(null);
@@ -382,7 +382,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
      
      const newId = Date.now().toString();
      const newAnnotation: Annotation = {
-        id: newId,
+        annotation_id: newId,
         type: 'note', // Save as Note
         rects: selectedRects, // Using the preserved selection rects
         createdAt: Date.now(),
@@ -404,7 +404,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
     if (activeAnnotationId) return; // Don't show tooltip if editing
     if (annotation.type !== 'note') return; // Only show for notes as per request
 
-    setHoveredAnnotationId(annotation.id);
+    setHoveredAnnotationId(annotation.annotation_id);
     
     // Position tooltip near the mouse or the rect
     // Using rect for stability
@@ -421,16 +421,16 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
     setHoveredAnnotationId(null);
   };
 
-  const activeAnnotation = visibleAnnotations.find(a => a.id === activeAnnotationId);
+  const activeAnnotation = visibleAnnotations.find(a => a.annotation_id === activeAnnotationId);
 
   return (
     <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-none">
       {/* Existing Annotations */}
       {visibleAnnotations.map(annotation => (
-        <React.Fragment key={annotation.id}>
+        <React.Fragment key={annotation.annotation_id}>
           {annotation.rects.filter(r => r.pageIndex === pageIndex).map((rect, idx) => (
             <div
-              key={`${annotation.id}-${idx}`}
+              key={`${annotation.annotation_id}-${idx}`}
               className={cn(
                 "absolute transition-opacity mix-blend-multiply pointer-events-none",
                 annotation.color || annotation.layerColor || "bg-yellow-300",
@@ -465,7 +465,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
             <span className="text-xs font-semibold text-gray-500 uppercase">备注内容</span>
           </div>
           <div className="text-sm leading-relaxed break-words text-gray-700">
-            {visibleAnnotations.find(a => a.id === hoveredAnnotationId)?.content || '无内容'}
+            {visibleAnnotations.find(a => a.annotation_id === hoveredAnnotationId)?.content || '无内容'}
           </div>
         </div>
       )}

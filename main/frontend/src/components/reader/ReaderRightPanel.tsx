@@ -6,14 +6,12 @@ import {
   MessageSquare, 
   PenTool, 
   Network, 
-  FileText, 
   Settings, 
   Send
 } from 'lucide-react';
 import { GuideTab } from './tabs/GuideTab';
 import { NotesTab } from './tabs/NotesTab';
 import { GraphTab } from './tabs/GraphTab';
-import { ReportTab } from './tabs/ReportTab';
 import { SettingsTab } from './tabs/SettingsTab';
 
 interface ReaderRightPanelProps {
@@ -21,7 +19,7 @@ interface ReaderRightPanelProps {
   paperId: string;
 }
 
-type Tab = 'guide' | 'notes' | 'graph' | 'report' | 'settings';
+type Tab = 'guide' | 'notes' | 'graph' | 'settings';
 
 export const ReaderRightPanel: React.FC<ReaderRightPanelProps> = ({ className, paperId }) => {
   const [activeTab, setActiveTab] = useState<Tab>('guide');
@@ -31,7 +29,6 @@ export const ReaderRightPanel: React.FC<ReaderRightPanelProps> = ({ className, p
     { id: 'guide', label: '导读', icon: MessageSquare },
     { id: 'notes', label: '笔记', icon: PenTool },
     { id: 'graph', label: '脑图', icon: Network },
-    { id: 'report', label: '报告', icon: FileText },
     { id: 'settings', label: '设置', icon: Settings },
   ];
 
@@ -67,7 +64,6 @@ export const ReaderRightPanel: React.FC<ReaderRightPanelProps> = ({ className, p
         {activeTab === 'guide' && <GuideTab paperId={paperId} />}
         {activeTab === 'notes' && <NotesTab paperId={paperId} />}
         {activeTab === 'graph' && <GraphTab paperId={paperId} />}
-        {activeTab === 'report' && <ReportTab paperId={paperId} />}
         {activeTab === 'settings' && <SettingsTab paperId={paperId} />}
       </div>
     </aside>

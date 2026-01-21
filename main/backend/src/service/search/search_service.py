@@ -11,8 +11,10 @@ from fastapi import Depends, HTTPException, status
 
 from base.pg.service import SessionDep
 from base.pg.entity import Paper, PaperChunk, SearchHistory, User
-from controller.api.search.schema import SearchRequest, SearchFilter, SearchResponse
+from controller.api.search.schema import SearchRequest, SearchFilter, SearchResponse, SearchedPaperMetaResponse
+from service.papers.schema import PaperMeta
 from service.papers.paper_service import PaperServiceDep
+from service.papers.arxiv_service import ArxivService
 from common.model.enums import PaperStatus
 
 logger = logging.getLogger(__name__)
@@ -33,13 +35,27 @@ class SearchService:
     async def search_papers(
         self, 
         user_id: UUID, 
-        request: SearchRequest
-    ) -> SearchResponse:
+        request: SearchRequest,
+        arxiv_service: Optional[ArxivService] = None
+    ) -> SearchedPaperMetaResponse:
         """
         执行论文搜索
         支持文本匹配和语义搜索
+        支持本地搜索和外部源搜索(arXiv)
         """
-        # 1. 构建基础查询
+        logger.info(f"Processing search request. User: {user_id}, Query: '{request.query}', Filters: {request.filters}")
+
+        # 0. 检查是否为外部源搜索
+        is_external = False
+        if request.filters and request.filters.source and request.filters.source.lower() == 'arxiv':
+            is_external = True
+            
+        if is_external and arxiv_service and request.query:
+            logger.info("Executing external search (Arxiv) as requested.")
+            return await self._search_external(user_id, request, arxiv_service)
+
+        # 1. 本地搜索 - 构建基础查询
+        logger.info("Executing local search.")
         query = select(Paper).where(
             Paper.user_id == user_id,
             Paper.status != PaperStatus.FAILED
@@ -94,13 +110,13 @@ class SearchService:
              count_stmt = select(func.count()).select_from(query.subquery())
              total = (await self.session.execute(count_stmt)).scalar_one()
              
-             query = query.offset((request.page - 1) * request.page_size).limit(request.page_size)
+             query = query.offset((request.page - 1) * request.limit).limit(request.limit)
              result = await self.session.execute(query)
              papers = result.scalars().all()
         else:
              # 语义搜索分页
              # 直接 limit (语义搜索通常是 TopK)
-             query = query.limit(request.page_size).offset((request.page - 1) * request.page_size)
+             query = query.limit(request.limit).offset((request.page - 1) * request.limit)
              result = await self.session.execute(query)
              papers = result.scalars().all()
              # 去重 (保持顺序)
@@ -114,27 +130,77 @@ class SearchService:
              total = len(papers) # Mock total for semantic search
 
         # 6. 记录搜索历史
+        query_id = await self._save_search_history(user_id, request, total)
+
+        # 转换 convert to PaperMeta
+        items = []
+        for p in papers:
+            items.append(PaperMeta(
+                paper_id=p.id,
+                url=None, # TODO: generate url
+                title=p.title,
+                authors=p.authors if p.authors else [],
+                summary=p.abstract,
+                published_at=p.created_at,
+                source='local',
+                tags=[],
+                references_number=None
+            ))
+
+        # Fallback to Arxiv if local search is empty and source is not explicitly 'local'
+        if total == 0 and (not request.filters or not request.filters.source) and arxiv_service and request.query:
+            logger.info("Local search returned 0 results and source not strictly 'local'. Falling back to Arxiv.")
+            return await self._search_external(user_id, request, arxiv_service)
+
+        return SearchedPaperMetaResponse(
+            total=total,
+            items=items,
+            query_id=query_id
+        )
+
+    async def _search_external(self, user_id: UUID, request: SearchRequest, arxiv_service: ArxivService) -> SearchedPaperMetaResponse:
+        """Helper method for external search"""
+        start = (request.page - 1) * request.limit
+        results = await arxiv_service.search_papers(request.query, start=start, max_results=request.limit)
+        
+        items = []
+        for p in results:
+                items.append(PaperMeta(
+                    paper_id=None, 
+                    url=p.pdf_url,
+                    title=p.title,
+                    authors=p.authors,
+                    summary=p.abstract,
+                    published_at=p.published_date,
+                    source='arXiv',
+                    tags=p.categories,
+                    references_number=None
+                ))
+        
+        # 记录历史
+        await self._save_search_history(user_id, request, len(items))
+        
+        return SearchedPaperMetaResponse(
+            items=items,
+            total=len(items),
+            query_id=None 
+        )
+
+    async def _save_search_history(self, user_id: UUID, request: SearchRequest, total: int) -> Optional[UUID]:
         try:
             history = SearchHistory(
                 user_id=user_id,
-                query=request.query,
+                session_name=request.query, # Map query to session_name
                 filters=request.filters.model_dump() if request.filters else None,
                 result_count=total
             )
             self.session.add(history)
             await self.session.commit()
             await self.session.refresh(history)
-            query_id = history.id
+            return history.id
         except Exception as e:
             logger.error(f"Failed to save search history: {e}")
-            query_id = None
-            # 不阻断搜索结果返回
-
-        return SearchResponse(
-            total=total,
-            items=papers,
-            query_id=query_id
-        )
+            return None
 
     async def get_search_history(
         self, 

@@ -40,9 +40,9 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ results, className
         <div className="divide-y divide-gray-50">
           {results.map((paper) => (
             <div 
-              key={paper.id} 
+              key={paper.paper_id} 
               className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-50/50 transition-colors group cursor-pointer"
-              onClick={() => handleOpenPaper(paper.id)}
+              onClick={() => handleOpenPaper(paper.paper_id)}
             >
               {/* Title & Abstract Column */}
               <div className="col-span-6 pl-2">

@@ -1,8 +1,10 @@
  
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
+
+from service.papers.schema import PaperMeta
 
 
 class CollectionDTO(BaseModel):
@@ -19,5 +21,10 @@ class CollectionDTO(BaseModel):
         from_attributes=True,
         populate_by_name=True
     )
+
+
+class CollectionDetailDTO(BaseModel):
+    """收藏夹详情 DTO"""
+    items: List[PaperMeta]
 
 

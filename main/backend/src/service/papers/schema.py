@@ -11,9 +11,27 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from common.model.enums import PaperStatus
+
+
+class PaperMeta(BaseModel):
+    """
+    论文元数据模型 (Unified)
+    
+    描述:
+    用于搜索结果、收藏夹列表等场景的通用论文元数据展示。
+    """
+    paper_id: Optional[UUID] = Field(None, description="论文全局唯一标识(UUID)")
+    url: Optional[str] = Field(None, description="文件访问URL")
+    title: str = Field(..., description="论文标题")
+    authors: List[str] = Field(default_factory=list, description="作者列表")
+    summary: Optional[str] = Field(None, description="论文摘要原文")
+    published_at: Optional[datetime] = Field(None, description="上传/创建时间")
+    source: str = Field(..., description="文件来源类型(如arXiv、PDF等)")
+    tags: List[str] = Field(default_factory=list, description="标签(类型)")
+    references_number: Optional[int] = Field(None, description="引用数量")
 
 
 class PaperInfo(BaseModel):

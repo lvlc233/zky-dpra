@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from controller.api.collections.schema import (
     CollectionResponse,
     CreateCollectionRequest,
+    CollectionDetailResponse
 )
 from service.collections.collection_service import CollectionServiceDep
 from controller.api.auth.router import get_current_user
@@ -41,6 +42,17 @@ async def get_collections(
         cr.append(CollectionResponse.model_validate(c))
 
     return Response.success(data=cr)
+
+
+@router.get("/{collection_id}", response_model=Response[CollectionDetailResponse])
+async def get_collection_detail(
+    collection_id: UUID,
+    service: CollectionServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """获取指定收藏夹的详情"""
+    result = await service.get_collection_details(collection_id, current_user.id)
+    return Response.success(data=result)
 
 
 @router.patch("/{collection_id}", response_model=Response[CollectionResponse])

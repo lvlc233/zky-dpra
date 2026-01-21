@@ -1,7 +1,5 @@
-import { User, Paper } from './models';
-export type { User, Paper };
+import { User, Paper, Collection, View, Annotation, NoteMeta, Note, MindMap, AISummary, RecordItem, Message, Job, TocItem } from './models';
 
-// Generic API Response wrapper
 export interface ApiResponse<T = any> {
   code: number;
   message: string;
@@ -9,47 +7,72 @@ export interface ApiResponse<T = any> {
 }
 
 // Auth
-export interface AuthResponse {
+export interface LoginResponse extends User {
   access_token: string;
-  token_type: string;
-  user: User;
+  refresh_token?: string;
+  settings?: any;
+}
+
+export interface TokenPairResponse {
+  access_token: string;
+  refresh_token?: string;
 }
 
 // Papers
-export interface PaperListResponse {
+export interface PapersUploadResponse {
+  paper_id: string;
+  title: string;
+  status: 'processing' | 'success' | 'failed';
+}
+
+export interface SearchedPaperMetaResponse {
   items: Paper[];
   total: number;
-  page: number;
-  limit: number;
 }
 
-export interface UploadResponse {
-  id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-}
-
-export interface PaperStatusResponse {
+export interface PaperReaderMetaResponse {
   paper_id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: number;
-  toc?: any[];
-  file_url?: string;
+  url: string;
+  summary?: AISummary;
+  toc?: { items: TocItem[] };
+  views: View[];
+  notes: NoteMeta[];
+  mind_map?: MindMap;
+  history: RecordItem[];
+  jobs: Job[];
 }
 
-// Search
-export interface SearchConfig {
-  engines: string[];
-  max_results: number;
-  // ... other config fields
+// Collections
+export interface CollectionResponse extends Collection {}
+
+// Views
+export interface ViewResponse {
+  view_id: string;
+  name: string;
+  enable: boolean;
 }
 
-// Reader
-export interface SummaryResponse {
-  content: string;
-  summary_type: string;
+export interface AnnotationResponse {
+  items: Annotation[];
 }
 
-export interface GraphResponse {
-  nodes: any[];
-  edges: any[];
+// Notes
+export interface NoteMetaResponse {
+  items: NoteMeta[];
+}
+
+export interface NoteResponse extends Note {}
+
+// AI
+export interface AISummaryResponse extends AISummary {}
+export interface MindMapResponse extends MindMap {}
+export interface RecordResponse extends RecordItem {}
+export interface MessageResponse {
+  items: Message[];
+}
+export interface JobListResponse {
+  items: Job[];
+}
+export interface JobResponse {
+  job: Job;
 }

@@ -29,7 +29,7 @@ export default function ReaderPage({ params }: ReaderPageProps) {
   
   // Layers State
   const [layers, setLayers] = useState<Layer[]>([]);
-  const [activeLayerId, setActiveLayerId] = useState<string>('');
+  const [activeViewId, setActiveViewId] = useState<string>('');
 
   useEffect(() => {
     const init = async () => {
@@ -43,20 +43,47 @@ export default function ReaderPage({ params }: ReaderPageProps) {
             setStatus(statusData);
 
             if (statusData.status === 'completed') {
-                 // 3. Get Layers if completed
+                 // 3. Get Layers (Views + Annotations) if completed
                  try {
-                    const layersData = await readerService.getLayers(params.id);
-                    // Map API layers to UI layers if needed, or assume they are compatible
-                    // The API returns { layers: Layer[] } based on service definition
-                    const fetchedLayers = (layersData as any).layers || layersData; 
-                    setLayers(fetchedLayers);
-                    if (fetchedLayers.length > 0) {
-                        setActiveLayerId(fetchedLayers[0].id);
+                    const views = await readerService.getViews(params.id);
+                    
+                    if (views.length > 0) {
+                        const layersData = await Promise.all(views.map(async (view) => {
+                            try {
+                                const annos = await readerService.getAnnotations(params.id, view.view_id);
+                                return {
+                                    view_id: view.view_id,
+                                    name: view.name,
+                                    type: (view.name.includes('Base') || view.name.includes('原文')) ? 'system' : 'user',
+                                    visible: view.enable,
+                                    annotations: annos.items || [],
+                                    color: undefined
+                                } as Layer;
+                            } catch (e) {
+                                logger.warn(`Failed to fetch annotations for view ${view.view_id}`, e);
+                                return {
+                                    view_id: view.view_id,
+                                    name: view.name,
+                                    type: 'user',
+                                    visible: view.enable,
+                                    annotations: [],
+                                } as Layer;
+                            }
+                        }));
+                        setLayers(layersData);
+                        setActiveViewId(layersData[0].view_id);
                     } else {
                          // Create default system layer if none
-                         const defaultLayer = await readerService.createLayer(params.id, '原文 (Base)', 'system');
+                         const defaultView = await readerService.createView(params.id, '原文 (Base)');
+                         const defaultLayer: Layer = {
+                             view_id: defaultView.view_id,
+                             name: defaultView.name,
+                             type: 'system',
+                             visible: defaultView.enable,
+                             annotations: []
+                         };
                          setLayers([defaultLayer]);
-                         setActiveLayerId(defaultLayer.id);
+                         setActiveViewId(defaultLayer.view_id);
                     }
                  } catch (e) {
                      logger.error("Failed to fetch layers", e, 'ReaderPage');
@@ -88,11 +115,18 @@ export default function ReaderPage({ params }: ReaderPageProps) {
                         const fetchedLayers = (layersData as any).layers || layersData;
                         setLayers(fetchedLayers);
                         if (fetchedLayers.length > 0) {
-                          setActiveLayerId(fetchedLayers[0].id);
+                          setActiveViewId(fetchedLayers[0].view_id);
                         } else {
-                          const defaultLayer = await readerService.createLayer(params.id, '原文 (Base)', 'system');
+                          const defaultView = await readerService.createView(params.id, '原文 (Base)');
+                          const defaultLayer: Layer = {
+                              view_id: defaultView.view_id,
+                              name: defaultView.name,
+                              type: 'system',
+                              visible: defaultView.enable,
+                              annotations: []
+                          };
                           setLayers([defaultLayer]);
-                          setActiveLayerId(defaultLayer.id);
+                          setActiveViewId(defaultLayer.view_id);
                         }
                       } catch (e) {
                         logger.error('Failed to fetch layers after processing completed', e, 'ReaderPage');
@@ -111,76 +145,82 @@ export default function ReaderPage({ params }: ReaderPageProps) {
 
 
   // Layer Handlers
-  const handleAddLayer = async () => {
-    try {
-        const name = `新视图 ${layers.length + 1}`;
-        const newLayer = await readerService.createLayer(params.id, name, 'user');
-        setLayers([...layers, newLayer]);
-        setActiveLayerId(newLayer.id);
-        toast.success("图层创建成功");
-    } catch (e) {
-        toast.error("创建图层失败");
-    }
-  };
-
-  const handleDeleteLayer = async (id: string) => {
-    try {
-        await readerService.deleteLayer(id);
-        setLayers(layers.filter(l => l.id !== id));
-        if (activeLayerId === id) {
-            setActiveLayerId(layers[0]?.id || '');
-        }
-        toast.success("图层删除成功");
-    } catch (e) {
-        toast.error("删除图层失败");
-    }
-  };
-
-  const handleToggleLayerVisibility = (id: string) => {
-    // Optimistic update
-    setLayers(layers.map(l => l.id === id ? { ...l, visible: !l.visible } : l));
-    // TODO: persist visibility
-  };
-
-  const handleSetActiveLayer = (id: string) => {
-    setActiveLayerId(id);
-  };
+  // Views/Layers management removed from UI but kept logic for backend compatibility
+  // Only Annotation handlers remain
 
   const handleAddAnnotation = async (annotation: Annotation) => {
-      // Optimistic
-      // In real app, we should call API
       try {
-          // const savedAnno = await readerService.addAnnotation(activeLayerId, annotation);
-          // For now, just update local state to mock interaction as API might need adjustments
-           setLayers(layers.map(l => {
-            if (l.id === activeLayerId) {
-                return { ...l, annotations: [...l.annotations, annotation] };
+          const { annotation_id, ...data } = annotation;
+          await readerService.addAnnotation(params.id, activeViewId, data);
+          
+          // Re-fetch to get the real ID if needed, or just use optimistic with generated ID?
+          // The backend might assign a different ID. Ideally we should get the response.
+          // But addAnnotation returns void in current service definition.
+          // Let's assume for now we might need to refresh or just keep using the generated ID if backend accepts it?
+          // Actually, service.addAnnotation takes Omit<Annotation, 'annotation_id'>.
+          // This implies backend generates ID.
+          // If backend generates ID, we should update our local state with that ID.
+          // But `addAnnotation` returns void. This is a potential issue.
+          // Let's check reader.service.ts again. It returns void.
+          // Recommendation: Update reader.service.ts to return the created annotation or at least the ID.
+          // For now, I will use the generated ID and hope for the best, or trigger a refresh?
+          // Refreshing is safer.
+          
+          const annos = await readerService.getAnnotations(params.id, activeViewId);
+          setLayers(layers.map(l => {
+            if (l.view_id === activeViewId) {
+                return { ...l, annotations: annos.items || [] };
             }
             return l;
-            }));
+          }));
       } catch (e) {
           toast.error("添加标注失败");
       }
   };
 
-  const handleUpdateAnnotation = (annotation: Annotation) => {
+  const handleUpdateAnnotation = async (annotation: Annotation) => {
+    // Optimistic
     setLayers(layers.map(l => {
-      // Find which layer contains this annotation
-      if (l.annotations.some(a => a.id === annotation.id)) {
+      if (l.annotations.some(a => a.annotation_id === annotation.annotation_id)) {
         return {
           ...l,
-          annotations: l.annotations.map(a => a.id === annotation.id ? annotation : a)
+          annotations: l.annotations.map(a => a.annotation_id === annotation.annotation_id ? annotation : a)
         };
       }
       return l;
     }));
+
+    try {
+        const { annotation_id, ...data } = annotation;
+        // We need to find which view this annotation belongs to.
+        // It should be the active view usually, or the view it belongs to.
+        const layer = layers.find(l => l.annotations.some(a => a.annotation_id === annotation_id));
+        if (layer) {
+            await readerService.updateAnnotation(params.id, layer.view_id, annotation_id, data);
+        }
+    } catch (e) {
+        toast.error("更新标注失败");
+        // Revert? Complex to revert without deep clone or history.
+    }
   };
 
-  const handleDeleteAnnotation = (annotationId: string) => {
+  const handleDeleteAnnotation = async (annotationId: string) => {
+    // Optimistic
+    const layer = layers.find(l => l.annotations.some(a => a.annotation_id === annotationId));
+    
     setLayers(layers.map(l => ({
       ...l,
-      annotations: l.annotations.filter(a => a.id !== annotationId)
+      annotations: l.annotations.filter(a => a.annotation_id !== annotationId)
     })));
+
+    if (layer) {
+        try {
+            await readerService.deleteAnnotation(params.id, layer.view_id, annotationId);
+        } catch (e) {
+             toast.error("删除标注失败");
+             // Revert logic needed ideally
+        }
+    }
   };
   
   if (isLoading) {
@@ -251,23 +291,16 @@ export default function ReaderPage({ params }: ReaderPageProps) {
       <ReaderNavbar 
         title={`Paper: ${paper.title}`}
         isBookmarked={!!paper.is_bookmarked}
-        onViewManage={() => logger.debug('View Manage Clicked', null, 'ReaderPage')}
         onSearch={setSearchQuery}
       />
 
       {/* 2. Main Workspace (Flex Row) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar (TOC / Layers) */}
+        {/* Left Sidebar (TOC) */}
         <ReaderSidebar 
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           toc={status.toc || []}
-          layers={layers}
-          activeLayerId={activeLayerId}
-          onAddLayer={handleAddLayer}
-          onDeleteLayer={handleDeleteLayer}
-          onToggleLayerVisibility={handleToggleLayerVisibility}
-          onSetActiveLayer={handleSetActiveLayer}
         />
 
         {/* Center PDF Viewer */}
@@ -297,8 +330,10 @@ export default function ReaderPage({ params }: ReaderPageProps) {
             onPageChange={setCurrentPage}
             searchQuery={searchQuery}
             layers={layers}
-            activeLayerId={activeLayerId}
-            onAddAnnotation={activeLayerId ? handleAddAnnotation : undefined}
+            activeViewId={activeViewId}
+            onAddAnnotation={activeViewId ? handleAddAnnotation : undefined}
+            onUpdateAnnotation={handleUpdateAnnotation}
+            onDeleteAnnotation={handleDeleteAnnotation}
           />
         </div>
 
