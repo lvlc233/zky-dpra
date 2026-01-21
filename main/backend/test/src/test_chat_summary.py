@@ -4,13 +4,13 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from uuid import uuid4
 from fastapi.testclient import TestClient
 from controller.api.app import app
-from base.pg.entity import User, Paper, ChatSession, PaperChunk
+from base.pg.entity import User, Paper, AgentSession, PaperChunk
 from service.reader.summary_service import SummaryService
 
 # Mock EmbeddingService
 @pytest.fixture
 def mock_embedding_service():
-    with patch("service.reader.retrieval_service.EmbeddingService") as MockService:
+    with patch("base.embedding.embedding_service.EmbeddingService") as MockService:
         instance = MockService.return_value
         instance.primary_model = AsyncMock()
         instance.primary_model.embed_text.return_value = [0.1] * 1536

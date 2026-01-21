@@ -37,6 +37,13 @@ class ViewResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class AnnotationRequest(BaseModel):
+    type: Literal['highlight','translation','note'] = Field(..., description="注解类型[高光,翻译,随笔内容]")
+    rect: List[Dict[str, float]] = Field(..., description="标注区域的几何坐标")
+    content: str = Field(..., description="注解内容[随笔内容,翻译内容]")
+    color: str = Field(..., description="RGB/Hex")
+
+
 class AnnotationResponse(BaseModel):
     items: List[Annotation]
 

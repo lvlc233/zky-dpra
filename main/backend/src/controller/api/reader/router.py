@@ -1,7 +1,7 @@
 from uuid import UUID
 from typing import List, Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
 from controller.response import Response
 from service.reader.reader_service import ReaderServiceDep
 from service.reader.toc_service import TocService
@@ -17,7 +17,8 @@ from base.pg.entity import User
 from controller.api.reader.schema import (
     PaperReaderMetaResponse, TocResponse, ViewResponse,
     NoteMetaResponse, NoteResponse, AISummaryResponse,
-    MindMapResponse, RecordResponse, MessageResponse, JobListResponse
+    MindMapResponse, RecordResponse, MessageResponse, JobListResponse,
+    AnnotationResponse, AnnotationRequest
 )
 
 router = APIRouter(prefix="/papers", tags=["reader"])
@@ -156,3 +157,105 @@ async def get_jobs(
     """获取当前论文处理任务"""
     data = await service.get_jobs(paper_id, current_user.id)
     return Response.success(JobListResponse(items=data))
+
+
+@router.post("/{paper_id}/views", response_model=Response[ViewResponse])
+async def create_view(
+    paper_id: UUID,
+    name: str = Body(..., embed=True),
+    service: ViewServiceDep = None,
+    current_user: User = Depends(get_current_user)
+):
+    """创建视图"""
+    data = await service.create_view(paper_id, name, current_user.id)
+    return Response.success(data)
+
+
+@router.patch("/{paper_id}/views/{view_id}/rename")
+async def rename_view(
+    paper_id: UUID,
+    view_id: UUID,
+    name: str = Body(..., embed=True),
+    service: ViewServiceDep = None,
+    current_user: User = Depends(get_current_user)
+):
+    """重命名视图"""
+    await service.rename_view(view_id, name, current_user.id)
+    return Response.success()
+
+
+@router.patch("/{paper_id}/views/{view_id}/enable")
+async def enable_view(
+    paper_id: UUID,
+    view_id: UUID,
+    enable: bool = Body(..., embed=True),
+    service: ViewServiceDep = None,
+    current_user: User = Depends(get_current_user)
+):
+    """启用/关闭视图"""
+    await service.enable_view(view_id, enable, current_user.id)
+    return Response.success()
+
+
+@router.delete("/{paper_id}/views/{view_id}")
+async def delete_view(
+    paper_id: UUID,
+    view_id: UUID,
+    service: ViewServiceDep = None,
+    current_user: User = Depends(get_current_user)
+):
+    """删除视图"""
+    await service.delete_view(view_id, current_user.id)
+    return Response.success()
+
+
+@router.get("/{paper_id}/views/{view_id}/annotations", response_model=Response[AnnotationResponse])
+async def get_annotations(
+    paper_id: UUID,
+    view_id: UUID,
+    service: ViewServiceDep = None,
+    current_user: User = Depends(get_current_user)
+):
+    """获取视图注解"""
+    data = await service.get_annotations(paper_id, view_id, current_user.id)
+    return Response.success(data)
+
+
+@router.post("/{paper_id}/views/{view_id}/annotations")
+async def add_annotation(
+    paper_id: UUID,
+    view_id: UUID,
+    req: AnnotationRequest,
+    service: ViewServiceDep = None,
+    current_user: User = Depends(get_current_user)
+):
+    """对论文进行标注"""
+    await service.add_annotation(paper_id, view_id, req, current_user.id)
+    return Response.success()
+
+
+@router.delete("/{paper_id}/views/{view_id}/annotations/{annotation_id}")
+async def delete_annotation(
+    paper_id: UUID,
+    view_id: UUID,
+    annotation_id: UUID,
+    service: ViewServiceDep = None,
+    current_user: User = Depends(get_current_user)
+):
+    """删除标注"""
+    await service.delete_annotation(paper_id, view_id, annotation_id, current_user.id)
+    return Response.success()
+
+
+@router.put("/{paper_id}/views/{view_id}/annotations/{annotation_id}")
+async def update_annotation(
+    paper_id: UUID,
+    view_id: UUID,
+    annotation_id: UUID,
+    req: AnnotationRequest,
+    service: ViewServiceDep = None,
+    current_user: User = Depends(get_current_user)
+):
+    """修改标注"""
+    await service.update_annotation(paper_id, view_id, annotation_id, req, current_user.id)
+    return Response.success()

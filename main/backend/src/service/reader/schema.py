@@ -156,7 +156,7 @@ class Rect(BaseModel):
 class Annotation(BaseModel):
     annotation_id: UUID = Field(..., alias="id", description="标注ID")
     type: Literal['highlight', 'translation', 'note'] = Field(..., description="标注类型(highlight/note/translate)")
-    rect: Rect = Field(..., description="标注区域坐标(JSON数组)")
+    rect: List[Rect] = Field(..., description="标注区域坐标(JSON数组)")
     content: Optional[str] = Field(None, description="标注内容(笔记/翻译结果)")
     color: Optional[str] = Field(None, description="标注颜色(Hex/RGB)")
 

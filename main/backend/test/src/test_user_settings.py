@@ -9,7 +9,7 @@ from base.pg.entity import User
 from controller.api.app import app
 from controller.api.auth.router import get_current_user
 from controller.api.settings.settings_router import get_setting_service
-from service.setting.schema import (
+from controller.api.settings.schema import (
     AISearchSettingsRequest,
     AISearchSettingsResponse,
     SystemSettingsRequest,
@@ -17,6 +17,7 @@ from service.setting.schema import (
 )
 from service.setting.setting_service import SettingService
 
+from service.setting.schema import Settings, SystemSettings
 
 @pytest.mark.asyncio
 async def test_setting_service_update_system_settings():
@@ -29,7 +30,7 @@ async def test_setting_service_update_system_settings():
         id=uuid4(),
         email="test@example.com",
         hashed_password="pw",
-        settings={"system_settings": {"system_colour": "light"}},
+        settings=Settings(system_settings=SystemSettings(system_colour="light")),
     )
 
     mock_result = MagicMock()
@@ -43,7 +44,7 @@ async def test_setting_service_update_system_settings():
     )
 
     assert result.system_colour == "dark"
-    assert mock_user.settings["system_settings"]["system_colour"] == "dark"
+    assert mock_user.settings.system_settings.system_colour == "dark"
     session.add.assert_called()
     session.commit.assert_called()
 
@@ -54,7 +55,7 @@ def mock_user_obj():
         id=uuid4(),
         email="test@example.com",
         hashed_password="pw",
-        settings={},
+        settings=Settings(),
     )
 
 
