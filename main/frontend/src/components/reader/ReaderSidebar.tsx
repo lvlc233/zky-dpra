@@ -25,11 +25,11 @@ export const ReaderSidebar: React.FC<ReaderSidebarProps> = ({
 
   return (
     <aside className={cn(
-      "w-64 bg-white border-r border-gray-200 flex flex-col h-full",
+      "w-64 bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 flex flex-col h-full",
       className
     )}>
       {/* Header */}
-      <div className="flex p-3 border-b border-gray-100 items-center gap-2 text-gray-700 font-medium text-sm">
+      <div className="flex p-3 border-b border-gray-100 dark:border-slate-800 items-center gap-2 text-gray-700 dark:text-gray-200 font-medium text-sm">
         <List className="w-4 h-4" />
         <span>目录</span>
       </div>
@@ -45,7 +45,7 @@ export const ReaderSidebar: React.FC<ReaderSidebarProps> = ({
 // Outline Component
 const OutlineView = ({ toc, onNavigate }: { toc: any[], onNavigate?: (page: number) => void }) => {
   if (!toc || toc.length === 0) {
-      return <div className="text-xs text-gray-400 p-2">暂无目录</div>;
+      return <div className="text-xs text-gray-400 dark:text-gray-500 p-2">暂无目录</div>;
   }
 
   return (
@@ -54,10 +54,10 @@ const OutlineView = ({ toc, onNavigate }: { toc: any[], onNavigate?: (page: numb
         <button 
           key={idx}
           onClick={() => onNavigate?.(item.page)}
-          className="w-full text-left px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50 rounded-md truncate transition-colors"
+          className="w-full text-left px-2 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-md truncate transition-colors"
           title={item.title}
         >
-          <span className="mr-2 text-gray-400">{item.page}</span>
+          <span className="mr-2 text-gray-400 dark:text-gray-500">{item.page}</span>
           {item.title}
         </button>
       ))}

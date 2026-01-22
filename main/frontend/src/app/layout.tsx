@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthModalProvider } from "@/components/auth/AuthModalContext";
+import { AuthProvider } from "@/components/providers/AuthProvider";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { UploadModal } from "@/components/upload/UploadModal";
 import { GlobalErrorListener } from "@/components/providers/GlobalErrorListener";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { Toaster } from 'sonner';
 
 const inter = Inter({ subsets: ["latin"] });
@@ -22,13 +24,17 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className={inter.className}>
-        <GlobalErrorListener />
-        <AuthModalProvider>
-          {children}
-          <AuthModal />
-          <UploadModal />
-        </AuthModalProvider>
-        <Toaster richColors position="top-right" />
+        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+          <GlobalErrorListener />
+          <AuthProvider>
+            <AuthModalProvider>
+              {children}
+              <AuthModal />
+              <UploadModal />
+            </AuthModalProvider>
+          </AuthProvider>
+          <Toaster richColors position="top-right" />
+        </ThemeProvider>
       </body>
     </html>
   );

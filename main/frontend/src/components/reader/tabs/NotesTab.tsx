@@ -47,23 +47,23 @@ export const NotesTab: React.FC<NotesTabProps> = ({ paperId }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50/30">
+    <div className="h-full flex flex-col bg-gray-50/30 dark:bg-slate-800/30">
       {/* 1. Header & History Section */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm z-10">
+      <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 shadow-sm z-10">
         <button 
           onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-gray-900">我的笔记</h3>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">我的笔记</h3>
+            <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
               {notes.length} 条笔记
             </span>
           </div>
           {isHistoryOpen ? (
-            <ChevronUp className="w-4 h-4 text-gray-400" />
+            <ChevronUp className="w-4 h-4 text-gray-400 dark:text-gray-500" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+            <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500" />
           )}
         </button>
 
@@ -72,27 +72,27 @@ export const NotesTab: React.FC<NotesTabProps> = ({ paperId }) => {
           isHistoryOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
         )}>
           <div className="overflow-hidden">
-             <ScrollArea className="h-[200px] border-t border-gray-100">
+             <ScrollArea className="h-[200px] border-t border-gray-100 dark:border-slate-800">
                <div className="p-4 space-y-3">
                  {notes.map(note => (
-                   <div key={note.id} className="group relative bg-white border border-gray-200 p-3 rounded-lg hover:border-indigo-300 transition-all shadow-sm">
+                   <div key={note.id} className="group relative bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-3 rounded-lg hover:border-indigo-300 dark:hover:border-indigo-500 transition-all shadow-sm">
                       <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                        <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 rounded">
                           Page {note.pageRef}
                         </span>
-                        <span className="text-[10px] text-gray-400">{note.timestamp}</span>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">{note.timestamp}</span>
                       </div>
-                      <div className="text-sm text-gray-700 leading-snug prose prose-sm max-w-none">
+                      <div className="text-sm text-gray-700 dark:text-gray-300 leading-snug prose prose-sm dark:prose-invert max-w-none">
                         <ReactMarkdown>{note.content}</ReactMarkdown>
                       </div>
                       
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white/80 backdrop-blur rounded p-1">
-                        <button className="p-1 text-gray-400 hover:text-indigo-600 rounded">
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white/80 dark:bg-slate-800/80 backdrop-blur rounded p-1">
+                        <button className="p-1 text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 rounded">
                           <Edit2 className="w-3 h-3" />
                         </button>
                         <button 
                           onClick={() => setNotes(notes.filter(n => n.id !== note.id))}
-                          className="p-1 text-gray-400 hover:text-red-600 rounded"
+                          className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 rounded"
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -106,9 +106,9 @@ export const NotesTab: React.FC<NotesTabProps> = ({ paperId }) => {
       </div>
 
       {/* 2. Editor Section */}
-      <div className="flex-1 flex flex-col min-h-0 bg-white">
-        <div className="p-2 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider pl-2">
+      <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-slate-900">
+        <div className="p-2 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/50">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-2">
             新建笔记
           </span>
           <button 
@@ -116,8 +116,8 @@ export const NotesTab: React.FC<NotesTabProps> = ({ paperId }) => {
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors",
               isPreviewMode 
-                ? "bg-indigo-100 text-indigo-700" 
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300" 
+                : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700"
             )}
           >
             {isPreviewMode ? (
@@ -136,11 +136,11 @@ export const NotesTab: React.FC<NotesTabProps> = ({ paperId }) => {
 
         <div className="flex-1 relative">
           {isPreviewMode ? (
-            <div className="absolute inset-0 p-4 overflow-y-auto prose prose-sm max-w-none text-gray-700">
+            <div className="absolute inset-0 p-4 overflow-y-auto prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
                {newNote ? (
                  <ReactMarkdown>{newNote}</ReactMarkdown>
                ) : (
-                 <span className="text-gray-400 italic">暂无内容预览...</span>
+                 <span className="text-gray-400 dark:text-gray-500 italic">暂无内容预览...</span>
                )}
             </div>
           ) : (
@@ -148,16 +148,16 @@ export const NotesTab: React.FC<NotesTabProps> = ({ paperId }) => {
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
               placeholder="记录想法... (支持 Markdown)"
-              className="w-full h-full p-4 resize-none focus:outline-none text-sm text-gray-800 leading-relaxed"
+              className="w-full h-full p-4 resize-none focus:outline-none text-sm text-gray-800 dark:text-gray-200 bg-transparent leading-relaxed placeholder:text-gray-400 dark:placeholder:text-gray-600"
             />
           )}
         </div>
 
-        <div className="p-4 border-t border-gray-100 bg-gray-50/30">
+        <div className="p-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/30 dark:bg-slate-800/30">
           <button 
             onClick={handleAddNote}
             disabled={!newNote.trim()}
-            className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-2.5 rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+            className="w-full flex items-center justify-center gap-2 bg-indigo-600 dark:bg-indigo-500 text-white py-2.5 rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
           >
             <Plus className="w-4 h-4" />
             <span>添加笔记</span>

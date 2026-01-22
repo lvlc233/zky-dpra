@@ -1,62 +1,101 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { cn } from '@/lib/utils';
 import { UploadCloud, Check } from 'lucide-react';
 
 interface SearchFiltersProps {
   className?: string;
   onUploadClick?: () => void;
+  filters: {
+    match_title: boolean;
+    match_author: boolean;
+    match_abstract: boolean;
+    match_summary: boolean;
+    match_full_text: boolean;
+  };
+  onChange: (filters: {
+    match_title: boolean;
+    match_author: boolean;
+    match_abstract: boolean;
+    match_summary: boolean;
+    match_full_text: boolean;
+  }) => void;
 }
 
-const FILTERS = [
-  { id: 'all', label: '全部' },
-  { id: 'title', label: '标题' },
-  { id: 'author', label: '作者' },
-  { id: 'abstract', label: '摘要' },
-  { id: 'year', label: '年份' },
-  { id: 'journal', label: '期刊' },
-];
+const FILTER_OPTIONS = [
+  { id: 'match_title', label: '标题' },
+  { id: 'match_author', label: '作者' },
+  { id: 'match_abstract', label: '摘要' },
+  { id: 'match_summary', label: '总结' },
+  { id: 'match_full_text', label: '全文' },
+] as const;
 
-export const SearchFilters: React.FC<SearchFiltersProps> = ({ className, onUploadClick }) => {
-  const [selectedFilters, setSelectedFilters] = useState<string[]>(['all']);
+export const SearchFilters: React.FC<SearchFiltersProps> = ({ className, onUploadClick, filters, onChange }) => {
+  const isAllSelected = Object.values(filters).every(Boolean);
 
-  const toggleFilter = (id: string) => {
-    if (id === 'all') {
-      setSelectedFilters(['all']);
+  const toggleFilter = (key: keyof typeof filters | 'all') => {
+    if (key === 'all') {
+      if (isAllSelected) {
+        // Optional: Deselect all? Or keep all? Usually "All" toggle turns all on. 
+        // If already all on, maybe turn off? Let's say turn off.
+        onChange({
+          match_title: false,
+          match_author: false,
+          match_abstract: false,
+          match_summary: false,
+          match_full_text: false,
+        });
+      } else {
+        onChange({
+          match_title: true,
+          match_author: true,
+          match_abstract: true,
+          match_summary: true,
+          match_full_text: true,
+        });
+      }
       return;
     }
-    
-    let newFilters = selectedFilters.filter(f => f !== 'all');
-    if (selectedFilters.includes(id)) {
-      newFilters = newFilters.filter(f => f !== id);
-    } else {
-      newFilters = [...newFilters, id];
-    }
-    
-    if (newFilters.length === 0) newFilters = ['all'];
-    setSelectedFilters(newFilters);
+
+    onChange({
+      ...filters,
+      [key]: !filters[key]
+    });
   };
 
   return (
     <div className={cn("w-full max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 mt-6", className)}>
       {/* Filters List */}
       <div className="flex flex-wrap items-center justify-center gap-3">
-        {FILTERS.map((filter) => {
-          const isSelected = selectedFilters.includes(filter.id);
+        <button
+          onClick={() => toggleFilter('all')}
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 border",
+            isAllSelected
+              ? "bg-gray-900 dark:bg-indigo-600 text-white border-gray-900 dark:border-indigo-600 shadow-md"
+              : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700"
+          )}
+        >
+          {isAllSelected && <Check className="w-3 h-3" />}
+          全部
+        </button>
+
+        {FILTER_OPTIONS.map((option) => {
+          const isSelected = filters[option.id];
           return (
             <button
-              key={filter.id}
-              onClick={() => toggleFilter(filter.id)}
+              key={option.id}
+              onClick={() => toggleFilter(option.id)}
               className={cn(
                 "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 border",
-                isSelected 
-                  ? "bg-gray-900 text-white border-gray-900 shadow-md" 
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                isSelected
+                  ? "bg-gray-900 dark:bg-indigo-600 text-white border-gray-900 dark:border-indigo-600 shadow-md"
+                  : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700"
               )}
             >
               {isSelected && <Check className="w-3 h-3" />}
-              {filter.label}
+              {option.label}
             </button>
           );
         })}
@@ -66,7 +105,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({ className, onUploa
       <div className="flex items-center gap-3">
         <button 
           onClick={onUploadClick}
-          className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 px-4 py-2 rounded-lg transition-colors"
         >
           <UploadCloud className="w-4 h-4" />
           <span>上传论文</span>

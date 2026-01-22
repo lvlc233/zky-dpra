@@ -20,7 +20,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    rememberMe: false
   });
   
   const { setAuthView, closeAuthModal } = useAuthModal();
@@ -31,7 +32,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
     setIsLoading(true);
     
     try {
-      const response = await authService.login(formData.email, formData.password);
+      const response = await authService.login(formData.email, formData.password, formData.rememberMe);
       login(response, response.access_token);
       toast.success('登录成功');
       
@@ -39,7 +40,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
         closeAuthModal();
       }
       
+      // Navigate to dashboard and refresh server data
       router.push('/dashboard');
+      router.refresh();
     } catch (error: any) {
       const errorMessage = error.message || '登录失败，请检查账号密码';
       toast.error(errorMessage);
@@ -49,9 +52,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    
+    // 如果 input 没有 name 属性，根据 type 推断 (为了兼容旧代码)
+    // 但建议所有 input 都加上 name
+    const fieldName = name || (type === 'email' ? 'email' : 'password');
+    
     setFormData(prev => ({
       ...prev,
-      [e.target.type === 'email' ? 'email' : 'password']: e.target.value
+      [fieldName]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -70,7 +79,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
   };
 
   return (
-    <div className={cn("flex flex-col md:flex-row w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden", className)}>
+    <div className={cn("flex flex-col md:flex-row w-full max-w-4xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden", className)}>
       {/* Left: Image Area */}
       <div className="hidden md:flex md:w-1/2 bg-gray-900 relative p-12 flex-col justify-between">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-violet-900 opacity-90" />
@@ -91,64 +100,81 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
       </div>
 
       {/* Right: Form Area */}
-      <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white">
+      <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white dark:bg-slate-900">
         <div className="mb-8 text-center md:text-left">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">欢迎回来</h1>
-          <p className="text-gray-500 text-sm">请输入您的账号信息以继续</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">欢迎回来</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">请输入您的账号信息以继续</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 ml-1">邮箱地址</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">邮箱地址</label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
               <input 
                 type="email" 
+                name="email"
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="name@example.com"
-                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
+                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 ml-1">密码</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">密码</label>
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
               <input 
-                type="password" 
+                type="password"
+                name="password" 
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="••••••••"
-                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
+                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs">
-            <Link 
-              href="/register" 
-              onClick={handleRegisterClick}
-              className="text-gray-500 hover:text-indigo-600 transition-colors font-medium"
-            >
-              注册新账号
-            </Link>
-            <Link 
-              href="/forgot-password" 
-              onClick={handleForgotPasswordClick}
-              className="text-gray-500 hover:text-indigo-600 transition-colors font-medium"
-            >
-              忘记密码？
-            </Link>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <input
+                    type="checkbox"
+                    id="rememberMe"
+                    name="rememberMe"
+                    checked={formData.rememberMe}
+                    onChange={handleChange}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer bg-white dark:bg-slate-800"
+                />
+                <label htmlFor="rememberMe" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+                    记住我 <span className="text-xs text-gray-400 dark:text-gray-500 ml-0.5">[7天有效]</span>
+                </label>
+            </div>
+            <div className="flex gap-4 text-xs">
+                <Link 
+                href="/register" 
+                onClick={handleRegisterClick}
+                className="text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors font-medium"
+                >
+                注册新账号
+                </Link>
+                <Link 
+                href="/forgot-password" 
+                onClick={handleForgotPasswordClick}
+                className="text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors font-medium"
+                >
+                忘记密码？
+                </Link>
+            </div>
           </div>
 
           <button 
             type="submit" 
             disabled={isLoading}
-            className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:translate-y-0"
+            className="w-full h-12 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-slate-900 dark:hover:bg-gray-100 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:translate-y-0"
           >
             {isLoading ? (
               <Loader2 className="w-5 h-5 animate-spin" />

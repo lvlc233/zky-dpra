@@ -27,9 +27,9 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ results, className
 
   return (
     <div className={cn("w-full max-w-5xl animate-in fade-in slide-in-from-bottom-8 duration-700", className)}>
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
         {/* Table Header */}
-        <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50/50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50/50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
           <div className="col-span-6 pl-2">论文标题 / 摘要</div>
           <div className="col-span-3">作者</div>
           <div className="col-span-1 text-center">年份 / 评分</div>
@@ -37,54 +37,54 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ results, className
         </div>
 
         {/* Table Body */}
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-gray-50 dark:divide-slate-800">
           {results.map((paper) => (
             <div 
               key={paper.paper_id} 
-              className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-50/50 transition-colors group cursor-pointer"
+              className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer"
               onClick={() => handleOpenPaper(paper.paper_id)}
             >
               {/* Title & Abstract Column */}
               <div className="col-span-6 pl-2">
                 <div className="flex items-start gap-3">
-                  <div className="mt-1 p-2 bg-indigo-50 text-indigo-600 rounded-lg flex-shrink-0">
+                  <div className="mt-1 p-2 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg flex-shrink-0">
                     <FileText className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-sm font-semibold text-gray-900 leading-tight group-hover:text-indigo-600 transition-colors">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                         {paper.title}
                       </h3>
                       {aiEnabled && paper.aiScore && (
                         <span className={cn(
                           "px-1.5 py-0.5 rounded text-[10px] font-bold border",
-                          paper.aiScore >= 90 ? "bg-green-50 text-green-700 border-green-200" :
-                          paper.aiScore >= 80 ? "bg-blue-50 text-blue-700 border-blue-200" :
-                          "bg-yellow-50 text-yellow-700 border-yellow-200"
+                          paper.aiScore >= 90 ? "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800" :
+                          paper.aiScore >= 80 ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" :
+                          "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800"
                         )}>
                           AI {paper.aiScore}
                         </span>
                       )}
                     </div>
                     
-                    <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
                       {paper.abstract || "暂无摘要..."}
                     </p>
                     
                     {/* AI Reason Box */}
                     {aiEnabled && paper.aiReason && (
-                      <div className="mt-2 p-2 bg-indigo-50/50 border border-indigo-100 rounded-md">
+                      <div className="mt-2 p-2 bg-indigo-50/50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 rounded-md">
                          <div className="flex items-start gap-1.5">
-                            <Sparkles className="w-3 h-3 text-indigo-500 mt-0.5 flex-shrink-0" />
-                            <p className="text-xs text-indigo-700 leading-relaxed font-medium">
-                              推荐理由: <span className="font-normal text-indigo-600">{paper.aiReason}</span>
+                            <Sparkles className="w-3 h-3 text-indigo-500 dark:text-indigo-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed font-medium">
+                              推荐理由: <span className="font-normal text-indigo-600 dark:text-indigo-200">{paper.aiReason}</span>
                             </p>
                          </div>
                       </div>
                     )}
 
                     <div className="flex items-center gap-3 mt-2">
-                      <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
+                      <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 rounded-full">
                         引用: {paper.citations || 0}
                       </span>
                     </div>
@@ -96,27 +96,27 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ results, className
               <div className="col-span-3">
                 <div className="flex flex-col gap-1">
                   {paper.authors.slice(0, 2).map((author, i) => (
-                    <div key={i} className="flex items-center gap-1.5 text-xs text-gray-600">
-                      <User className="w-3 h-3 text-gray-400" />
+                    <div key={i} className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+                      <User className="w-3 h-3 text-gray-400 dark:text-gray-500" />
                       <span className="truncate">{author}</span>
                     </div>
                   ))}
                   {paper.authors.length > 2 && (
-                    <span className="text-xs text-gray-400 pl-4.5">+{paper.authors.length - 2} 位作者</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500 pl-4.5">+{paper.authors.length - 2} 位作者</span>
                   )}
                 </div>
               </div>
 
               {/* Year Column */}
               <div className="col-span-1 flex items-start justify-center">
-                <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800 px-2 py-1 rounded-md border border-gray-100 dark:border-slate-700">
                   {paper.year}
                 </span>
               </div>
 
               {/* Source & Actions Column */}
               <div className="col-span-2 flex flex-col items-end gap-2 pr-2">
-                <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 rounded-full">
                   {paper.source}
                 </span>
                 
@@ -129,8 +129,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ results, className
                     className={cn(
                       "p-1.5 rounded-md transition-colors",
                       paper.is_bookmarked 
-                        ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100" 
-                        : "text-gray-400 hover:text-gray-900 hover:bg-gray-100"
+                        ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/70" 
+                        : "text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-slate-800"
                     )}
                     title={paper.is_bookmarked ? "取消收藏" : "收藏"}
                   >
@@ -141,15 +141,15 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ results, className
                       e.stopPropagation();
                       handleOpenPaper(paper.id);
                     }}
-                    className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                    className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md"
                     title="查看详情"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </button>
-                  <button className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-md" title="下载 PDF">
+                  <button className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md" title="下载 PDF">
                     <Download className="w-3.5 h-3.5" />
                   </button>
-                  <button className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-md">
+                  <button className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md">
                     <MoreHorizontal className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -159,7 +159,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({ results, className
         </div>
         
         {/* Footer / Pagination Placeholder */}
-        <div className="p-3 border-t border-gray-100 bg-gray-50/30 text-center text-xs text-gray-400">
+        <div className="p-3 border-t border-gray-100 dark:border-slate-800 bg-gray-50/30 dark:bg-slate-800/30 text-center text-xs text-gray-400 dark:text-gray-500">
           显示 {results.length} 条结果
         </div>
       </div>

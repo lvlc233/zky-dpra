@@ -185,22 +185,22 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50/30">
+    <div className="h-full flex flex-col bg-gray-50/30 dark:bg-slate-800/30">
       {/* 1. Collapsible Summary Section */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm transition-all duration-300 ease-in-out">
+      <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 shadow-sm transition-all duration-300 ease-in-out">
         <button 
           onClick={() => setIsSummaryOpen(!isSummaryOpen)}
-          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
         >
           <div className="flex flex-col items-start">
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-500" />
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
               论文导读
             </h3>
             {isSummaryOpen && (
-               <div className="text-sm text-gray-600 leading-relaxed mt-2 p-1 max-h-60 overflow-y-auto">
+               <div className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mt-2 p-1 max-h-60 overflow-y-auto">
                  {isGeneratingSummary ? (
-                    <div className="flex items-center gap-2 text-indigo-600">
+                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         <span>正在生成导读...</span>
                     </div>
@@ -211,9 +211,9 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
             )}
           </div>
           {isSummaryOpen ? (
-            <ChevronUp className="w-4 h-4 text-gray-400" />
+            <ChevronUp className="w-4 h-4 text-gray-400 dark:text-gray-500" />
           ) : (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
               <span>展开摘要</span>
               <ChevronDown className="w-4 h-4" />
             </div>
@@ -221,7 +221,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
         </button>
         
         <div className={cn(
-           "grid transition-all duration-500 ease-in-out bg-white",
+           "grid transition-all duration-500 ease-in-out bg-white dark:bg-slate-900",
            isSummaryOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
          )}>
           <div className="overflow-hidden">
@@ -230,11 +230,11 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
                 <div className="space-y-6">
                   {/* Abstract Section */}
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-indigo-600">
+                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
                       <BookOpen className="w-4 h-4" />
                       <h4 className="text-sm font-medium">核心摘要</h4>
                     </div>
-                    <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-3 rounded-lg">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed bg-gray-50 dark:bg-slate-800 p-3 rounded-lg">
                       本文提出了一种基于 Agent 的深度论文研究系统 (DeepPaperResearcher)。
                       该系统利用大语言模型 (LLM) 和图数据库，实现了对海量学术论文的自动化检索、
                       阅读、分析和总结。实验结果表明，该系统在处理复杂科研任务时，效率比传统方法提升了 10 倍。
@@ -243,7 +243,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
 
                   {/* Key Points Section */}
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-indigo-600">
+                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
                       <List className="w-4 h-4" />
                       <h4 className="text-sm font-medium">主要贡献</h4>
                     </div>
@@ -253,8 +253,8 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
                         "设计了多 Agent 协作的论文阅读与评分机制",
                         "实现了端到端的自动化科研报告生成流程"
                       ].map((point, index) => (
-                        <li key={index} className="flex gap-2 text-sm text-gray-600">
-                          <span className="text-indigo-400 font-bold">•</span>
+                        <li key={index} className="flex gap-2 text-sm text-gray-600 dark:text-gray-400">
+                          <span className="text-indigo-400 dark:text-indigo-500 font-bold">•</span>
                           <span>{point}</span>
                         </li>
                       ))}
@@ -263,11 +263,11 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
 
                   {/* Insights Section */}
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-indigo-600">
+                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
                       <Lightbulb className="w-4 h-4" />
                       <h4 className="text-sm font-medium">创新点分析</h4>
                     </div>
-                    <div className="bg-indigo-50 p-3 rounded-lg text-sm text-indigo-900 border border-indigo-100">
+                    <div className="bg-indigo-50 dark:bg-indigo-900/50 p-3 rounded-lg text-sm text-indigo-900 dark:text-indigo-100 border border-indigo-100 dark:border-indigo-800">
                       不同于传统的 RAG 方法，本文采用了动态知识图谱来增强上下文理解能力，
                       有效解决了跨文档推理的难题。
                     </div>
@@ -276,7 +276,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
              </ScrollArea>
              
              {/* Divider Gradient */}
-             <div className="h-4 bg-gradient-to-t from-white to-transparent -mt-4 relative z-10 pointer-events-none" />
+             <div className="h-4 bg-gradient-to-t from-white dark:from-slate-900 to-transparent -mt-4 relative z-10 pointer-events-none" />
             </div>
            </div>
         </div>
@@ -284,11 +284,11 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
       
       {/* 2. Chat Section */}
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        <div className="p-2 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-           <span className="text-xs font-medium text-gray-500 uppercase tracking-wider pl-2">对话助手</span>
+        <div className="p-2 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex justify-between items-center">
+           <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-2">对话助手</span>
            <button 
              onClick={() => setMessages([])} 
-             className="text-xs text-gray-400 hover:text-red-500 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+             className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/50 transition-colors"
            >
              清空记录
            </button>
@@ -305,8 +305,8 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-sm",
                   msg.role === 'ai' 
-                    ? "bg-indigo-100 text-indigo-600" 
-                    : "bg-gray-200 text-gray-600"
+                    ? "bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400" 
+                    : "bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-gray-400"
                 )}>
                   {msg.role === 'ai' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
                 </div>
@@ -315,8 +315,8 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
                 <div className={cn(
                   "p-3 rounded-2xl text-sm shadow-sm max-w-[85%] leading-relaxed whitespace-pre-wrap",
                   msg.role === 'ai' 
-                    ? "bg-white border border-gray-100 text-gray-800 rounded-tl-none" 
-                    : "bg-indigo-600 text-white rounded-tr-none"
+                    ? "bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-gray-800 dark:text-gray-200 rounded-tl-none" 
+                    : "bg-indigo-600 dark:bg-indigo-500 text-white rounded-tr-none"
                 )}>
                   {msg.content}
                   {msg.role === 'ai' && msg.content === '' && (
@@ -330,7 +330,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
         </ScrollArea>
 
         {/* Input Area */}
-        <div className="p-4 bg-white border-t border-gray-200">
+        <div className="p-4 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
            {/* Quick Actions (Optional placeholder) */}
            {messages.length < 2 && (
              <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
@@ -338,7 +338,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
                   <button 
                     key={tag}
                     onClick={() => setInputValue(`请${tag}：`)}
-                    className="flex-shrink-0 px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-full transition-colors whitespace-nowrap"
+                    className="flex-shrink-0 px-3 py-1 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-400 text-xs rounded-full transition-colors whitespace-nowrap"
                   >
                     {tag}
                   </button>
@@ -352,17 +352,17 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
                onChange={(e) => setInputValue(e.target.value)}
                onKeyDown={handleKeyDown}
                placeholder="输入问题，Enter 发送..."
-               className="w-full h-24 p-3 pr-10 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 resize-none bg-gray-50 focus:bg-white transition-all"
+               className="w-full h-24 p-3 pr-10 text-sm border border-gray-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 resize-none bg-gray-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 text-gray-900 dark:text-gray-100 transition-all"
              />
              <button
                onClick={handleSendMessage}
                disabled={!inputValue.trim()}
-               className="absolute bottom-3 right-3 p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+               className="absolute bottom-3 right-3 p-1.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
              >
                <Send className="w-4 h-4" />
              </button>
            </div>
-           <div className="text-[10px] text-gray-400 mt-2 text-center">
+           <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-2 text-center">
               AI 内容仅供参考，请核对原文
            </div>
         </div>

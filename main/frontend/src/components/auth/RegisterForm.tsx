@@ -20,14 +20,17 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal =
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    full_name: ''
+    full_name: '',
+    rememberMe: false
   });
   
   const { setAuthView, closeAuthModal } = useAuthModal();
   const login = useAuthStore((state) => state.login);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    const name = e.target.name;
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -40,21 +43,22 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal =
     
     try {
       // 1. Register
-      const user = await authService.register(formData.email, formData.password, formData.full_name);
+      await authService.register(formData.email, formData.password, formData.full_name);
       
-      // 2. Auto Login (if API doesn't return token on register, we might need to login manually)
-      // Assuming register returns User. We need token.
-      // So we call login immediately.
-      const loginResponse = await authService.login(formData.email, formData.password);
+      // 2. Auto Login (with remember me preference)
+      const loginResponse = await authService.login(formData.email, formData.password, formData.rememberMe);
       
-      login(loginResponse.user, loginResponse.access_token);
-      toast.success('注册成功');
+      // Fix: LoginResponse extends User, so pass loginResponse directly as user
+      login(loginResponse, loginResponse.access_token);
+      toast.success('注册成功并已自动登录');
       
       if (isModal) {
         closeAuthModal();
       }
       
+      // Navigate to dashboard and refresh server data
       router.push('/dashboard');
+      router.refresh();
     } catch (error: any) {
       const errorMessage = error.message || '注册失败';
       toast.error(errorMessage);
@@ -71,7 +75,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal =
   };
 
   return (
-    <div className={cn("flex flex-col md:flex-row w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden", className)}>
+    <div className={cn("flex flex-col md:flex-row w-full max-w-4xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden", className)}>
       {/* Left: Image Area */}
       <div className="hidden md:flex md:w-1/2 bg-gray-900 relative p-12 flex-col justify-between">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-violet-900 opacity-90" />
@@ -92,59 +96,73 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal =
       </div>
 
       {/* Right: Form Area */}
-      <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white">
+      <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white dark:bg-slate-900">
         <div className="mb-8 text-center md:text-left">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">创建新账户</h1>
-          <p className="text-gray-500 text-sm">填写以下信息完成注册</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">创建新账户</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">填写以下信息完成注册</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 ml-1">用户名</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">用户名</label>
             <div className="relative">
-              <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
               <input 
                 type="text" 
                 name="full_name"
                 value={formData.full_name}
                 onChange={handleChange}
                 placeholder="your_username"
-                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
+                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 ml-1">邮箱地址</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">邮箱地址</label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
               <input 
                 type="email" 
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="name@example.com"
-                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
+                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 ml-1">密码</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">密码</label>
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
               <input 
                 type="password" 
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="••••••••"
-                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
+                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                 required
               />
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+                type="checkbox"
+                id="rememberMe"
+                name="rememberMe"
+                checked={formData.rememberMe}
+                onChange={handleChange}
+                className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer bg-white dark:bg-slate-800"
+            />
+            <label htmlFor="rememberMe" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+                注册后自动登录并记住我 <span className="text-xs text-gray-400 ml-0.5">[7天有效]</span>
+            </label>
           </div>
 
           <button
@@ -164,7 +182,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, isModal =
         </form>
 
         <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             已有账户？{' '}
             {isModal ? (
               <button 

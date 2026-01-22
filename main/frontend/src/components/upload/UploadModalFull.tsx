@@ -187,47 +187,47 @@ export const UploadModal: React.FC<UploadModalProps> = (props) => {
     <Dialog.Root open={show} onOpenChange={(open) => !open && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 animate-in fade-in" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%] bg-white rounded-xl shadow-2xl outline-none animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%] bg-white dark:bg-slate-900 rounded-xl shadow-2xl outline-none animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
           
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
-            <Dialog.Title className="text-lg font-semibold text-gray-900">
+          <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50">
+            <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               上传论文
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button onClick={handleClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
+              <button onClick={handleClose} className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </Dialog.Close>
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-gray-100">
+          <div className="flex border-b border-gray-100 dark:border-slate-800">
               <button 
                 onClick={() => setActiveTab('local')}
                 className={cn(
                     "flex-1 py-3 text-sm font-medium transition-colors relative",
-                    activeTab === 'local' ? "text-indigo-600" : "text-gray-500 hover:text-gray-700"
+                    activeTab === 'local' ? "text-indigo-600 dark:text-indigo-400" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 )}
               >
                 <div className="flex items-center justify-center gap-2">
                     <FileUp className="w-4 h-4" />
                     本地上传
                 </div>
-                {activeTab === 'local' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600" />}
+                {activeTab === 'local' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400" />}
               </button>
               <button 
                 onClick={() => setActiveTab('web')}
                 className={cn(
                     "flex-1 py-3 text-sm font-medium transition-colors relative",
-                    activeTab === 'web' ? "text-indigo-600" : "text-gray-500 hover:text-gray-700"
+                    activeTab === 'web' ? "text-indigo-600 dark:text-indigo-400" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 )}
               >
                 <div className="flex items-center justify-center gap-2">
                     <LinkIcon className="w-4 h-4" />
                     网络链接
                 </div>
-                {activeTab === 'web' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600" />}
+                {activeTab === 'web' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400" />}
               </button>
           </div>
 
@@ -243,8 +243,8 @@ export const UploadModal: React.FC<UploadModalProps> = (props) => {
                         className={cn(
                         "flex flex-col items-center justify-center w-full h-48 rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer",
                         isDragging 
-                            ? "border-indigo-500 bg-indigo-50/50" 
-                            : "border-gray-200 bg-gray-50/50 hover:bg-gray-50 hover:border-gray-300"
+                            ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20" 
+                            : "border-gray-200 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800/30 hover:bg-gray-50 dark:hover:bg-slate-800/50 hover:border-gray-300 dark:hover:border-slate-600"
                         )}
                     >
                         <input 
@@ -258,35 +258,35 @@ export const UploadModal: React.FC<UploadModalProps> = (props) => {
                         <div className="flex flex-col items-center justify-center pt-5 pb-6">
                         <div className={cn(
                             "w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors",
-                            isDragging ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400"
+                            isDragging ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400" : "bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-gray-500"
                         )}>
                             <UploadCloud className="w-6 h-6" />
                         </div>
-                        <p className="mb-1 text-sm font-medium text-gray-700">
-                            <span className="text-indigo-600 hover:underline">点击上传</span> 或拖拽文件到这里
+                        <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <span className="text-indigo-600 dark:text-indigo-400 hover:underline">点击上传</span> 或拖拽文件到这里
                         </p>
-                        <p className="text-xs text-gray-500">支持 PDF 格式 (最大 20MB)</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">支持 PDF 格式 (最大 20MB)</p>
                         </div>
                     </div>
 
                     {files.length > 0 && (
                         <div className="mt-4 space-y-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                         {files.map((file) => (
-                            <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 group">
+                            <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 group">
                             <div className="flex items-center gap-3 overflow-hidden">
                                 <div className={cn(
                                 "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                                file.status === 'success' ? "bg-green-100 text-green-600" :
-                                file.status === 'error' ? "bg-red-100 text-red-600" :
-                                "bg-white border border-gray-200 text-gray-500"
+                                file.status === 'success' ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400" :
+                                file.status === 'error' ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400" :
+                                "bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-500 dark:text-gray-400"
                                 )}>
                                 <FileText className="w-4 h-4" />
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                <span className="text-sm font-medium text-gray-700 truncate max-w-[200px] block">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate max-w-[200px] block">
                                     {file.file.name}
                                 </span>
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
                                     {(file.file.size / 1024 / 1024).toFixed(2)} MB
                                 </span>
                                 </div>
@@ -296,7 +296,7 @@ export const UploadModal: React.FC<UploadModalProps> = (props) => {
                                 {file.status === 'pending' && (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); removeFile(file.id); }}
-                                    className="text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                    className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>

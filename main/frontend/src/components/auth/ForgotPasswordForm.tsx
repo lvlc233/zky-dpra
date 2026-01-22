@@ -33,7 +33,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({ classNam
   };
 
   return (
-    <div className={cn("flex flex-col md:flex-row w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden", className)}>
+    <div className={cn("flex flex-col md:flex-row w-full max-w-4xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden", className)}>
       {/* Left: Image Area */}
       <div className="hidden md:flex md:w-1/2 bg-gray-900 relative p-12 flex-col justify-between">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-violet-900 opacity-90" />
@@ -54,20 +54,20 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({ classNam
       </div>
 
       {/* Right: Form Area */}
-      <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white">
+      <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white dark:bg-slate-900">
         <div className="mb-8 text-center md:text-left">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">重置密码</h1>
-          <p className="text-gray-500 text-sm">请输入您的注册邮箱，我们将发送重置链接</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">重置密码</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">请输入您的注册邮箱，我们将发送重置链接</p>
         </div>
 
         {isSent ? (
           <div className="space-y-6 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto text-green-600 dark:text-green-400">
               <Mail className="w-8 h-8" />
             </div>
             <div>
-              <h3 className="text-lg font-medium text-gray-900">邮件已发送</h3>
-              <p className="text-gray-500 mt-2 text-sm">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">邮件已发送</h3>
+              <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
                 请检查您的邮箱收件箱（以及垃圾邮件文件夹），按照邮件中的指示重置密码。
               </p>
             </div>
@@ -81,13 +81,13 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({ classNam
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700 ml-1">邮箱地址</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">邮箱地址</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
                 <input 
                   type="email" 
                   placeholder="name@example.com"
-                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none"
                   required
                 />
               </div>
@@ -96,7 +96,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({ classNam
             <button 
               type="submit" 
               disabled={isLoading}
-              className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:translate-y-0"
+              className="w-full h-12 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-slate-900 dark:hover:bg-gray-100 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:translate-y-0"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -110,11 +110,11 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({ classNam
           </form>
         )}
 
-        <div className="mt-8 pt-8 border-t border-gray-100 text-center">
+        <div className="mt-8 pt-8 border-t border-gray-100 dark:border-slate-800 text-center">
           <Link 
             href="/login" 
             onClick={handleLoginClick}
-            className="flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>返回登录</span>

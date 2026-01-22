@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { GraphCanvas, GraphNode, GraphEdge, GraphCanvasRef } from 'reagraph';
 import { RotateCcw, Focus } from 'lucide-react';
 
@@ -42,6 +42,25 @@ export default function GraphViz({ paperId }: GraphVizProps) {
   // 使用 useRef 确保容器引用
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<GraphCanvasRef | null>(null);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    // Initial check
+    const checkDark = () => document.documentElement.classList.contains('dark');
+    setIsDark(checkDark());
+
+    // Observe class changes on html element
+    const observer = new MutationObserver(() => {
+      setIsDark(checkDark());
+    });
+
+    observer.observe(document.documentElement, { 
+      attributes: true, 
+      attributeFilter: ['class'] 
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   const handleReset = () => {
     if (graphRef.current) {
@@ -55,10 +74,47 @@ export default function GraphViz({ paperId }: GraphVizProps) {
     }
   };
 
+  const theme = {
+    canvas: { background: 'transparent' },
+    node: { 
+      fill: '#4F46E5',
+      activeFill: '#4338ca',
+      opacity: 1,
+      selectedOpacity: 1,
+      inactiveOpacity: 0.2,
+      label: { 
+        color: isDark ? '#e2e8f0' : '#1f2937', 
+        stroke: isDark ? '#0f172a' : '#ffffff', 
+        activeColor: isDark ? '#f8fafc' : '#1f2937' 
+      }
+    },
+    edge: { 
+      fill: isDark ? '#475569' : '#94a3b8',
+      activeFill: isDark ? '#94a3b8' : '#64748b',
+      opacity: 1,
+      selectedOpacity: 1,
+      inactiveOpacity: 0.2,
+      label: { 
+        color: isDark ? '#94a3b8' : '#64748b', 
+        stroke: isDark ? '#0f172a' : '#ffffff', 
+        activeColor: isDark ? '#cbd5e1' : '#64748b' 
+      }
+    },
+    arrow: { 
+      fill: isDark ? '#475569' : '#94a3b8', 
+      activeFill: isDark ? '#94a3b8' : '#64748b' 
+    },
+    ring: { fill: '#818cf8', activeFill: '#4f46e5' },
+    lasso: { 
+      border: isDark ? '1px solid #94a3b8' : '1px solid #5c5c5c', 
+      background: 'rgba(75, 160, 255, 0.1)' 
+    }
+  };
+
   return (
     <div 
       ref={containerRef}
-      className="w-full h-full relative bg-gray-50"
+      className="w-full h-full relative bg-gray-50 dark:bg-slate-900"
       style={{ minHeight: '400px' }} // 确保最小高度，防止塌缩
     >
       <GraphCanvas
@@ -70,35 +126,11 @@ export default function GraphViz({ paperId }: GraphVizProps) {
         sizingType="centrality"
         cameraMode="rotate"
         // 显式设置背景透明，以便看到底色
-        theme={{
-          canvas: { background: 'transparent' },
-          node: { 
-            fill: '#4F46E5',
-            activeFill: '#4338ca',
-            opacity: 1,
-            selectedOpacity: 1,
-            inactiveOpacity: 0.2,
-            label: { color: '#1f2937', stroke: '#ffffff', activeColor: '#1f2937' }
-          },
-          edge: { 
-            fill: '#94a3b8',
-            activeFill: '#64748b',
-            opacity: 1,
-            selectedOpacity: 1,
-            inactiveOpacity: 0.2,
-            label: { color: '#64748b', stroke: '#ffffff', activeColor: '#64748b' }
-          },
-          arrow: { fill: '#94a3b8', activeFill: '#64748b' },
-          ring: { fill: '#818cf8', activeFill: '#4f46e5' },
-          lasso: { 
-            border: '1px solid #5c5c5c', 
-            background: 'rgba(75, 160, 255, 0.1)' 
-          }
-        }}
+        theme={theme}
       />
       
       {/* 简单的悬浮统计 */}
-      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border border-gray-200 text-xs font-medium text-gray-600">
+      <div className="absolute top-4 left-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border border-gray-200 dark:border-slate-700 text-xs font-medium text-gray-600 dark:text-gray-400">
         {MOCK_NODES.length} Nodes · {MOCK_EDGES.length} Edges
       </div>
 
@@ -106,14 +138,14 @@ export default function GraphViz({ paperId }: GraphVizProps) {
       <div className="absolute top-4 right-4 flex gap-2">
         <button
           onClick={handleFit}
-          className="p-2 bg-white/90 backdrop-blur rounded-lg shadow-sm border border-gray-200 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+          className="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 transition-colors"
           title="适应视图"
         >
           <Focus className="w-4 h-4" />
         </button>
         <button
           onClick={handleReset}
-          className="p-2 bg-white/90 backdrop-blur rounded-lg shadow-sm border border-gray-200 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+          className="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 transition-colors"
           title="重置视角"
         >
           <RotateCcw className="w-4 h-4" />

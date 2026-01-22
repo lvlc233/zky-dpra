@@ -15,7 +15,7 @@ export const collectionService = {
   },
 
   update: async (collectionId: string, name: string): Promise<void> => {
-    return request.patch(`/collections/${collectionId}`, { new_name: name });
+    return request.patch(`/collections/${collectionId}`, null, { params: { new_name: name } });
   },
 
   delete: async (collectionId: string): Promise<void> => {

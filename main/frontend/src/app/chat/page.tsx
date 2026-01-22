@@ -150,13 +150,13 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex flex-col">
       <Navbar />
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-          <div className="p-4 border-b border-gray-100">
-            <Button onClick={handleCreateSession} className="w-full gap-2" variant="outline">
+        <div className="w-64 bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 flex flex-col">
+          <div className="p-4 border-b border-gray-100 dark:border-slate-800">
+            <Button onClick={handleCreateSession} className="w-full gap-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700" variant="outline">
               <Plus className="w-4 h-4" />
               新建对话
             </Button>
@@ -172,8 +172,8 @@ export default function ChatPage() {
                   className={cn(
                     "w-full text-left px-3 py-3 rounded-lg text-sm flex items-center gap-3 transition-colors",
                     activeSessionId === session.id 
-                      ? "bg-indigo-50 text-indigo-700" 
-                      : "text-gray-600 hover:bg-gray-50"
+                      ? "bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300" 
+                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800"
                   )}
                 >
                   <MessageSquare className="w-4 h-4 flex-shrink-0" />
@@ -185,7 +185,7 @@ export default function ChatPage() {
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col bg-white dark:bg-slate-900">
           {activeSessionId ? (
             <>
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -194,8 +194,8 @@ export default function ChatPage() {
                         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                     </div>
                 ) : messages.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
-                        <Bot className="w-12 h-12 text-gray-200" />
+                    <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 gap-2">
+                        <Bot className="w-12 h-12 text-gray-200 dark:text-gray-700" />
                         <p>开始一个新的对话吧</p>
                     </div>
                 ) : (
@@ -203,15 +203,15 @@ export default function ChatPage() {
                         <div key={idx} className={cn("flex gap-4 max-w-3xl mx-auto", msg.role === 'user' ? "flex-row-reverse" : "")}>
                             <div className={cn(
                                 "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                                msg.role === 'ai' ? "bg-indigo-100 text-indigo-600" : "bg-gray-900 text-white"
+                                msg.role === 'ai' ? "bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300" : "bg-gray-900 dark:bg-slate-700 text-white"
                             )}>
                                 {msg.role === 'ai' ? <Bot className="w-5 h-5" /> : <User className="w-5 h-5" />}
                             </div>
                             <div className={cn(
                                 "px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[80%]",
                                 msg.role === 'ai' 
-                                    ? "bg-gray-50 text-gray-800 rounded-tl-none" 
-                                    : "bg-gray-900 text-white rounded-tr-none"
+                                    ? "bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-gray-200 rounded-tl-none" 
+                                    : "bg-gray-900 dark:bg-indigo-600 text-white rounded-tr-none"
                             )}>
                                 {msg.content}
                                 {msg.role === 'ai' && msg.content === '' && isSending && idx === messages.length - 1 && (
@@ -225,19 +225,19 @@ export default function ChatPage() {
               </div>
 
               {/* Input Area */}
-              <div className="p-4 border-t border-gray-100">
+              <div className="p-4 border-t border-gray-100 dark:border-slate-800">
                 <div className="max-w-3xl mx-auto relative">
                     <Input 
                         value={inputValue}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
                         onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                         placeholder="输入您的问题..." 
-                        className="flex-1"
+                        className="flex-1 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                         disabled={isSending}
                     />
                     <Button 
                         size="icon" 
-                        className="absolute right-1 top-1 h-10 w-10" 
+                        className="absolute right-1 top-1 h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white" 
                         onClick={handleSendMessage}
                         disabled={!inputValue.trim() || isSending}
                     >
@@ -247,7 +247,7 @@ export default function ChatPage() {
               </div>
             </>
           ) : (
-            <div className="h-full flex items-center justify-center text-gray-400">
+            <div className="h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
                 请选择或创建一个会话
             </div>
           )}

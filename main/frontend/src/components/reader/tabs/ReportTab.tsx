@@ -81,28 +81,28 @@ const StatusBadge = ({ status }: { status: ReportItem['status'] }) => {
   switch (status) {
     case 'completed':
       return (
-        <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+        <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-800">
           <CheckCircle className="w-3 h-3" />
           完成
         </span>
       );
     case 'generating':
       return (
-        <span className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+        <span className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-800">
           <Loader2 className="w-3 h-3 animate-spin" />
           生成中
         </span>
       );
     case 'failed':
       return (
-        <span className="flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+        <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full border border-red-100 dark:border-red-800">
           <AlertCircle className="w-3 h-3" />
           失败
         </span>
       );
     case 'cancelled':
       return (
-        <span className="flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+        <span className="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-gray-200 dark:border-slate-700">
           <PauseCircle className="w-3 h-3" />
           已取消
         </span>
@@ -113,20 +113,20 @@ const StatusBadge = ({ status }: { status: ReportItem['status'] }) => {
 // Detail View Component
 const ReportDetail = ({ report, onBack }: { report: ReportItem; onBack: () => void }) => {
   return (
-    <div className="h-full flex flex-col bg-white animate-in slide-in-from-right-10 duration-300 fade-in-50">
+    <div className="h-full flex flex-col bg-white dark:bg-slate-900 animate-in slide-in-from-right-10 duration-300 fade-in-50">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-white sticky top-0 z-10">
+      <div className="p-4 border-b border-gray-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <button 
             onClick={onBack}
-            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors text-gray-600"
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors text-gray-600 dark:text-gray-400"
             title="返回列表"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex flex-col">
-            <h3 className="font-semibold text-gray-900 leading-tight">{report.title}</h3>
-            <span className="text-xs text-gray-500 flex items-center gap-1">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 leading-tight">{report.title}</h3>
+            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
               <Clock className="w-3 h-3" /> {report.createTime}
             </span>
           </div>
@@ -135,11 +135,11 @@ const ReportDetail = ({ report, onBack }: { report: ReportItem; onBack: () => vo
         <div className="flex gap-2">
           {report.status === 'completed' && (
             <>
-              <button className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100 transition-colors">
+              <button className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/50 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors border border-indigo-100 dark:border-indigo-800">
                 <Copy className="w-3.5 h-3.5" />
                 复制
               </button>
-              <button className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors">
+              <button className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-white bg-indigo-600 dark:bg-indigo-500 rounded-md hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors shadow-sm">
                 <Download className="w-3.5 h-3.5" />
                 PDF
               </button>
@@ -151,25 +151,25 @@ const ReportDetail = ({ report, onBack }: { report: ReportItem; onBack: () => vo
       {/* Content */}
       <ScrollArea className="flex-1 p-6">
         {report.status === 'generating' ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-4 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-64 gap-4 text-gray-500 dark:text-gray-400">
             <div className="relative">
-              <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+              <div className="w-12 h-12 border-4 border-indigo-100 dark:border-indigo-900 border-t-indigo-600 dark:border-t-indigo-500 rounded-full animate-spin" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xs font-bold text-indigo-600">SSE</span>
+                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">SSE</span>
               </div>
             </div>
             <p className="text-sm">正在深度研读并生成报告中...</p>
-            <div className="w-full max-w-xs bg-gray-100 rounded-full h-1.5 overflow-hidden">
-              <div className="h-full bg-indigo-600 rounded-full animate-progress-indeterminate" />
+            <div className="w-full max-w-xs bg-gray-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+              <div className="h-full bg-indigo-600 dark:bg-indigo-500 rounded-full animate-progress-indeterminate" />
             </div>
           </div>
         ) : report.status === 'cancelled' ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-4 text-gray-400">
+          <div className="flex flex-col items-center justify-center h-64 gap-4 text-gray-400 dark:text-gray-500">
              <PauseCircle className="w-12 h-12" />
              <p className="text-sm">任务已取消</p>
           </div>
         ) : (
-          <article className="prose prose-sm prose-indigo max-w-none">
+          <article className="prose prose-sm prose-indigo dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
              <ReactMarkdown>{report.content}</ReactMarkdown>
           </article>
         )}
@@ -193,15 +193,15 @@ const ReportList = ({
   onResume: (e: React.MouseEvent, id: string) => void;
 }) => {
   return (
-    <div className="h-full flex flex-col bg-gray-50/50 animate-in slide-in-from-left-10 duration-300 fade-in-50">
-      <div className="p-4 border-b border-gray-200 bg-white">
-        <h3 className="font-semibold text-gray-900">分析报告</h3>
-        <p className="text-xs text-gray-500 mt-1">查看论文的深度研究结果与进度</p>
+    <div className="h-full flex flex-col bg-gray-50/50 dark:bg-slate-900/50 animate-in slide-in-from-left-10 duration-300 fade-in-50">
+      <div className="p-4 border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100">分析报告</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">查看论文的深度研究结果与进度</p>
       </div>
 
       <div className="flex-1 overflow-auto">
         {/* Table Header */}
-        <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500">
+        <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 dark:bg-slate-800/50 border-b border-gray-200 dark:border-slate-800 text-xs font-medium text-gray-500 dark:text-gray-400">
           <div className="col-span-6 pl-2">标题</div>
           <div className="col-span-3">创建时间</div>
           <div className="col-span-2 text-center">状态</div>
@@ -209,24 +209,24 @@ const ReportList = ({
         </div>
 
         {/* List Items */}
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-gray-100 dark:divide-slate-800">
           {reports.map((report) => (
             <div 
               key={report.id}
               onClick={() => onSelect(report)}
-              className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-indigo-50/50 cursor-pointer transition-all group items-center bg-white"
+              className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 cursor-pointer transition-all group items-center bg-white dark:bg-slate-900"
             >
               <div className="col-span-6 flex flex-col pl-2">
-                <span className="text-sm font-medium text-gray-900 group-hover:text-indigo-700 transition-colors truncate">
+                <span className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors truncate">
                   {report.title}
                 </span>
                 {report.summary && (
-                  <span className="text-xs text-gray-400 truncate mt-0.5">
+                  <span className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
                     {report.summary}
                   </span>
                 )}
               </div>
-              <div className="col-span-3 text-xs text-gray-500 flex items-center">
+              <div className="col-span-3 text-xs text-gray-500 dark:text-gray-400 flex items-center">
                 {report.createTime}
               </div>
               <div className="col-span-2 flex justify-center">
@@ -237,7 +237,7 @@ const ReportList = ({
                 {report.status === 'generating' && (
                   <button 
                     onClick={(e) => onCancel(e, report.id)}
-                    className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
+                    className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-md transition-colors"
                     title="取消生成"
                   >
                     <PauseCircle className="w-3.5 h-3.5" />
@@ -246,7 +246,7 @@ const ReportList = ({
                 {(report.status === 'cancelled' || report.status === 'failed') && (
                   <button 
                     onClick={(e) => onResume(e, report.id)}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                    className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors"
                     title="恢复生成"
                   >
                     {report.status === 'failed' ? <RotateCcw className="w-3.5 h-3.5" /> : <PlayCircle className="w-3.5 h-3.5" />}
@@ -254,7 +254,7 @@ const ReportList = ({
                 )}
                 <button 
                   onClick={(e) => onDelete(e, report.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                  className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
                   title="删除报告"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -263,7 +263,7 @@ const ReportList = ({
             </div>
           ))}
           {reports.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
               <FileText className="w-10 h-10 mb-2 opacity-20" />
               <p className="text-sm">暂无报告</p>
             </div>

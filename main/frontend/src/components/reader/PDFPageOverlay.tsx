@@ -453,18 +453,18 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
       {/* Hover Tooltip for Notes - Card Style */}
       {hoveredAnnotationId && hoverPosition && !activeAnnotationId && (
         <div 
-          className="absolute z-50 pointer-events-none bg-white text-gray-800 p-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 w-[280px] transform -translate-x-1/2 -translate-y-full"
+          className="absolute z-50 pointer-events-none bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 p-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 dark:border-slate-700 w-[280px] transform -translate-x-1/2 -translate-y-full"
           style={{
             left: `${hoverPosition.left}%`,
             top: `${hoverPosition.top}%`,
             marginTop: '-16px'
           }}
         >
-          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
-            <MessageSquare className="w-4 h-4 text-indigo-500" />
-            <span className="text-xs font-semibold text-gray-500 uppercase">备注内容</span>
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100 dark:border-slate-700">
+            <MessageSquare className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">备注内容</span>
           </div>
-          <div className="text-sm leading-relaxed break-words text-gray-700">
+          <div className="text-sm leading-relaxed break-words text-gray-700 dark:text-gray-300">
             {visibleAnnotations.find(a => a.annotation_id === hoveredAnnotationId)?.content || '无内容'}
           </div>
         </div>
@@ -473,7 +473,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
       {/* Creation Toolbar */}
       {showToolbar && toolbarPosition && !activeAnnotationId && (
         <div 
-          className="absolute z-50 pointer-events-auto flex items-center gap-2 bg-white text-gray-700 p-2 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.15)] border border-gray-100 transform -translate-x-1/2 -translate-y-full"
+          className="absolute z-50 pointer-events-auto flex items-center gap-2 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 p-2 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.15)] border border-gray-100 dark:border-slate-700 transform -translate-x-1/2 -translate-y-full"
           style={{
             left: `${toolbarPosition.left}%`,
             top: `${toolbarPosition.top}%`,
@@ -486,16 +486,16 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
                <button
                  key={c.name}
                  onClick={(e) => { e.stopPropagation(); handleCreateAnnotation('highlight', c.value); }}
-                 className={cn("w-5 h-5 rounded-full border border-gray-200 hover:scale-110 hover:shadow-sm transition-all", c.value)}
+                 className={cn("w-5 h-5 rounded-full border border-gray-200 dark:border-slate-600 hover:scale-110 hover:shadow-sm transition-all", c.value)}
                  title={`高亮 ${c.name}`}
                />
              ))}
           </div>
-          <div className="w-[1px] h-5 bg-gray-200 mx-1" />
+          <div className="w-[1px] h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
           
           <button 
             onClick={(e) => { e.stopPropagation(); handleCreateAnnotation('note'); }}
-            className="flex items-center gap-1 px-2 py-1 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 rounded-md transition-colors text-xs font-medium"
+            className="flex items-center gap-1 px-2 py-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md transition-colors text-xs font-medium"
             title="添加备注"
           >
             <MessageSquare className="w-4 h-4" />
@@ -503,17 +503,17 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
           
           <button 
             onClick={(e) => { e.stopPropagation(); handleCreateAnnotation('translate'); }}
-            className="flex items-center gap-1 px-2 py-1 hover:bg-green-50 text-gray-600 hover:text-green-600 rounded-md transition-colors text-xs font-medium"
+            className="flex items-center gap-1 px-2 py-1 hover:bg-green-50 dark:hover:bg-green-900/30 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 rounded-md transition-colors text-xs font-medium"
             title="翻译选中内容"
           >
             <Languages className="w-4 h-4" />
           </button>
           
-          <div className="w-[1px] h-5 bg-gray-200 mx-1" />
+          <div className="w-[1px] h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
           
           <button 
             onClick={() => { setShowToolbar(false); window.getSelection()?.removeAllRanges(); }}
-            className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-gray-600"
+            className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-md transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
           >
             <X className="w-4 h-4" />
           </button>
@@ -524,7 +524,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
       {activeAnnotationId && activeAnnotation && editPosition && (
         <div 
           ref={editPopupRef}
-          className="absolute z-50 pointer-events-auto bg-white text-gray-900 p-3 rounded-lg shadow-xl border border-gray-200 w-64 transform -translate-x-1/2"
+          className="absolute z-50 pointer-events-auto bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 p-3 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 w-64 transform -translate-x-1/2"
           style={{
             left: `${editPosition.left}%`,
             top: `${editPosition.top}%`,
@@ -532,22 +532,22 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
           }}
         >
           {/* Header */}
-          <div className="flex justify-between items-center mb-2 pb-2 border-b border-gray-100">
-            <span className="text-xs font-semibold text-gray-500 uppercase">
+          <div className="flex justify-between items-center mb-2 pb-2 border-b border-gray-100 dark:border-slate-700">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
               {activeAnnotation.type === 'highlight' ? '高亮样式' : 
                activeAnnotation.type === 'note' ? '备注内容' : '翻译结果'}
             </span>
             <div className="flex gap-1">
                <button 
                  onClick={handleDelete}
-                 className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded transition-colors"
+                 className="p-1 hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600 rounded transition-colors"
                  title="删除"
                >
                  <Trash2 className="w-3.5 h-3.5" />
                </button>
                <button 
                  onClick={() => setActiveAnnotationId(null)}
-                 className="p-1 hover:bg-gray-100 text-gray-400 hover:text-gray-700 rounded transition-colors"
+                 className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded transition-colors"
                >
                  <X className="w-3.5 h-3.5" />
                </button>
@@ -564,7 +564,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
                   className={cn(
                     "w-6 h-6 rounded-full border-2 transition-transform hover:scale-110", 
                     c.value,
-                    activeAnnotation.color === c.value ? "border-gray-900" : "border-transparent"
+                    activeAnnotation.color === c.value ? "border-gray-900 dark:border-gray-100" : "border-transparent"
                   )}
                   title={c.name}
                 />
@@ -584,7 +584,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
                     handleSaveNote();
                   }
                 }}
-                className="w-full text-sm p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[80px]"
+                className="w-full text-sm p-2 border border-gray-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[80px] bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                 placeholder="输入备注... (按 Enter 保存)"
               />
               <button
@@ -599,9 +599,9 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
 
           {activeAnnotation.type === 'translate' && (
             <div className="space-y-2">
-              <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md min-h-[60px] max-h-[200px] overflow-y-auto leading-relaxed border border-gray-100">
+              <div className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-slate-900 p-3 rounded-md min-h-[60px] max-h-[200px] overflow-y-auto leading-relaxed border border-gray-100 dark:border-slate-700">
                 {isTranslating ? (
-                  <div className="flex items-center gap-2 text-indigo-600 py-2">
+                  <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 py-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span className="font-medium">正在翻译中...</span>
                   </div>
@@ -616,7 +616,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
       {/* Translation Modal (Transient) */}
       {translationModal.isOpen && translationModal.position && (
          <div 
-           className="absolute z-50 pointer-events-auto bg-white text-gray-900 p-0 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 w-72 transform -translate-x-1/2"
+           className="absolute z-50 pointer-events-auto bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 p-0 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 dark:border-slate-700 w-72 transform -translate-x-1/2"
            style={{
              left: `${translationModal.position.left}%`,
              top: `${translationModal.position.top}%`,
@@ -625,14 +625,14 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
            onClick={(e) => e.stopPropagation()}
          >
            {/* Header */}
-           <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
+           <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 rounded-t-xl">
              <div className="flex items-center gap-2">
-               <Languages className="w-4 h-4 text-indigo-500" />
-               <span className="text-sm font-semibold text-gray-700">翻译助手</span>
+               <Languages className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+               <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">翻译助手</span>
              </div>
              <button 
                onClick={() => setTranslationModal(prev => ({ ...prev, isOpen: false }))}
-               className="text-gray-400 hover:text-gray-600 transition-colors"
+               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
              >
                <X className="w-4 h-4" />
              </button>
@@ -641,19 +641,19 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
            {/* Body */}
            <div className="p-4 space-y-4">
              {/* Source */}
-             <div className="text-xs text-gray-500 line-clamp-2 italic border-l-2 border-gray-200 pl-2">
+             <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 italic border-l-2 border-gray-200 dark:border-slate-600 pl-2">
                {translationModal.text}
              </div>
              
              {/* Result */}
              <div className="min-h-[80px]">
                {translationModal.loading ? (
-                  <div className="flex flex-col items-center justify-center h-full gap-2 text-indigo-500 py-4">
+                  <div className="flex flex-col items-center justify-center h-full gap-2 text-indigo-500 dark:text-indigo-400 py-4">
                     <Loader2 className="w-6 h-6 animate-spin" />
                     <span className="text-xs font-medium">正在翻译...</span>
                   </div>
                ) : (
-                  <div className="text-sm text-gray-800 leading-relaxed font-medium">
+                  <div className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed font-medium">
                     {translationModal.result}
                   </div>
                )}
@@ -661,7 +661,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
            </div>
            
            {/* Footer */}
-           <div className="px-4 py-3 border-t border-gray-100 flex gap-2">
+           <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700 flex gap-2">
              <button
                onClick={handleSaveTranslationAsNote}
                disabled={translationModal.loading}

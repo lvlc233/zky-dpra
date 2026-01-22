@@ -127,15 +127,15 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   return (
     <div 
       ref={containerRef} 
-      className={cn("flex-1 bg-gray-100 overflow-y-auto flex justify-center p-6 relative", className)}
+      className={cn("flex-1 bg-gray-100 dark:bg-slate-900 overflow-y-auto flex justify-center p-6 relative", className)}
     >
       {/* Top Controls for View Mode */}
-      <div className="absolute top-4 right-6 z-10 bg-white/90 backdrop-blur shadow-sm rounded-lg border border-gray-200 p-1 flex gap-1">
+      <div className="absolute top-4 right-6 z-10 bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm rounded-lg border border-gray-200 dark:border-slate-700 p-1 flex gap-1">
         <button
           onClick={() => setViewMode('pagination')}
           className={cn(
             "px-3 py-1 text-xs font-medium rounded-md transition-colors",
-            viewMode === 'pagination' ? "bg-indigo-100 text-indigo-700" : "text-gray-600 hover:bg-gray-100"
+            viewMode === 'pagination' ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400" : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
           )}
         >
           翻页
@@ -144,7 +144,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
           onClick={() => setViewMode('scroll')}
           className={cn(
             "px-3 py-1 text-xs font-medium rounded-md transition-colors",
-            viewMode === 'scroll' ? "bg-indigo-100 text-indigo-700" : "text-gray-600 hover:bg-gray-100"
+            viewMode === 'scroll' ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400" : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
           )}
         >
           滚动
@@ -158,14 +158,13 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
           onLoadSuccess={onDocumentLoadSuccess}
           loading={
             <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 dark:border-indigo-400"></div>
             </div>
           }
           error={
-             <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-gray-500">
-                <p>无法加载 PDF 文件</p>
-                <p className="text-sm mt-2">请检查文件是否存在或权限是否正确</p>
-             </div>
+            <div className="flex items-center justify-center h-[calc(100vh-200px)] text-red-500 dark:text-red-400">
+               <p>Failed to load PDF</p>
+            </div>
           }
         >
           {viewMode === 'pagination' ? (
@@ -176,7 +175,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 renderTextLayer={true}
                 renderAnnotationLayer={true}
                 customTextRenderer={textRenderer}
-                className="bg-white"
+                className="bg-white dark:bg-slate-200" // PDF pages are typically white, but we can dim them slightly if needed, though usually white is best for readability. Let's keep white for content but ensure container is dark. Actually, PDF content is rendered on canvas/img, so bg-white is behind it.
               />
               <PDFPageOverlay 
                 pageIndex={pageNumber - 1} // 0-based
@@ -199,7 +198,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                   renderTextLayer={true}
                   renderAnnotationLayer={true}
                   customTextRenderer={textRenderer}
-                  className="bg-white"
+                  className="bg-white dark:bg-slate-200"
                 />
                 <PDFPageOverlay 
                   pageIndex={index} // 0-based
@@ -218,7 +217,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       
       {/* Floating Controls (Pagination Only) */}
       {viewMode === 'pagination' && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full flex items-center gap-4 text-sm shadow-xl z-50">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900/80 dark:bg-slate-800/80 backdrop-blur-md text-white dark:text-gray-100 px-4 py-2 rounded-full flex items-center gap-4 text-sm shadow-xl z-50">
            <button 
              disabled={pageNumber <= 1}
              onClick={() => handlePageChange(pageNumber - 1)}

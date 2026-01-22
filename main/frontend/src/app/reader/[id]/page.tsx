@@ -225,10 +225,10 @@ export default function ReaderPage({ params }: ReaderPageProps) {
   
   if (isLoading) {
       return (
-          <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+          <div className="h-screen w-full flex items-center justify-center bg-gray-50 dark:bg-slate-950">
               <div className="text-center">
                   <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-4" />
-                  <p className="text-gray-600">正在加载论文...</p>
+                  <p className="text-gray-600 dark:text-gray-400">正在加载论文...</p>
               </div>
           </div>
       );
@@ -236,9 +236,9 @@ export default function ReaderPage({ params }: ReaderPageProps) {
 
   if (!paper || !status) {
        return (
-          <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+          <div className="h-screen w-full flex items-center justify-center bg-gray-50 dark:bg-slate-950">
               <div className="text-center">
-                  <p className="text-red-600">未找到论文信息</p>
+                  <p className="text-red-600 dark:text-red-400">未找到论文信息</p>
               </div>
           </div>
       );
@@ -256,19 +256,19 @@ export default function ReaderPage({ params }: ReaderPageProps) {
 
   if (shouldBlockForProcessing) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md p-6 bg-white rounded-xl shadow-lg">
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50 dark:bg-slate-950">
+        <div className="text-center max-w-md p-6 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-100 dark:border-slate-800">
           <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto mb-6" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">正在解析论文</h2>
-          <p className="text-gray-500 mb-6">DeepPaper 正在使用 AI 深度解析您的论文，生成导读、脑图和结构化数据。这通常需要 1-2 分钟。</p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">正在解析论文</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">DeepPaper 正在使用 AI 深度解析您的论文，生成导读、脑图和结构化数据。这通常需要 1-2 分钟。</p>
 
-          <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
+          <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-2 mb-2">
             <div
               className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
               style={{ width: `${status.progress || 0}%` }}
             ></div>
           </div>
-          <p className="text-xs text-gray-400 text-right">{status.progress || 0}%</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 text-right">{status.progress || 0}%</p>
         </div>
       </div>
     );
@@ -276,17 +276,17 @@ export default function ReaderPage({ params }: ReaderPageProps) {
 
   if (!pdfUrl) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md p-6 bg-white rounded-xl shadow-lg">
-          <p className="text-gray-900 font-medium">未找到论文 PDF 资源</p>
-          <p className="text-sm text-gray-500 mt-2">请稍后重试，或返回重新打开该论文。</p>
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50 dark:bg-slate-950">
+        <div className="text-center max-w-md p-6 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-100 dark:border-slate-800">
+          <p className="text-gray-900 dark:text-white font-medium">未找到论文 PDF 资源</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">请稍后重试，或返回重新打开该论文。</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen w-full flex flex-col bg-white overflow-hidden">
+    <div className="h-screen w-full flex flex-col bg-white dark:bg-slate-950 overflow-hidden">
       {/* 1. Top Navbar */}
       <ReaderNavbar 
         title={`Paper: ${paper.title}`}
@@ -306,15 +306,15 @@ export default function ReaderPage({ params }: ReaderPageProps) {
         {/* Center PDF Viewer */}
         <div className="flex-1 h-full relative">
           {isProcessing && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 w-[min(520px,calc(100%-24px))] bg-white/95 backdrop-blur border border-gray-200 rounded-xl shadow-sm px-4 py-3">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 w-[min(520px,calc(100%-24px))] bg-white/95 dark:bg-slate-900/95 backdrop-blur border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm px-4 py-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
                   <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
                   <span>AI 解析中（不影响阅读）</span>
                 </div>
-                <div className="text-xs text-gray-500">{status.progress || 0}%</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{status.progress || 0}%</div>
               </div>
-              <div className="mt-2 w-full bg-gray-100 rounded-full h-2">
+              <div className="mt-2 w-full bg-gray-100 dark:bg-slate-800 rounded-full h-2">
                 <div
                   className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${status.progress || 0}%` }}
