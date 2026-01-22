@@ -272,9 +272,10 @@ const SearchSettingsForm = ({ settings, onChange }: { settings: SearchSettings, 
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">分析状态</label>
           <select 
             className="w-full text-sm border-gray-200 dark:border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 bg-gray-50 dark:bg-slate-800 dark:text-gray-200 p-2"
-            value={settings.match_analysis_status}
+            value={settings.match_analysis_status || ''}
             onChange={(e) => onChange({ ...settings, match_analysis_status: e.target.value as any })}
           >
+            <option value="">全部 (All)</option>
             <option value="unprocessed">未处理 (Unprocessed)</option>
             <option value="processing">处理中 (Processing)</option>
             <option value="processed">已处理 (Processed)</option>

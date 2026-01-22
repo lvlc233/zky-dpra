@@ -61,3 +61,11 @@ dev = [
 testpaths = ["test"]
 python_files = ["test_*.py"]
 addopts = ["-ra"]
+
+[tool.mypy]
+python_version = "3.13"
+explicit_package_bases = true  
+namespace_packages = true      
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = ["tests/"]           

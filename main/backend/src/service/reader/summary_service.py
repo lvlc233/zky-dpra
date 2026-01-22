@@ -77,9 +77,9 @@ class SummaryService:
         """调用 LLM 生成摘要内容"""
         
         # 准备上下文: 优先使用摘要，如果没有则提示用户无法生成(或者后续扩展读取 chunks)
-        context = paper.abstract
+        context = paper.summary
         if not context:
-            # TODO: 如果 abstract 为空，尝试读取 paper chunks (需要 PaperChunk 关联查询)
+            # TODO: 如果 summary 为空，尝试读取 paper chunks (需要 PaperChunk 关联查询)
             # 暂时返回占位符或报错
             return "无法生成摘要: 论文缺少摘要信息且未实现全文读取。"
 

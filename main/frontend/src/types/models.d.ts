@@ -24,6 +24,8 @@ export interface Paper {
   references_number?: number;
   // Extra fields that might come from status or other contexts
   status?: 'processing' | 'success' | 'failed'; // From upload response
+  analysis_status?: 'unprocessed' | 'processing' | 'processed' | 'error'; // From PaperMetaDTO
+  is_bookmarked?: boolean;
 }
 
 export interface Collection {
@@ -95,30 +97,4 @@ export interface MindMap {
 
 export interface AISummary {
   summary_config: Record<string, string>;
-}
-
-export interface RecordItem {
-  record_id: string;
-  title: string;
-  created_at: string;
-  updated_at?: string;
-}
-
-export interface Message {
-  message_id: string;
-  type: 'HUMAN' | 'AI' | 'TOOL_CALL' | 'TOOL_RESPONSE';
-  context: string;
-  created_at: string;
-}
-
-export interface Job {
-  job_id: string;
-  type: 'toc' | 'summary' | 'mind_map' | 'deep_research' | 'chat';
-  status: 'queued' | 'running' | 'blocked' | 'succeeded' | 'failed' | 'canceled' | 'expired';
-  progress?: number;
-  stage?: string;
-  result?: any; // JobResult
-  error?: string;
-  created_at: string;
-  end_at?: string;
 }

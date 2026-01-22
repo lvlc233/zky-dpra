@@ -1,12 +1,12 @@
 import request from '@/lib/request';
-import { CollectionResponse } from '@/types/api';
+import { CollectionResponse, CollectionDetailResponse } from '@/types/api';
 
 export const collectionService = {
   getAll: async (): Promise<CollectionResponse[]> => {
     return request.get('/collections');
   },
 
-  getById: async (collectionId: string): Promise<CollectionResponse> => {
+  getById: async (collectionId: string): Promise<CollectionDetailResponse> => {
     return request.get(`/collections/${collectionId}`);
   },
 

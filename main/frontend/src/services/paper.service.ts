@@ -54,6 +54,10 @@ export const paperService = {
     return request.get(`/jobs/${jobId}`);
   },
 
+  delete: async (id: string): Promise<void> => {
+    return request.delete(`/papers/${id}`);
+  },
+
   getById: async (id: string): Promise<Paper> => {
     if (id === 'mock-id-001') {
         return {

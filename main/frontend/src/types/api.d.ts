@@ -45,6 +45,10 @@ export interface PaperReaderMetaResponse {
 // Collections
 export interface CollectionResponse extends Collection {}
 
+export interface CollectionDetailResponse {
+  items: Paper[];
+}
+
 // Views
 export interface ViewResponse {
   view_id: string;

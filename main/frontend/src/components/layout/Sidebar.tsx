@@ -98,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const startRename = (collection: Collection) => {
-    setRenamingId(collection.collection_id);
+    setRenamingId(collection.id);
     setRenameLabel(collection.label);
   };
 
@@ -212,19 +212,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {collections.map((collection) => (
               <div 
-                key={collection.collection_id}
+                key={collection.id}
                 className={cn(
                   "group flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors cursor-pointer",
-                  activeId === collection.collection_id 
+                  activeId === collection.id 
                     ? "bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 font-medium" 
                     : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-gray-100"
                 )}
                 onClick={() => {
-                  setActiveId(collection.collection_id);
+                  setActiveId(collection.id);
                   if (onSelectCollection) onSelectCollection(collection);
                 }}
               >
-                {renamingId === collection.collection_id ? (
+                {renamingId === collection.id ? (
                   <div className="flex items-center gap-2 flex-1" onClick={e => e.stopPropagation()}>
                     <input
                       type="text"
@@ -247,12 +247,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ) : (
                   <>
                     <div className="flex items-center gap-3 min-w-0">
-                      <FolderOpen className={cn("w-4 h-4 flex-shrink-0", activeId === collection.collection_id ? "text-indigo-500 dark:text-indigo-400" : "text-gray-400 dark:text-gray-500")} />
+                      <FolderOpen className={cn("w-4 h-4 flex-shrink-0", activeId === collection.id ? "text-indigo-500 dark:text-indigo-400" : "text-gray-400 dark:text-gray-500")} />
                       {!isCollapsed && <span className="truncate">{collection.label}</span>}
                     </div>
                     {!isCollapsed && (
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400 dark:text-gray-500">{collection.count}</span>
+                        <span className="text-[10px] font-medium text-gray-500 bg-gray-100 dark:bg-slate-800 dark:text-gray-400 px-2 py-0.5 rounded-full min-w-[1.5rem] text-center">{collection.count}</span>
                         <Popover.Root>
                           <Popover.Trigger asChild>
                             <button 
@@ -277,7 +277,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               </button>
                               <div className="h-px bg-gray-50 dark:bg-slate-700 my-1" />
                               <button 
-                                onClick={(e) => handleDelete(collection.collection_id, e)}
+                                onClick={(e) => handleDelete(collection.id, e)}
                                 className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-left"
                               >
                                 <Trash2 className="w-3 h-3" />

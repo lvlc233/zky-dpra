@@ -94,9 +94,10 @@ class CollectionService:
                 url=p.file_url,
                 title=p.title,
                 authors=p.authors if p.authors else [],
-                summary=p.abstract,
-                published_at=p.created_at,
-                source=p.source_type or "PDF",
+                summary=p.summary,
+                published_at=p.published_at,
+                uploaded_at=p.created_at,
+                source=p.source or "PDF",
                 tags=[], # Tags not available in Paper entity yet
                 references_number=None
             ))

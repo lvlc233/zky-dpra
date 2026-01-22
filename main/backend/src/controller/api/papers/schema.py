@@ -101,6 +101,8 @@ class PaperStatusResponse(BaseModel):
     updated_at: Optional[datetime] = Field(None, description="更新时间")
     toc: Optional[List] = Field(None, description="目录结构 (Table of Contents)，通常包含章节标题、层级和页码")
     file_url: Optional[str] = Field(None, description="文件访问URL")
+    published_at: Optional[datetime] = Field(None, description="发表时间")
+    source: Optional[str] = Field(None, description="来源")
 
 
 __all__ = ["PaperFetchRequest", "PaperUploadRequest", "PaperStatusResponse"]

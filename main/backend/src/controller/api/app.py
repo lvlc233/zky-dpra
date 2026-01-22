@@ -61,12 +61,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         # 当 allow_credentials=True 时，allow_origins 不能包含 "*"，必须显式指定域名
         # TODO: 这边也是给nginx做适配来着的,也是后面要考虑的问题。
-        allow_origins=[
-            "http://localhost:3000", 
-            "http://127.0.0.1:3000",
-            "http://localhost:5173", # Vite 默认端口，以防万一
-            "http://127.0.0.1:5173"
-        ],
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],  # 关键：允许所有HTTP方法
         allow_headers=["*"],  # 关键：允许所有请求头

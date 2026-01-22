@@ -12,8 +12,6 @@ from controller.api.search.schema import (
     SearchRequest, 
     SearchResponse, 
     SearchHistoryResponse,
-    SearchSettingsResponse,
-    SearchSettingsUpdate,
     SearchedPaperMetaResponse
 )
 from service.search.search_service import SearchService, get_search_service
@@ -67,65 +65,3 @@ async def clear_search_history(
     """清空搜索历史"""
     await search_service.clear_search_history(current_user.id)
     return Response.success(data=True)
-
-
-from service.setting.setting_service import SettingService
-
-def get_setting_service(
-    db: Session = Depends(get_db_session),
-) -> SettingService:
-    return SettingService(db)
-
-@router.get("/config", response_model=Response[SearchSettingsResponse])
-async def get_search_config(
-    current_user: CurrentUserDep,
-    setting_service: SettingService = Depends(get_setting_service)
-):
-    """获取搜索相关配置"""
-    settings = await setting_service.get_settings(current_user.id)
-    ai_search = settings.ai_search_settings
-    
-    return Response.success(
-        data=SearchSettingsResponse(
-        enable_deep_reasoning=ai_search.search_deep == "deep",
-        enable_auto_summary=ai_search.ai_summary_enable,
-        default_sort_by=ai_search.search_preferences,
-        max_results=ai_search.search_limit,
-        search_depth=ai_search.search_loop
-    ))
-
-
-@router.put("/config", response_model=Response[SearchSettingsResponse])
-async def update_search_config(
-    data: SearchSettingsUpdate,
-    current_user: CurrentUserDep,
-    setting_service: SettingService = Depends(get_setting_service)
-):
-    """更新搜索相关配置"""
-    settings = await setting_service.get_settings(current_user.id)
-    ai_search = settings.ai_search_settings
-
-    if data.enable_deep_reasoning is not None:
-        ai_search.search_deep = "deep" if data.enable_deep_reasoning else "standard"
-    if data.enable_auto_summary is not None:
-        ai_search.ai_summary_enable = data.enable_auto_summary
-    if data.default_sort_by is not None:
-        # 简单映射，假设前端传递的值是合法的
-        ai_search.search_preferences = data.default_sort_by # type: ignore
-    if data.max_results is not None:
-        ai_search.search_limit = data.max_results
-    if data.search_depth is not None:
-        ai_search.search_loop = data.search_depth
-
-    # 保存
-    settings.ai_search_settings = ai_search
-    await setting_service._save_settings(await setting_service._get_user(current_user.id), settings)
-
-    return Response.success(
-        data=SearchSettingsResponse(
-        enable_deep_reasoning=ai_search.search_deep == "deep",
-        enable_auto_summary=ai_search.ai_summary_enable,
-        default_sort_by=ai_search.search_preferences,
-        max_results=ai_search.search_limit,
-        search_depth=ai_search.search_loop
-    ))

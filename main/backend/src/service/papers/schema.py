@@ -28,7 +28,8 @@ class PaperMeta(BaseModel):
     title: str = Field(..., description="论文标题")
     authors: List[str] = Field(default_factory=list, description="作者列表")
     summary: Optional[str] = Field(None, description="论文摘要原文")
-    published_at: Optional[datetime] = Field(None, description="上传/创建时间")
+    published_at: Optional[datetime] = Field(None, description="论文发表时间")
+    uploaded_at: Optional[datetime] = Field(None, description="上传时间")
     source: str = Field(..., description="文件来源类型(如arXiv、PDF等)")
     tags: List[str] = Field(default_factory=list, description="标签(类型)")
     references_number: Optional[int] = Field(None, description="引用数量")
@@ -86,6 +87,8 @@ class PaperDTO(BaseModel):
     status: PaperStatus
     error_message: Optional[str] = None
     created_at: datetime
+    published_at: Optional[datetime] = None
+    source: Optional[str] = None
     toc: Optional[List] = None
     # updated_at 暂时不包含，因为Entity中没有
 

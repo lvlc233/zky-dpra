@@ -302,7 +302,9 @@ async def get_paper_status(
         created_at=paper.created_at,
         updated_at=paper.created_at,
         toc=paper.toc,
-        file_url=_resolve_file_url(request, paper.file_url or f"/api/v1/papers/{paper.id}/file")
+        file_url=_resolve_file_url(request, paper.file_url or f"/api/v1/papers/{paper.id}/file"),
+        published_at=paper.published_at,
+        source=paper.source
     ))
 
 
@@ -344,7 +346,11 @@ async def list_user_papers(
     offset: int = 0,
     current_user: User = Depends(get_current_user),
 ):
+    logger.info(f"List papers request: user_id={current_user.id}, email={current_user.email}, limit={limit}, offset={offset}")
     papers = await paper_service.get_user_papers(user_id=current_user.id, limit=limit, offset=offset)
+    logger.info(f"Found {len(papers)} papers for user {current_user.id}")
+    for p in papers:
+        logger.info(f"Paper: {p.id} - {p.title} - {p.status}")
     return Response.success(data=[
         PaperStatusResponse(
             paper_id=str(p.id),
@@ -357,7 +363,9 @@ async def list_user_papers(
             created_at=p.created_at,
             updated_at=p.created_at,
             toc=p.toc,
-            file_url=_resolve_file_url(request, p.file_url)
+            file_url=_resolve_file_url(request, p.file_url),
+            published_at=p.published_at,
+            source=p.source
         )
         for p in papers
     ])
@@ -505,5 +513,7 @@ async def get_paper_by_id(
         created_at=paper.created_at,
         updated_at=paper.created_at,
         toc=paper.toc,
-        file_url=_resolve_file_url(request, paper.file_url or f"/api/v1/papers/{paper.id}/file")
+        file_url=_resolve_file_url(request, paper.file_url or f"/api/v1/papers/{paper.id}/file"),
+        published_at=paper.published_at,
+        source=paper.source
     ))

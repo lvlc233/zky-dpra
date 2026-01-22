@@ -43,6 +43,9 @@ class PDFParseResult(BaseModel):
     title: Optional[str] = Field(None, description="论文标题")
     authors: List[str] = Field(default_factory=list, description="作者列表")
     abstract: Optional[str] = Field(None, description="摘要")
+    published_date: Optional[str] = Field(None, description="发表日期")
+    source: Optional[str] = Field(None, description="来源")
+    source_id: Optional[str] = Field(None, description="来源ID")
     metadata: Dict = Field(default_factory=dict, description="元数据")
     pages: List[str] = Field(default_factory=list, description="按页分割的文本")
     toc: List = Field(default_factory=list, description="目录结构 (Table of Contents)")
@@ -66,6 +69,53 @@ class BasePDFParser(ABC):
     async def extract_metadata(self, file_path: Path) -> Dict:
         """提取元数据"""
         pass
+
+    def _extract_published_date_and_source_from_text(self, text: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
+        """从文本中提取发表日期、来源和来源ID (通用实现)"""
+        # 限制搜索范围在前2000字符
+        header_text = text[:2000]
+        
+        published_date = None
+        source = None
+        source_id = None
+
+        # 1. 检查arXiv ID
+        arxiv_match = re.search(r'arXiv:\d{4}\.\d{4,5}', header_text, re.IGNORECASE)
+        if arxiv_match:
+            source = "arXiv"
+            # 提取YYMM
+            arxiv_id = arxiv_match.group(0)
+            source_id = arxiv_id
+            match = re.search(r'arXiv:(\d{2})(\d{2})', arxiv_id, re.IGNORECASE)
+            if match:
+                year_short = match.group(1)
+                month = match.group(2)
+                # 假设20xx年
+                year = f"20{year_short}"
+                published_date = f"{year}-{month}-01"
+                return published_date, source, source_id
+
+        # 2. 检查常见日期格式
+        date_patterns = [
+            r'Published:\s*(\d{4}[-/]\d{1,2}[-/]\d{1,2})',  # Published: 2023-01-01
+            r'Date:\s*(\d{4}[-/]\d{1,2}[-/]\d{1,2})',       # Date: 2023-01-01
+            r'(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})', # 1 Jan 2023
+            r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4})', # Jan 1, 2023
+        ]
+        
+        for pattern in date_patterns:
+            match = re.search(pattern, header_text, re.IGNORECASE)
+            if match:
+                published_date = match.group(1)
+                break
+
+        # 3. 检查版权年份 (作为兜底)
+        if not published_date:
+            copyright_match = re.search(r'©\s*(\d{4})', header_text)
+            if copyright_match:
+                published_date = f"{copyright_match.group(1)}-01-01"
+            
+        return published_date, source, source_id
 
 class MarkerPDFParser(BasePDFParser):
     """基于Marker的PDF解析器
@@ -129,11 +179,16 @@ class MarkerPDFParser(BasePDFParser):
             # 分页处理
             pages = self._split_to_pages(full_text)
 
+            published_date, source, source_id = self._extract_published_date_and_source_from_text(full_text)
+
             return PDFParseResult(
                 text=full_text,
                 title=title,
                 authors=authors,
                 abstract=abstract,
+                published_date=published_date,
+                source=source,
+                source_id=source_id,
                 metadata=metadata,
                 pages=pages
             )
@@ -154,6 +209,9 @@ class MarkerPDFParser(BasePDFParser):
             "title": result.title,
             "authors": result.authors,
             "abstract": result.abstract,
+            "published_date": result.published_date,
+            "source": result.source,
+            "source_id": result.source_id,
             **result.metadata
         }
 
@@ -262,12 +320,16 @@ class PyMuPDFParser(BasePDFParser):
         title = metadata.get('title', '') or self._extract_title_from_text(full_text)
         authors = self._extract_authors_from_text(full_text)
         abstract = self._extract_abstract_from_text(full_text)
+        published_date, source, source_id = self._extract_published_date_and_source_from_text(full_text)
 
         return PDFParseResult(
             text=full_text.strip(),
             title=title,
             authors=authors,
             abstract=abstract,
+            published_date=published_date,
+            source=source,
+            source_id=source_id,
             metadata=metadata,
             pages=pages,
             toc=toc
@@ -300,6 +362,9 @@ class PyMuPDFParser(BasePDFParser):
             "title": result.title,
             "authors": result.authors,
             "abstract": result.abstract,
+            "published_date": result.published_date,
+            "source": result.source,
+            "source_id": result.source_id,
             **result.metadata
         }
 

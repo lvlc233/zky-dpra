@@ -18,6 +18,9 @@ import logging
 import os
 import uuid
 import httpx
+import re
+import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Annotated
 from urllib.parse import urlparse
@@ -36,11 +39,11 @@ from common.model.enums import PaperStatus
 from controller.api.papers.schema import PapersUploadWebRequest, PapersUploadResponse
 
 # 导入 Entities (仅用于与 Repository 交互)
-from base.pg.entity import Paper, PaperChunk, User, Collection
+from base.pg.entity import Paper, PaperChunk, User, Collection, Job
 
 from base.config import settings
 from base.pg.service import PaperRepository, CollectionRepository, SessionDep, async_session_factory
-from base.pdf_parser.parser import PDFParseResult, parse_pdf, extract_pdf_text
+from base.pdf_parser.parser import PDFParseResult, parse_pdf, extract_pdf_text, PyMuPDFParser
 from base.embedding.embedding_service import EmbeddingService, embed_batch
 from base.embedding.text_splitter import SemanticTextSplitter
 
@@ -63,17 +66,28 @@ class PaperService:
         """
         将 Paper 实体转换为 PaperDTO
         """
+        # 状态映射兼容处理
+        status = paper.analysis_status
+        if status == "unprocessed":
+            status = PaperStatus.PENDING
+        elif status == "processed":
+            status = PaperStatus.COMPLETED
+        elif status == "error":
+            status = PaperStatus.FAILED
+            
         return PaperDTO(
             id=paper.id,
             user_id=paper.user_id,
             title=paper.title,
             authors=paper.authors,
-            abstract=paper.abstract,
+            abstract=paper.summary,
             file_key=paper.file_key,
             file_url=paper.file_url,
-            status=paper.status,
+            status=status,
             error_message=paper.error_message,
             created_at=paper.created_at,
+            published_at=paper.published_at,
+            source=paper.source,
             toc=paper.toc
         )
 
@@ -160,7 +174,7 @@ class PaperService:
             collection = await CollectionRepository.get_collection_by_id(self.session, collection_id)
             if not collection or collection.user_id != user_id:
                 raise ValueError("收藏夹不存在或无权访问")
-            target_collection_id = collection.id
+            target_collection_id = collection.collection_id
 
         # 确保目录存在
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -172,13 +186,85 @@ class PaperService:
 
             logger.info(f"文件保存成功: {file_path}")
 
+            # 3.1 立即提取元数据 (Sync/Fast)
+            # 使用PyMuPDF快速提取标题、作者、摘要，无需等待异步解析
+            extracted_title = safe_filename
+            extracted_authors = []
+            extracted_summary = None
+            extracted_published_at = None
+            extracted_source = "upload"
+            extracted_source_ref = None
+
+            try:
+                parser = PyMuPDFParser()
+                # 使用 extract_metadata 异步方法 (内部会在 executor 中运行)
+                metadata = await parser.extract_metadata(file_path)
+                
+                if metadata.get("title"):
+                    extracted_title = metadata["title"]
+                if metadata.get("authors"):
+                    extracted_authors = metadata["authors"]
+                if metadata.get("abstract"):
+                    extracted_summary = metadata["abstract"]
+                if metadata.get("source"):
+                    extracted_source = metadata["source"]
+                if metadata.get("source_id"):
+                    extracted_source_ref = metadata["source_id"]
+                
+                # 处理日期
+                if metadata.get("published_date"):
+                    try:
+                        p_date_str = metadata.get("published_date")
+                        if len(p_date_str) == 10:
+                            extracted_published_at = datetime.strptime(p_date_str, "%Y-%m-%d")
+                        elif len(p_date_str) == 7:
+                            extracted_published_at = datetime.strptime(p_date_str, "%Y-%m")
+                        elif len(p_date_str) == 4:
+                            extracted_published_at = datetime.strptime(p_date_str, "%Y")
+                    except Exception as e:
+                        logger.warning(f"上传时日期解析失败: {e}")
+
+                # 增强: 如果解析器没识别出arXiv但文件名符合arXiv ID格式，强制修正
+                if extracted_source != "arXiv":
+                    # 匹配格式: 1405.3614.pdf 或 1405.3614v1.pdf
+                    arxiv_id_match = re.search(r'(\d{4}\.\d{4,5}(v\d+)?)', filename)
+                    if arxiv_id_match:
+                        extracted_source = "arXiv"
+                        extracted_source_ref = arxiv_id_match.group(1)
+                        logger.info(f"通过文件名识别出arXiv ID: {extracted_source_ref}")
+
+                # 增强: 如果是arXiv来源，尝试从arXiv API获取更准确的元数据
+                if extracted_source == "arXiv" and extracted_source_ref:
+                    try:
+                        arxiv_meta = await self._fetch_arxiv_metadata(extracted_source_ref)
+                        if arxiv_meta:
+                            if arxiv_meta.get("title"):
+                                extracted_title = arxiv_meta["title"]
+                            if arxiv_meta.get("authors"):
+                                extracted_authors = arxiv_meta["authors"]
+                            if arxiv_meta.get("summary"):
+                                extracted_summary = arxiv_meta["summary"]
+                            if arxiv_meta.get("published_at"):
+                                extracted_published_at = arxiv_meta["published_at"]
+                            logger.info(f"已从arXiv API获取增强元数据: {extracted_title}")
+                    except Exception as e:
+                         logger.warning(f"arXiv元数据获取失败: {e}")
+
+                logger.info(f"元数据提取成功: title={extracted_title}, authors={len(extracted_authors)}")
+            except Exception as e:
+                logger.warning(f"元数据提取失败(不影响上传): {e}")
+
             # 4. 创建论文记录
             paper = await self._create_paper_record(
                 user_id=user_id,
-                title=safe_filename,  # 初始标题为文件名，后续解析时更新
-                authors=[],  # 从PDF元数据提取
+                title=extracted_title,
+                authors=extracted_authors,
+                summary=extracted_summary,
                 file_key=file_key,
-                file_url=None  # 可配置CDN URL
+                file_url=None,  # 可配置CDN URL
+                published_at=extracted_published_at,
+                source=extracted_source,
+                source_ref=extracted_source_ref
             )
 
             try:
@@ -202,7 +288,7 @@ class PaperService:
                             default_collection = await CollectionRepository.get_default_collection(self.session, user_id)
 
                     if default_collection:
-                        await CollectionRepository.add_paper_to_collection(self.session, default_collection.id, paper.id)
+                        await CollectionRepository.add_paper_to_collection(self.session, default_collection.collection_id, paper.id)
             except Exception as e:
                 logger.warning(f"论文加入默认收藏夹失败(不影响上传): paper_id={paper.id}, user_id={user_id}, err={e}")
 
@@ -214,7 +300,7 @@ class PaperService:
 
             return PaperUploadResponse(
                 paper_id=str(paper.id),
-                status=paper.status.value,
+                status=paper.analysis_status,
                 message="论文上传成功，正在处理中"
             )
 
@@ -230,6 +316,32 @@ class PaperService:
         """
         触发PDF处理异步任务
         """
+        # 0. 创建任务记录 (持久化)
+        try:
+            # 检查是否已存在(避免重复) - 这里简化为直接创建新任务
+            # 获取 user_id 需要查询 paper，这里暂略，直接从 paper_id 关联
+            # 为了简单，我们先获取 paper 的 user_id
+            paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
+            if paper:
+                # 计算 params_hash
+                params = {"paper_id": str(paper_id), "type": "process_pdf"}
+                params_str = json.dumps(params, sort_keys=True)
+                params_hash = hashlib.md5(params_str.encode()).hexdigest()
+
+                job = Job(
+                    user_id=paper.user_id,
+                    paper_id=paper_id,
+                    type="process_pdf",
+                    status="queued",
+                    progress=0.0,
+                    params_hash=params_hash
+                )
+                self.session.add(job)
+                await self.session.commit()
+                logger.info(f"任务记录已创建: job_id={job.job_id}")
+        except Exception as e:
+             logger.error(f"创建任务记录失败: {e}")
+
         try:
             redis_url = settings.arq_redis_url
             parsed = urlparse(redis_url)
@@ -275,6 +387,71 @@ class PaperService:
             logger.error(f"触发PDF处理任务失败: {e}", exc_info=True)
             # 记录错误但不抛出异常，避免影响上传响应
     
+    async def _fetch_arxiv_metadata(self, arxiv_id: str) -> dict:
+        """
+        从arXiv API获取论文元数据
+        """
+        # 移除版本号 (v1, v2...) 以获取主记录，或者直接用带版本号的ID
+        clean_id = arxiv_id
+        if "arXiv:" in clean_id:
+            clean_id = clean_id.replace("arXiv:", "")
+            
+        url = f"https://export.arxiv.org/api/query?id_list={clean_id}"
+        logger.info(f"Fetching arXiv metadata for {clean_id}")
+        
+        try:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                resp = await client.get(url, timeout=10.0)
+                resp.raise_for_status()
+                
+                # 解析XML
+                root = ET.fromstring(resp.content)
+                # arXiv API 返回 Atom 格式
+                ns = {'atom': 'http://www.w3.org/2005/Atom', 'arxiv': 'http://arxiv.org/schemas/atom'}
+                
+                entry = root.find('atom:entry', ns)
+                if entry is None:
+                    return {}
+                
+                # 检查标题是否包含 Error
+                title_elem = entry.find('atom:title', ns)
+                if title_elem is None:
+                    return {}
+                    
+                title = title_elem.text.strip().replace('\n', ' ')
+                if title == "Error":
+                    return {}
+                
+                summary_elem = entry.find('atom:summary', ns)
+                summary = summary_elem.text.strip() if summary_elem is not None else None
+                
+                published_elem = entry.find('atom:published', ns)
+                published = published_elem.text.strip() if published_elem is not None else None
+                
+                authors = []
+                for author in entry.findall('atom:author', ns):
+                    name_elem = author.find('atom:name', ns)
+                    if name_elem is not None:
+                        authors.append(name_elem.text.strip())
+                
+                published_at = None
+                if published:
+                    try:
+                        # 2014-12-19T16:54:55Z
+                        published_at = datetime.strptime(published, "%Y-%m-%dT%H:%M:%SZ")
+                    except Exception:
+                        pass
+                    
+                return {
+                    "title": title,
+                    "authors": authors,
+                    "summary": summary,
+                    "published_at": published_at
+                }
+        except Exception as e:
+            logger.warning(f"arXiv API fetch failed: {e}")
+            return {}
+
     #TODO: 用这里的redis做嘛?不用我们的worker下的内容,Agent需要获取重新了解下整个项目对这种解析的任务的了解,并汇报给我。
     def _validate_file(self, filename: str, file_content: bytes) -> bool:
         """
@@ -306,7 +483,11 @@ class PaperService:
         title: str,
         authors: List[str],
         file_key: str,
-        file_url: Optional[str] = None
+        file_url: Optional[str] = None,
+        summary: Optional[str] = None,
+        published_at: Optional[datetime] = None,
+        source: Optional[str] = None,
+        source_ref: Optional[str] = None
     ) -> Paper:
         """
         创建论文记录 (返回 Entity 供内部使用)
@@ -315,9 +496,13 @@ class PaperService:
             user_id=user_id,
             title=title,
             authors=authors,
+            summary=summary,
             file_key=file_key,
             file_url=file_url,
-            status=PaperStatus.PENDING
+            analysis_status=PaperStatus.PENDING.value,
+            published_at=published_at,
+            source=source,
+            source_id=source_ref
         )
 
         if paper.file_url is None:
@@ -438,7 +623,7 @@ class PaperProcessingService:
                 
                 # 更新状态为处理中
                 await PaperRepository.update_paper_status(session, paper_id, PaperStatus.PROCESSING)
-                paper.status = PaperStatus.PROCESSING # 更新本地对象状态
+                paper.analysis_status = PaperStatus.PROCESSING.value # 更新本地对象状态
 
             # 2. 获取文件路径
             upload_dir = Path(settings.upload_dir)
@@ -469,10 +654,27 @@ class PaperProcessingService:
             await self._save_chunks(paper_id, chunks, embeddings)
 
             # 8. 更新论文记录
+            published_at = None
+            if metadata.get("published_date"):
+                try:
+                    p_date_str = metadata.get("published_date")
+                    if len(p_date_str) == 10:
+                        published_at = datetime.strptime(p_date_str, "%Y-%m-%d")
+                    elif len(p_date_str) == 7:
+                        published_at = datetime.strptime(p_date_str, "%Y-%m")
+                    elif len(p_date_str) == 4:
+                        published_at = datetime.strptime(p_date_str, "%Y")
+                except Exception as e:
+                    logger.warning(f"处理PDF时日期解析失败: {e}")
+
             await self._update_paper_after_processing(
                 paper_id,
                 title=metadata.get("title"),
-                authors=metadata.get("authors", [])
+                authors=metadata.get("authors", []),
+                summary=metadata.get("abstract"),
+                published_at=published_at,
+                source=metadata.get("source"),
+                source_id=metadata.get("source_id")
             )
 
             logger.info(f"PDF处理完成: {paper_id}")
@@ -518,6 +720,9 @@ class PaperProcessingService:
                 "title": parse_result.title or file_path.stem,
                 "authors": parse_result.authors or [],
                 "abstract": parse_result.abstract,
+                "published_date": parse_result.published_date,
+                "source": parse_result.source,
+                "source_id": parse_result.source_id,
                 "pages": len(parse_result.pages),
                 **parse_result.metadata
             }
@@ -591,14 +796,28 @@ class PaperProcessingService:
         paper_id: UUID,
         title: Optional[str] = None,
         authors: Optional[List[str]] = None,
-        toc: Optional[List] = None
+        toc: Optional[List] = None,
+        summary: Optional[str] = None,
+        published_at: Optional[datetime] = None,
+        source: Optional[str] = None,
+        source_id: Optional[str] = None
     ):
         """
         处理完成后更新论文记录
         """
         async with async_session_factory() as session:
             await PaperRepository.update_paper_status(session, paper_id, PaperStatus.COMPLETED)
-            await PaperRepository.update_paper_metadata(session, paper_id, title, authors, toc)
+            await PaperRepository.update_paper_metadata(
+                session, 
+                paper_id, 
+                title, 
+                authors, 
+                toc, 
+                summary, 
+                published_at,
+                source,
+                source_id
+            )
             logger.info(f"论文状态更新为完成: {paper_id}")
 
     async def _update_status(

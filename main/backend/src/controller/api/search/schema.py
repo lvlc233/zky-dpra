@@ -1,10 +1,11 @@
-from typing import List, Optional
+from typing import List, Optional, Literal
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel, Field
 
 from common.model.enums import PaperStatus
 from service.papers.schema import PaperDTO, PaperMeta
+from service.setting.schema import SearchSetting
 
 
 class SearchFilter(BaseModel):
@@ -24,6 +25,18 @@ class SearchRequest(BaseModel):
     limit: int = Field(10, ge=1, le=100, alias="page_size", description="每页数量")
     enable_semantic_search: bool = Field(False, description="是否启用语义搜索(暂未实现)")
 
+    # 文本匹配配置
+    match_title: bool = Field(True, description="是否匹配标题")
+    match_author: bool = Field(True, description="是否匹配作者")
+    match_abstract: bool = Field(True, description="是否匹配摘要")
+    match_summary: bool = Field(True, description="是否匹配总结")
+    match_full_text: bool = Field(True, description="是否匹配全文")
+
+    # 高级筛选配置 (对应 SearchSetting)
+    match_analysis_status: Optional[Literal['unprocessed', 'processing', 'processed', 'error', '']] = Field(None, description="解析状态过滤")
+    min_date: Optional[datetime] = Field(None, description="最小发表/上传时间")
+    max_date: Optional[datetime] = Field(None, description="最大发表/上传时间")
+
 
 class SearchedPaperMetaResponse(BaseModel):
     """搜索结果响应 (Standardized)"""
@@ -39,6 +52,7 @@ class SearchHistoryResponse(BaseModel):
     created_at: datetime
     result_count: int
 
+
 class SearchResponse(BaseModel):
     """搜索结果响应"""
     total: int
@@ -46,19 +60,9 @@ class SearchResponse(BaseModel):
     query_id: Optional[UUID] = Field(None, description="搜索历史记录ID")
 
 
+class SearchSettingsRequest(BaseModel):
+    search_settings: SearchSetting
+
+
 class SearchSettingsResponse(BaseModel):
-    """搜索配置响应 (聚合了 search.* 和 agent.search_depth)"""
-    enable_deep_reasoning: bool = Field(False, description="是否开启深度推理")
-    enable_auto_summary: bool = Field(True, description="是否自动生成摘要")
-    default_sort_by: str = Field("relevance", description="默认排序方式")
-    max_results: int = Field(10, description="默认每页数量")
-    search_depth: int = Field(3, description="搜索深度")
-
-
-class SearchSettingsUpdate(BaseModel):
-    """搜索配置更新"""
-    enable_deep_reasoning: Optional[bool] = None
-    enable_auto_summary: Optional[bool] = None
-    default_sort_by: Optional[str] = None
-    max_results: Optional[int] = None
-    search_depth: Optional[int] = None
+    search_settings: SearchSetting

@@ -143,3 +143,12 @@ async def refresh_token(
     )
 
     return resp
+
+@users_router.get("/me", response_model=Response[UserPublicResponse])
+async def get_me(
+    current_user: Annotated[User, Depends(get_current_user)]
+):
+    """
+    获取当前用户信息
+    """
+    return Response.success(data=_build_user_public_response(current_user))

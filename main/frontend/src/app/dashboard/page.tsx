@@ -69,9 +69,9 @@ export default function DashboardPage() {
     try {
       const list = await collectionService.getAll();
       const mapped = list.map(c => ({
-        collection_id: c.collection_id,
+        id: c.collection_id,
         label: c.name,
-        count: c.count || 0
+        count: c.total || 0
       }));
       setCollections(mapped);
     } catch (error: any) {
@@ -84,6 +84,7 @@ export default function DashboardPage() {
       setIsSearching(true);
       const papers = await paperService.getList(1, 10);
       setSearchResults(papers);
+      setHasSearched(true); // Show results
       setHasMore(false); // Recent papers usually just list
     } catch (error: any) {
       logger.error("Failed to load papers", error, 'DashboardPage');
@@ -97,7 +98,8 @@ export default function DashboardPage() {
     try {
       setIsSearching(true);
       const detail = await collectionService.getById(collectionId);
-      const papers = (detail as any)?.papers ?? [];
+      // Backend returns { items: [...] } for collection details
+      const papers = detail.items ?? [];
       setSearchResults(papers);
       setIsAIEnabled(false);
       setHasSearched(true);
@@ -111,16 +113,15 @@ export default function DashboardPage() {
   }, []);
 
   const handleUploadSuccess = React.useCallback(() => {
-    if (activeCollection?.collection_id) {
-      loadCollectionPapers(activeCollection.collection_id);
-      return;
+    loadCollections();
+    if (activeCollection?.id) {
+      loadCollectionPapers(activeCollection.id);
     }
-    loadRecentPapers();
-  }, [activeCollection?.collection_id, loadCollectionPapers, loadRecentPapers]);
+  }, [activeCollection?.id, loadCollectionPapers, loadCollections]);
 
   React.useEffect(() => {
-    setUploadCollectionId(activeCollection?.collection_id ?? null);
-  }, [activeCollection?.collection_id, setUploadCollectionId]);
+    setUploadCollectionId(activeCollection?.id ?? null);
+  }, [activeCollection?.id, setUploadCollectionId]);
 
   React.useEffect(() => {
     return () => {
@@ -170,24 +171,20 @@ export default function DashboardPage() {
     loadCollections();
     loadSystemSettings();
     loadSearchSettings();
-    
-    // Inject Mock Data for detail page testing
-    const MOCK_DATA: Paper = {
-        paper_id: 'mock-id-001',
-        title: 'DeepPaper: A Deep Learning Approach for Academic Paper Research',
-        url: 'https://arxiv.org/pdf/2601.14047',
-        file_url: 'https://arxiv.org/pdf/2601.14047',
-        authors: ['Frontend Agent', 'User'],
-        summary: '这是一个用于测试详情页面的模拟数据。点击此处进入详情页面查看效果。',
-        published_at: '2026-01-21',
-        source: 'Mock System',
-        tags: ['Mock', 'Test', 'Agent'],
-        status: 'success'
-    } as any;
-
-    setSearchResults([MOCK_DATA]);
-    setHasSearched(true);
   }, [loadCollections]);
+
+  // Auto-select Default Collection
+  React.useEffect(() => {
+    if (collections.length > 0 && !activeCollection && !hasSearched) {
+      // Find "默认收藏夹" or use the first one
+      const defaultCol = collections.find(c => c.label === '默认收藏夹' || c.label.includes('默认')) || collections[0];
+      if (defaultCol) {
+        setActiveCollection(defaultCol);
+        loadCollectionPapers(defaultCol.id);
+      }
+    }
+  }, [collections, activeCollection, hasSearched, loadCollectionPapers]);
+
 
 
   const handleSearch = async (query: string, useAI: boolean) => {
@@ -245,10 +242,26 @@ export default function DashboardPage() {
     }
   };
 
-  const handleToggleBookmark = (id: string) => {
+  const handleToggleBookmark = (paperId: string) => {
     setSearchResults(prev => prev.map(p => 
-      p.id === id ? { ...p, is_bookmarked: !p.is_bookmarked } : p
+      p.paper_id === paperId ? { ...p, is_bookmarked: !p.is_bookmarked } : p
     ));
+  };
+
+  const handlePaperUpdate = () => {
+    loadCollections();
+    if (activeCollection) {
+      loadCollectionPapers(activeCollection.id);
+    } else if (hasSearched && currentQuery) {
+      handleSearch(currentQuery, isAIEnabled);
+    } else {
+        // Fallback to default collection if available
+        const defaultCol = collections.find(c => c.label === '默认收藏夹' || c.label.includes('默认')) || collections[0];
+        if (defaultCol) {
+            setActiveCollection(defaultCol);
+            loadCollectionPapers(defaultCol.id);
+        }
+    }
   };
 
   const handleCollectionsClick = () => {
@@ -273,13 +286,20 @@ export default function DashboardPage() {
         <Sidebar 
           onSettingsClick={() => setIsSettingsOpen(true)} 
           onSelectCollection={(collection) => {
-             setActiveCollection(collection);
              if (collection?.id) {
+               setActiveCollection(collection);
                loadCollectionPapers(collection.id);
                return;
              }
+             // If collection is null (e.g. deleted), switch to default
              setHasSearched(false);
-             loadRecentPapers();
+             const defaultCol = collections.find(c => c.label === '默认收藏夹' || c.label.includes('默认')) || collections[0];
+             if (defaultCol) {
+                 setActiveCollection(defaultCol);
+                 loadCollectionPapers(defaultCol.id);
+             } else {
+                 setActiveCollection(null);
+             }
           }}
           collections={collections}
           activeCollectionId={activeCollection?.id}
@@ -305,16 +325,23 @@ export default function DashboardPage() {
               onSearch={handleSearch} 
               settings={searchSettings}
               onSettingsChange={setSearchSettings}
-              onSettingsApply={() => {
-                // Optional: Trigger search immediately on apply if query exists
-                if (currentQuery) {
-                  handleSearch(currentQuery, isAIEnabled);
+              onSettingsApply={async () => {
+                try {
+                  await settingsService.updateSearchSettings(searchSettings);
+                  toast.success('搜索设置已保存');
+                  // Optional: Trigger search immediately on apply if query exists
+                  if (currentQuery) {
+                    handleSearch(currentQuery, isAIEnabled);
+                  }
+                } catch (error) {
+                  console.error('Failed to save search settings:', error);
+                  toast.error('保存设置失败');
                 }
               }}
             />
             <SearchFilters 
               className="mt-4" 
-              onUploadClick={() => openUpload({ collectionId: activeCollection?.collection_id ?? null })}
+              onUploadClick={() => openUpload({ collectionId: activeCollection?.id ?? null })}
               filters={searchFilters}
               onChange={(newFilters) => {
                 setSearchFilters(newFilters);
@@ -337,7 +364,13 @@ export default function DashboardPage() {
                </div>
             ) : hasSearched ? (
               <>
-                <SearchResults results={searchResults} onToggleBookmark={handleToggleBookmark} aiEnabled={isAIEnabled} />
+                <SearchResults 
+                  results={searchResults} 
+                  onToggleBookmark={handleToggleBookmark} 
+                  aiEnabled={isAIEnabled} 
+                  collections={collections}
+                  onPaperUpdate={handlePaperUpdate}
+                />
                 {hasMore && (
                   <div className="mt-8 flex justify-center">
                     <button 

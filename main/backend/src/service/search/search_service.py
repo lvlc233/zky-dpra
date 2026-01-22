@@ -58,7 +58,7 @@ class SearchService:
         logger.info("Executing local search.")
         query = select(Paper).where(
             Paper.user_id == user_id,
-            Paper.status != PaperStatus.FAILED
+            Paper.analysis_status != PaperStatus.FAILED.value
         )
 
         # 2. 语义搜索或关键词匹配
@@ -81,7 +81,7 @@ class SearchService:
             query = query.where(
                 or_(
                     Paper.title.ilike(search_term),
-                    Paper.abstract.ilike(search_term)
+                    Paper.summary.ilike(search_term)
                 )
             )
             query = query.order_by(desc(Paper.created_at))
@@ -96,7 +96,29 @@ class SearchService:
             if request.filters.end_date:
                 query = query.where(Paper.created_at <= request.filters.end_date)
             if request.filters.status:
-                query = query.where(Paper.status == request.filters.status)
+                # 兼容旧数据的状态查询
+                status_val = request.filters.status.value
+                if status_val == PaperStatus.PENDING.value:
+                    query = query.where(Paper.analysis_status.in_(['pending', 'unprocessed']))
+                elif status_val == PaperStatus.COMPLETED.value:
+                    query = query.where(Paper.analysis_status.in_(['completed', 'processed']))
+                elif status_val == PaperStatus.FAILED.value:
+                    query = query.where(Paper.analysis_status.in_(['failed', 'error']))
+                else:
+                    query = query.where(Paper.analysis_status == status_val)
+
+        # 应用 match_analysis_status 过滤
+        if request.match_analysis_status:
+            # 统一处理新旧状态映射
+            target_status = request.match_analysis_status
+            if target_status == 'unprocessed' or target_status == PaperStatus.PENDING.value:
+                query = query.where(Paper.analysis_status.in_(['pending', 'unprocessed']))
+            elif target_status == 'processed' or target_status == PaperStatus.COMPLETED.value:
+                query = query.where(Paper.analysis_status.in_(['completed', 'processed']))
+            elif target_status == 'error' or target_status == PaperStatus.FAILED.value:
+                query = query.where(Paper.analysis_status.in_(['failed', 'error']))
+            else:
+                query = query.where(Paper.analysis_status == target_status)
 
         # 4. 计算总数 (Simplified for semantic search performance)
         # count_stmt = select(func.count()).select_from(query.subquery())
@@ -140,7 +162,7 @@ class SearchService:
                 url=None, # TODO: generate url
                 title=p.title,
                 authors=p.authors if p.authors else [],
-                summary=p.abstract,
+                summary=p.summary,
                 published_at=p.created_at,
                 source='local',
                 tags=[],
@@ -190,9 +212,9 @@ class SearchService:
         try:
             history = SearchHistory(
                 user_id=user_id,
-                session_name=request.query, # Map query to session_name
+                query=request.query, 
                 filters=request.filters.model_dump() if request.filters else None,
-                result_count=total
+                # result_count removed as it is not in Entity
             )
             self.session.add(history)
             await self.session.commit()

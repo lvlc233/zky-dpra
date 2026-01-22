@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     """应用配置类"""
 
     # 数据库配置
-    database_url: str = "postgresql://postgres:lixiaozai233@localhost:5432/dpra"
+    database_url: str = "postgresql://postgres:lixiaozai233@localhost:5432/paper"
 
     # Redis配置
     redis_url: str = "redis://localhost:6379/0"

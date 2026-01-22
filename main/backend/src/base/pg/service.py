@@ -2,11 +2,12 @@
 import logging
 from typing import AsyncGenerator, Optional, List, Annotated
 from uuid import UUID
+from datetime import datetime
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.future import select
-from sqlalchemy import func, delete, Tuple
+from sqlalchemy import func, delete, Tuple, update
 from sqlalchemy.orm import selectinload
 from fastapi import Depends
 
@@ -128,7 +129,7 @@ class PaperRepository:
         paper = result.scalar_one_or_none()
         
         if paper:
-            paper.status = status
+            paper.analysis_status = status.value
             if error_message:
                 paper.error_message = error_message
             session.add(paper)
@@ -142,7 +143,11 @@ class PaperRepository:
         paper_id: UUID, 
         title: Optional[str] = None, 
         authors: Optional[List[str]] = None,
-        toc: Optional[List] = None
+        toc: Optional[List] = None,
+        summary: Optional[str] = None,
+        published_at: Optional[datetime] = None,
+        source: Optional[str] = None,
+        source_id: Optional[str] = None
     ) -> Optional[Paper]:
         statement = select(Paper).where(Paper.id == paper_id)
         result = await session.execute(statement)
@@ -155,6 +160,14 @@ class PaperRepository:
                 paper.authors = authors
             if toc:
                 paper.toc = toc
+            if summary:
+                paper.summary = summary
+            if published_at:
+                paper.published_at = published_at
+            if source:
+                paper.source = source
+            if source_id:
+                paper.source_id = source_id
             session.add(paper)
             await session.commit()
             await session.refresh(paper)
@@ -178,6 +191,31 @@ class PaperRepository:
         paper = result.scalar_one_or_none()
         
         if paper:
+            # 1. 解除与收藏夹的关联 (CollectionPaper)
+            await session.execute(delete(CollectionPaper).where(CollectionPaper.paper_id == paper_id))
+            
+            # 2. 删除关联的切片 (PaperChunk)
+            await session.execute(delete(PaperChunk).where(PaperChunk.paper_id == paper_id))
+            
+            # 3. 删除关联的摘要 (PaperSummary)
+            await session.execute(delete(PaperSummary).where(PaperSummary.paper_id == paper_id))
+            
+            # 4. 删除关联的标注 (Annotation)
+            await session.execute(delete(Annotation).where(Annotation.paper_id == paper_id))
+            
+            # 5. 删除关联的笔记 (Note)
+            await session.execute(delete(Note).where(Note.paper_id == paper_id))
+            
+            # 6. 删除关联的思维导图 (MindMap)
+            await session.execute(delete(MindMap).where(MindMap.paper_id == paper_id))
+            
+            # 7. 解除与会话的关联 (AgentSession) - 设置为NULL以保留历史
+            await session.execute(update(AgentSession).where(AgentSession.paper_id == paper_id).values(paper_id=None))
+            
+            # 8. 解除与任务的关联 (Job) - 设置为NULL以保留记录
+            await session.execute(update(Job).where(Job.paper_id == paper_id).values(paper_id=None))
+
+            # 9. 删除论文本身
             await session.delete(paper)
             await session.commit()
             return True
@@ -203,7 +241,7 @@ class CollectionRepository:
     @staticmethod
     async def get_collection_by_id(session: AsyncSession, collection_id: UUID) -> Optional[Collection]:
         """根据ID获取收藏夹"""
-        statement = select(Collection).where(Collection.id == collection_id)
+        statement = select(Collection).where(Collection.collection_id == collection_id)
         result = await session.execute(statement)
         return result.scalar_one_or_none()
 
@@ -229,9 +267,9 @@ class CollectionRepository:
         """获取用户的收藏夹列表及其论文数量"""
         statement = (
             select(Collection, func.count(CollectionPaper.paper_id))
-            .outerjoin(CollectionPaper, Collection.id == CollectionPaper.collection_id)
+            .outerjoin(CollectionPaper, Collection.collection_id == CollectionPaper.collection_id)
             .where(Collection.user_id == user_id)
-            .group_by(Collection.id)
+            .group_by(Collection.collection_id)
             .order_by(Collection.updated_at.desc())
             .limit(limit)
             .offset(offset)
@@ -315,7 +353,7 @@ class CollectionRepository:
     ) -> int:
         """从用户的所有收藏夹中移除指定论文"""
         # Find collection_ids for this user
-        subquery = select(Collection.id).where(Collection.user_id == user_id)
+        subquery = select(Collection.collection_id).where(Collection.user_id == user_id)
         
         statement = delete(CollectionPaper).where(
             CollectionPaper.paper_id == paper_id,
@@ -413,9 +451,9 @@ class ReaderRepository:
 
     @staticmethod
     async def get_mind_map_by_paper(session: AsyncSession, paper_id: UUID, user_id: UUID) -> Optional[MindMap]:
-        statement = select(MindMap).where(
+        statement = select(MindMap).join(Paper).where(
             MindMap.paper_id == paper_id,
-            MindMap.user_id == user_id
+            Paper.user_id == user_id
         )
         result = await session.execute(statement)
         return result.scalar_one_or_none()
@@ -459,7 +497,7 @@ class ReaderRepository:
     @staticmethod
     async def get_annotation_by_id(session: AsyncSession, anno_id: UUID) -> Optional[Annotation]:
         """获取标注详情"""
-        statement = select(Annotation).where(Annotation.id == anno_id)
+        statement = select(Annotation).where(Annotation.annotation_id == anno_id)
         result = await session.execute(statement)
         return result.scalar_one_or_none()
         

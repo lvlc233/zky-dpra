@@ -1,5 +1,6 @@
 import asyncio
 import json
+import hashlib
 from datetime import datetime
 from typing import List, AsyncGenerator, Optional, Any
 from uuid import UUID, uuid4
@@ -29,14 +30,14 @@ class JobService:
         
         items = [
             JobDTO(
-                id=j.id,
-                job_type=j.job_type,
+                id=j.job_id,
+                job_type=j.type,
                 status=j.status,
                 progress=float(j.progress) if j.progress is not None else 0.0,
                 stage=j.stage,
-                error_message=j.error_message,
+                error_message=j.error,
                 created_at=j.created_at,
-                completed_at=j.completed_at,
+                completed_at=j.end_at,
                 result=j.result # Assuming result is stored as JSON and compatible with JobResult
             ) for j in jobs
         ]
@@ -50,14 +51,19 @@ class JobService:
         if not paper:
             raise HTTPException(status_code=404, detail="Paper not found")
 
+        # Calculate params_hash
+        params_str = json.dumps(req.params, sort_keys=True) if req.params else ""
+        params_hash = hashlib.md5(params_str.encode()).hexdigest()
+
         # Create Job
         new_job = Job(
-            id=uuid4(),
+            job_id=uuid4(),
+            user_id=user_id,
             paper_id=paper_id,
-            job_type=req.job_type,
+            type=req.job_type,
             status="queued",
             progress=0,
-            params=req.params,
+            params_hash=params_hash,
             created_at=datetime.now()
         )
         self.session.add(new_job)
@@ -65,23 +71,40 @@ class JobService:
         await self.session.refresh(new_job)
         
         # TODO: Trigger background task here
-        # For example: task_service.submit(new_job.id)
+        # For example: task_service.submit(new_job.job_id)
         
-        return JobResponse.model_validate(new_job)
+        # Map entity to response
+        return JobResponse(
+            id=new_job.job_id,
+            job_type=new_job.type,
+            status=new_job.status,
+            progress=new_job.progress,
+            created_at=new_job.created_at,
+            result=new_job.result,
+            error_message=new_job.error
+        )
 
     async def get_job(self, job_id: UUID, user_id: UUID) -> JobResponse:
         # Join Paper to check user permission
         stmt = (
             select(Job)
             .join(Paper)
-            .where(Job.id == job_id, Paper.user_id == user_id)
+            .where(Job.job_id == job_id, Paper.user_id == user_id)
         )
         result = await self.session.execute(stmt)
         job = result.scalar_one_or_none()
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         
-        return JobResponse.model_validate(job)
+        return JobResponse(
+            id=job.job_id,
+            job_type=job.type,
+            status=job.status,
+            progress=job.progress,
+            created_at=job.created_at,
+            result=job.result,
+            error_message=job.error
+        )
 
     async def subscribe_job_events(self, job_id: UUID, user_id: UUID) -> AsyncGenerator[str, None]:
         # 1. Check permission

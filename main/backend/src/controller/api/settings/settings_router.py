@@ -2,8 +2,13 @@
 配置管理 API 路由。
 
 开发者: BackendAgent
-当前版本: v1.0_config_router
+当前版本: v1.2_config_router_complete
 创建时间: 2026-01-14 20:30:00
+更新时间: 2026-01-21 23:30:00
+更新记录:
+    [2026-01-14 20:30:00:v1.0_config_router:初始化配置路由]
+    [2026-01-21 23:25:00:v1.1_config_router_refactor:重构配置路由以匹配统一架构文档]
+    [2026-01-21 23:30:00:v1.2_config_router_complete:添加搜索配置路由，完成所有设置项迁移]
 """
 
 from typing import Annotated
@@ -15,14 +20,14 @@ from base.pg.service import SessionDep
 from controller.api.auth.router import get_current_user
 from controller.response import Response
 from controller.api.settings.schema import (
-    AddSourceSettingsRequest,
-    AISearchSettingsRequest,
-    AISearchSettingsResponse,
     AIReaderSettingsRequest,
     AIReaderSettingsResponse,
-    SourceSettingsResponse,
     SystemSettingsRequest,
     SystemSettingsResponse,
+)
+from controller.api.search.schema import (
+    SearchSettingsRequest,
+    SearchSettingsResponse,
 )
 from service.setting.setting_service import SettingService
 
@@ -36,83 +41,26 @@ def get_setting_service(db: SessionDep) -> SettingService:
 SettingServiceDep = Annotated[SettingService, Depends(get_setting_service)]
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
-@router.get("/search/sources", response_model=Response[SourceSettingsResponse])
-async def get_search_sources(
-    current_user: CurrentUserDep,
-    service: SettingServiceDep,
-):
-    settings = await service.get_source_settings(current_user.id)
-    return Response.success(data=SourceSettingsResponse.model_validate(settings))
-
-
-@router.post("/search/sources", response_model=Response)
-async def add_search_source(
-    data: AddSourceSettingsRequest,
-    current_user: CurrentUserDep,
-    service: SettingServiceDep,
-):
-    await service.add_source_settings(current_user.id, data)
-    # 按照接口接口文档的标准,返回空对象,但保留service的返回。
-    return Response.success()
-
-
-@router.patch("/search/sources/{source_id}", response_model=Response)
-async def update_search_source(
-    source_id: str,
-    data: AddSourceSettingsRequest,
-    current_user: CurrentUserDep,
-    service: SettingServiceDep,
-):
-    await service.update_source_settings(current_user.id, source_id, data)
-    return Response.success()
-
-
-@router.delete("/search/sources/{source_id}", response_model=Response)
-async def delete_search_source(
-    source_id: str,
-    current_user: CurrentUserDep,
-    service: SettingServiceDep,
-):
-    await service.delete_source_settings(current_user.id, source_id)
-    return Response.success()
-
-
-@router.get("/search/ai", response_model=Response[AISearchSettingsResponse])
-async def get_ai_search_settings(
-    current_user: CurrentUserDep,
-    service: SettingServiceDep,
-):
-    settings = await service.get_ai_search_settings(current_user.id)
-    return Response.success(data=AISearchSettingsResponse.model_validate(settings))
-
-
-@router.put("/search/ai", response_model=Response)
-async def update_ai_search_settings(
-    data: AISearchSettingsRequest,
-    current_user: CurrentUserDep,
-    service: SettingServiceDep,
-):
-    await service.update_ai_search_settings(current_user.id, data)
-    return Response.success()
-
 
 @router.get("/reader/ai", response_model=Response[AIReaderSettingsResponse])
 async def get_ai_reader_settings(
     current_user: CurrentUserDep,
     service: SettingServiceDep,
 ):
-    settings = await service.get_ai_reader_settings(current_user.id)
-    return Response.success(data=AIReaderSettingsResponse.model_validate(settings))
+    """获取AI阅读器设置"""
+    items = await service.get_ai_reader_settings(current_user.id)
+    return Response.success(data=AIReaderSettingsResponse(items=items))
 
 
-@router.put("/reader/ai", response_model=Response)
+@router.patch("/reader/ai", response_model=Response[AIReaderSettingsResponse])
 async def update_ai_reader_settings(
     data: AIReaderSettingsRequest,
     current_user: CurrentUserDep,
     service: SettingServiceDep,
 ):
-    await service.update_ai_reader_settings(current_user.id, data)
-    return Response.success()
+    """更新AI阅读器设置"""
+    items = await service.update_ai_reader_settings(current_user.id, data.items)
+    return Response.success(data=AIReaderSettingsResponse(items=items))
 
 
 @router.get("/system", response_model=Response[SystemSettingsResponse])
@@ -120,15 +68,38 @@ async def get_system_settings(
     current_user: CurrentUserDep,
     service: SettingServiceDep,
 ):
+    """获取系统设置"""
     settings = await service.get_system_settings(current_user.id)
-    return Response.success(data=SystemSettingsResponse.model_validate(settings))
+    return Response.success(data=SystemSettingsResponse(system_settings=settings))
 
 
-@router.put("/system", response_model=Response)
+@router.patch("/system", response_model=Response[SystemSettingsResponse])
 async def update_system_settings(
     data: SystemSettingsRequest,
     current_user: CurrentUserDep,
     service: SettingServiceDep,
 ):
-    await service.update_system_settings(current_user.id, data)
-    return Response.success()
+    """更新系统设置"""
+    settings = await service.update_system_settings(current_user.id, data.system_settings)
+    return Response.success(data=SystemSettingsResponse(system_settings=settings))
+
+
+@router.get("/search", response_model=Response[SearchSettingsResponse])
+async def get_search_settings(
+    current_user: CurrentUserDep,
+    service: SettingServiceDep,
+):
+    """获取搜索设置"""
+    settings = await service.get_search_settings(current_user.id)
+    return Response.success(data=SearchSettingsResponse(search_settings=settings))
+
+
+@router.put("/search", response_model=Response[SearchSettingsResponse])
+async def update_search_settings(
+    data: SearchSettingsRequest,
+    current_user: CurrentUserDep,
+    service: SettingServiceDep,
+):
+    """更新搜索设置"""
+    settings = await service.update_search_settings(current_user.id, data.search_settings)
+    return Response.success(data=SearchSettingsResponse(search_settings=settings))
