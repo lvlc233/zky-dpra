@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FileText, User, Calendar, Sparkles, AlertCircle, CheckCircle, Clock, FolderInput, Trash2 } from 'lucide-react';
+import { FileText, User, Calendar, Sparkles, AlertCircle, CheckCircle, Clock, FolderInput, Trash2, Bookmark } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Paper } from '@/types/models';
@@ -43,9 +43,27 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
     [router]
   );
 
-  const handleMove = async (paperId: string, targetCollectionId: string) => {
+  const handleMove = async (paper: Paper, targetCollectionId: string) => {
     try {
-      await collectionService.movePaper(targetCollectionId, paperId);
+      // If paper_id is missing (external search result), import it first
+      if (!paper.paper_id) {
+        if (paper.url) {
+           const toastId = toast.loading('正在导入并移动论文...');
+           try {
+              await paperService.uploadWeb([paper.url], targetCollectionId);
+              toast.success('已添加到收藏夹并开始处理', { id: toastId });
+              onPaperUpdate?.();
+           } catch (err: any) {
+              toast.error(err.message || '导入失败', { id: toastId });
+           }
+           return;
+        } else {
+           toast.error('无法移动：缺少文件链接');
+           return;
+        }
+      }
+
+      await collectionService.movePaper(targetCollectionId, paper.paper_id);
       toast.success('移动成功');
       onPaperUpdate?.();
     } catch (error: any) {
@@ -118,11 +136,11 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
 
         {/* Table Body */}
         <div className="divide-y divide-gray-50 dark:divide-slate-800">
-          {results.map((paper) => (
+          {results.map((paper, index) => (
             <div 
-              key={paper.paper_id} 
+              key={paper.paper_id || paper.url || index} 
               className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer items-start"
-              onClick={() => handleOpenPaper(paper.paper_id)}
+              onClick={() => paper.paper_id ? handleOpenPaper(paper.paper_id) : toast.info("请先添加到收藏夹以阅读")}
             >
               {/* Title Column */}
               <div className="col-span-3 pl-2">
@@ -210,10 +228,15 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                     <Popover.Trigger asChild>
                       <button 
                         onClick={(e) => e.stopPropagation()}
-                        className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors"
-                        title="移动到其他收藏夹"
+                        className={cn(
+                          "p-1.5 rounded-md transition-colors",
+                          paper.is_bookmarked 
+                            ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50" 
+                            : "text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                        )}
+                        title={paper.is_bookmarked ? "已收藏 (点击移动)" : "添加到收藏夹"}
                       >
-                        <FolderInput className="w-3.5 h-3.5" />
+                        <Bookmark className={cn("w-3.5 h-3.5", paper.is_bookmarked && "fill-current")} />
                       </button>
                     </Popover.Trigger>
                     <Popover.Portal>
@@ -228,7 +251,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                                 key={collection.id}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleMove(paper.paper_id, collection.id);
+                                  handleMove(paper, collection.id);
                                 }}
                                 className="flex items-center justify-between w-full px-2 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 rounded text-left"
                               >

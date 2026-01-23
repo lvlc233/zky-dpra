@@ -11,8 +11,8 @@ export interface SearchParams {
   match_title?: boolean;
   match_author?: boolean;
   match_abstract?: boolean;
-  match_summary?: boolean;
-  match_full_text?: boolean;
+  match_source?: boolean;
+  enable_web_search?: boolean;
   
   // Advanced Settings
   match_analysis_status?: MatchAnalysisStatus;

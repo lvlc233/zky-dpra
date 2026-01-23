@@ -7,9 +7,9 @@ import { SearchBar } from "@/components/search/SearchBar";
 import { SearchFilters } from "@/components/search/SearchFilters";
 import { Paper } from "@/types/models";
 import { SearchResults } from "@/components/search/SearchResults";
+import { Pagination } from "@/components/ui/pagination-custom";
 import { SettingsModal } from "@/components/settings/SettingsModal";
-import { UploadModal } from "@/components/upload/UploadModal";
-import { BookOpen, Sparkles, Loader2 } from 'lucide-react';
+import { BookOpen, Sparkles } from 'lucide-react';
 import { useUploadStore } from "@/store/upload.store";
 
 import { searchService } from '@/services/search.service';
@@ -36,8 +36,8 @@ export default function DashboardPage() {
     match_title: true,
     match_author: true,
     match_abstract: true,
-    match_summary: true,
-    match_full_text: true,
+    match_source: true,
+    enable_web_search: false,
   });
 
   const [searchSettings, setSearchSettings] = useState<SearchSettingsType>({
@@ -52,6 +52,7 @@ export default function DashboardPage() {
 
   // Pagination State
   const [page, setPage] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [currentQuery, setCurrentQuery] = useState('');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -188,10 +189,24 @@ export default function DashboardPage() {
 
 
   const handleSearch = async (query: string, useAI: boolean) => {
+    // If query is empty, fallback to collection view (pure local)
     if (!query || !query.trim()) {
-        toast.error("请输入搜索内容");
+        setCurrentQuery('');
+        if (activeCollection) {
+            loadCollectionPapers(activeCollection.id);
+        } else {
+             // Try to find default collection
+             const defaultCol = collections.find(c => c.label === '默认收藏夹' || c.label.includes('默认')) || collections[0];
+             if (defaultCol) {
+                 setActiveCollection(defaultCol);
+                 loadCollectionPapers(defaultCol.id);
+             } else {
+                 toast.info("暂无收藏夹可显示");
+             }
+        }
         return;
     }
+
     setIsSearching(true);
     setIsAIEnabled(useAI);
     setCurrentQuery(query);
@@ -202,12 +217,15 @@ export default function DashboardPage() {
             query,
             page: 1,
             limit: searchSettings.limit,
-            filters: activeCollection ? { collection_id: activeCollection.id } : undefined,
+            // Only pass collection_id filter if we are NOT searching web (external)
+            // If enable_web_search is true, we ignore collection context for the search itself
+            filters: (!searchFilters.enable_web_search && activeCollection) ? { collection_id: activeCollection.id } : undefined,
             ...searchFilters,
             ...searchSettings
         });
         setHasSearched(true);
         setSearchResults(response.items || []);
+        setTotalResults(response.total);
         setHasMore(response.total > response.items.length); // Assuming response.total exists
     } catch (error: any) {
         logger.error("Search failed", error, 'DashboardPage');
@@ -217,26 +235,30 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLoadMore = async () => {
-    if (isLoadingMore || !hasMore) return;
+  const handlePageChange = async (newPage: number) => {
+    if (isLoadingMore) return;
     setIsLoadingMore(true);
-    const nextPage = page + 1;
     
     try {
         const response = await searchService.search({
             query: currentQuery,
-            page: nextPage,
+            page: newPage,
             limit: searchSettings.limit,
-            filters: activeCollection ? { collection_id: activeCollection.id } : undefined,
+            filters: (!searchFilters.enable_web_search && activeCollection) ? { collection_id: activeCollection.id } : undefined,
             ...searchFilters,
             ...searchSettings
         });
-        setSearchResults(prev => [...prev, ...response.items]);
-        setPage(nextPage);
-        setHasMore(searchResults.length + response.items.length < response.total);
+        setSearchResults(response.items);
+        setPage(newPage);
+        setTotalResults(response.total);
+        setHasMore(response.total > response.items.length);
+        
+        // Scroll to top
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) mainContent.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
-        logger.error("Load more failed", error, 'DashboardPage');
-        toast.error("加载更多失败");
+        logger.error("Page change failed", error, 'DashboardPage');
+        toast.error("加载失败");
     } finally {
         setIsLoadingMore(false);
     }
@@ -371,18 +393,15 @@ export default function DashboardPage() {
                   collections={collections}
                   onPaperUpdate={handlePaperUpdate}
                 />
-                {hasMore && (
-                  <div className="mt-8 flex justify-center">
-                    <button 
-                      onClick={handleLoadMore}
-                      disabled={isLoadingMore}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-medium rounded-full shadow-sm hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {isLoadingMore ? '加载中...' : '加载更多'}
-                    </button>
-                  </div>
-                )}
+                <div className="mt-8">
+                  <Pagination 
+                    currentPage={page}
+                    total={totalResults}
+                    pageSize={searchSettings.limit}
+                    onPageChange={handlePageChange}
+                    disabled={isLoadingMore}
+                  />
+                </div>
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 mt-10">

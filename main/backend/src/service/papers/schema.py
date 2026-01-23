@@ -33,6 +33,7 @@ class PaperMeta(BaseModel):
     source: str = Field(..., description="文件来源类型(如arXiv、PDF等)")
     tags: List[str] = Field(default_factory=list, description="标签(类型)")
     references_number: Optional[int] = Field(None, description="引用数量")
+    is_bookmarked: bool = Field(False, description="是否已收藏")
 
 
 class PaperInfo(BaseModel):

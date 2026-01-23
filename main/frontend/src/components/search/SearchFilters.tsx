@@ -11,15 +11,15 @@ interface SearchFiltersProps {
     match_title: boolean;
     match_author: boolean;
     match_abstract: boolean;
-    match_summary: boolean;
-    match_full_text: boolean;
+    match_source: boolean;
+    enable_web_search: boolean;
   };
   onChange: (filters: {
     match_title: boolean;
     match_author: boolean;
     match_abstract: boolean;
-    match_summary: boolean;
-    match_full_text: boolean;
+    match_source: boolean;
+    enable_web_search: boolean;
   }) => void;
 }
 
@@ -27,8 +27,8 @@ const FILTER_OPTIONS = [
   { id: 'match_title', label: '标题' },
   { id: 'match_author', label: '作者' },
   { id: 'match_abstract', label: '摘要' },
-  { id: 'match_summary', label: '总结' },
-  { id: 'match_full_text', label: '全文' },
+  { id: 'match_source', label: '来源' },
+  { id: 'enable_web_search', label: '网络' },
 ] as const;
 
 export const SearchFilters: React.FC<SearchFiltersProps> = ({ className, onUploadClick, filters, onChange }) => {
@@ -37,22 +37,20 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({ className, onUploa
   const toggleFilter = (key: keyof typeof filters | 'all') => {
     if (key === 'all') {
       if (isAllSelected) {
-        // Optional: Deselect all? Or keep all? Usually "All" toggle turns all on. 
-        // If already all on, maybe turn off? Let's say turn off.
         onChange({
           match_title: false,
           match_author: false,
           match_abstract: false,
-          match_summary: false,
-          match_full_text: false,
+          match_source: false,
+          enable_web_search: false,
         });
       } else {
         onChange({
           match_title: true,
           match_author: true,
           match_abstract: true,
-          match_summary: true,
-          match_full_text: true,
+          match_source: true,
+          enable_web_search: true,
         });
       }
       return;

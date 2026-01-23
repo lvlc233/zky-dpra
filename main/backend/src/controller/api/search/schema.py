@@ -29,13 +29,17 @@ class SearchRequest(BaseModel):
     match_title: bool = Field(True, description="是否匹配标题")
     match_author: bool = Field(True, description="是否匹配作者")
     match_abstract: bool = Field(True, description="是否匹配摘要")
-    match_summary: bool = Field(True, description="是否匹配总结")
-    match_full_text: bool = Field(True, description="是否匹配全文")
+    match_source: bool = Field(True, description="是否匹配来源")
+    enable_web_search: bool = Field(False, description="是否启用网络搜索")
 
     # 高级筛选配置 (对应 SearchSetting)
     match_analysis_status: Optional[Literal['unprocessed', 'processing', 'processed', 'error', '']] = Field(None, description="解析状态过滤")
     min_date: Optional[datetime] = Field(None, description="最小发表/上传时间")
     max_date: Optional[datetime] = Field(None, description="最大发表/上传时间")
+
+    model_config = {
+        "populate_by_name": True
+    }
 
 
 class SearchedPaperMetaResponse(BaseModel):

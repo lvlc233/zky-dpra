@@ -1,13 +1,14 @@
 # 前端对接后端 API 需求说明书 (Frontend to Backend API Requirements)
 
-> **版本**: v1.0
-> **日期**: 2026-01-11
+> **版本**: v1.1
+> **日期**: 2026-01-22
 > **提交方**: FrontendAgent
 > **说明**: 本文档基于前端已实现的 UI 组件及业务逻辑 (`ReaderRightPanel`, `PDFPageOverlay`, `ChatBox` 等) 整理而成，旨在向后端明确具体的数据交互需求、接口定义及 SSE 协议细节。
 
 ---
 
-
+## 1. 简介
+本文档描述了 FrontendAgent 需要 BackendAgent 提供的 API 接口，以支持 DeepPaperReader 的核心功能。
 
 ---
 
@@ -165,40 +166,46 @@ interface Layer {
 
 ---
 
-## 5. 数据类型定义 (Type Definitions)
+## 5. 搜索服务 (Search Service)
+
+### 5.1 搜索接口
+| Method | Path | Description | Payload/Params | Response |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/search` | 搜索论文 (支持本地与网络) | `SearchRequest` | `SearchedPaperMetaResponse` |
+
+**SearchRequest Schema Update:**
+```json
+{
+  "query": "string",
+  "match_title": true,
+  "match_author": true,
+  "match_abstract": true,
+  "match_source": true,       // Replaces match_summary
+  "enable_web_search": false, // Replaces match_full_text. If true, searches Arxiv.
+  "filters": { ... },
+  ...
+}
+```
+
+---
+
+## 6. 数据类型定义 (Type Definitions)
 
 为了确保前后端契合，请参考以下 TypeScript 定义生成 Pydantic 模型。
 
-### 5.1 GraphNode (用于知识图谱)
+### 6.1 GraphNode (用于知识图谱)
 ```typescript
 interface GraphNode {
   id: string;
   label: string;
-  fill?: string; // 节点颜色
-  size?: number;
-  data?: {
-    type: 'concept' | 'paper' | 'author';
-    description?: string;
-  };
+  type: 'concept' | 'paper' | 'author';
+  data?: any;
 }
 
 interface GraphEdge {
-  id: string;
   source: string;
   target: string;
-  label?: string; // 关系名称
-}
-```
-
-### 5.2 ReportItem (用于报告)
-```typescript
-interface ReportItem {
+  label?: string;
   id: string;
-  title: string;
-  createTime: string; // ISO 8601
-  status: 'completed' | 'generating' | 'failed' | 'cancelled';
-  content: string; // Markdown 格式
-  summary?: string;
 }
 ```
-(感觉可以合并到统一架构文案中。)

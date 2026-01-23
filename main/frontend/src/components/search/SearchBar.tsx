@@ -39,7 +39,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ className, onSearch, setti
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    // Allow empty query to trigger "reset" or "return to collection" behavior
     if (onSearch) {
       onSearch(query, useAI);
     }

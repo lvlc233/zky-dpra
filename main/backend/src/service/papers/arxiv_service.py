@@ -167,7 +167,8 @@ class ArxivService:
 
             # 调用Base层解析XML
             logger.info("调用Base层（ArxivXmlParser）解析XML")
-            arxiv_papers: List[ArxivPaperInfo] = self.parser.parse(xml_content)
+            # parser now returns tuple (papers, total_count)
+            arxiv_papers, _ = self.parser.parse(xml_content)
 
             logger.info(f"成功获取并解析 {len(arxiv_papers)} 篇论文")
 
@@ -195,7 +196,7 @@ class ArxivService:
             return []
 
 
-    async def search_papers(self, query: str, start: int = 0, max_results: int = 10) -> List[PaperInfo]:
+    async def search_papers(self, query: str, start: int = 0, max_results: int = 10) -> tuple[List[PaperInfo], int]:
         '''
         根据关键词搜索arXiv论文 (Service层)
 
@@ -205,7 +206,7 @@ class ArxivService:
         - max_results: 返回数量
 
         返回:
-        - PaperInfo对象列表
+        - (PaperInfo对象列表, 总记录数)
         '''
         logger.info(f"搜索arXiv论文: query='{query}', start={start}, max={max_results}")
 
@@ -215,11 +216,11 @@ class ArxivService:
 
             if not xml_content:
                 logger.warning("搜索结果为空")
-                return []
+                return [], 0
 
             # 解析XML
-            arxiv_papers: List[ArxivPaperInfo] = self.parser.parse(xml_content)
-            logger.info(f"搜索到 {len(arxiv_papers)} 篇论文")
+            arxiv_papers, total_count = self.parser.parse(xml_content)
+            logger.info(f"搜索到 {len(arxiv_papers)} 篇论文，总数: {total_count}")
 
             # 转换为 Service 层 PaperInfo 模型
             papers: List[PaperInfo] = [
@@ -235,8 +236,8 @@ class ArxivService:
                 ) for p in arxiv_papers
             ]
 
-            return papers
+            return papers, total_count
 
         except Exception as e:
             logger.error(f"搜索论文失败: {e}", exc_info=True)
-            return []
+            return [], 0

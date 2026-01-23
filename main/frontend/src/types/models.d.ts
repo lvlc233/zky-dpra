@@ -13,7 +13,7 @@ export interface User {
 }
 
 export interface Paper {
-  paper_id: string;
+  paper_id?: string; // Optional for external search results
   title: string;
   url?: string; // Web URL or Proxy URL
   authors: string[];

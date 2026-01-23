@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Calendar, FileText, BarChart, Zap, Layers, Filter } from 'lucide-react';
@@ -25,6 +25,51 @@ const STATUS_OPTIONS: { value: MatchAnalysisStatus; label: string }[] = [
 ];
 
 export const SearchSettings: React.FC<SearchSettingsProps> = ({ className, isOpen, onClose, settings, onChange, onApply }) => {
+  const [localLimit, setLocalLimit] = useState(settings.limit.toString());
+
+  useEffect(() => {
+    setLocalLimit(settings.limit.toString());
+  }, [settings.limit]);
+
+  const handleLimitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setLocalLimit(val);
+    
+    // Only update parent if it's a valid number
+    if (val === '') return;
+    
+    const num = parseInt(val);
+    if (!isNaN(num)) {
+      onChange({ ...settings, limit: num });
+    }
+  };
+
+  const handleLimitBlur = () => {
+    let num = parseInt(localLimit);
+    if (isNaN(num) || num < 1) {
+      num = 1;
+    } else if (num > 100) {
+      num = 100;
+    }
+    setLocalLimit(num.toString());
+    onChange({ ...settings, limit: num });
+  };
+
+  const handleApply = () => {
+    // Ensure limit is valid before applying
+    let num = parseInt(localLimit);
+    if (isNaN(num) || num < 1) num = 1;
+    if (num > 100) num = 100;
+    
+    // Final sync if needed (e.g. if user left it empty)
+    if (settings.limit !== num) {
+        onChange({ ...settings, limit: num });
+    }
+    
+    onApply();
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -78,9 +123,10 @@ export const SearchSettings: React.FC<SearchSettingsProps> = ({ className, isOpe
                   type="number" 
                   min={1}
                   max={100}
-                  value={settings.limit}
-                  onChange={(e) => onChange({ ...settings, limit: parseInt(e.target.value) || 10 })}
-                  className="w-full text-sm bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 dark:text-gray-200 rounded-md p-1.5" 
+                  value={localLimit}
+                  onChange={handleLimitChange}
+                  onBlur={handleLimitBlur}
+                  className="w-full text-sm border-gray-200 dark:border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 bg-gray-50 dark:bg-slate-800 dark:text-gray-200 p-2" 
                 />
             </div>
           </div>
@@ -90,7 +136,7 @@ export const SearchSettings: React.FC<SearchSettingsProps> = ({ className, isOpe
       {/* Footer */}
       <div className="p-3 bg-gray-50 dark:bg-slate-800 border-t border-gray-100 dark:border-slate-700 flex justify-between items-center">
         <button onClick={onClose} className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">取消</button>
-        <button onClick={() => { onApply(); onClose(); }} className="px-3 py-1.5 bg-gray-900 dark:bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-indigo-700">
+        <button onClick={handleApply} className="px-3 py-1.5 bg-gray-900 dark:bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-indigo-700">
             确认应用
         </button>
       </div>

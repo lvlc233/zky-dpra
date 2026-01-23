@@ -43,52 +43,51 @@ class ArxivXmlParser:
         logger.info("ArxivXmlParser 初始化完成")
 
 
-    def parse(self, xml_content: str) -> List[ArxivPaperInfo]:
+    def parse(self, xml_content: str) -> tuple[List[ArxivPaperInfo], int]:
         '''
         解析arXiv API返回的XML数据
-
+        
         参数:
         - xml_content: arXiv API返回的原始XML字符串
-
+        
         返回:
-        - ArxivPaperInfo对象列表
-
+        - (ArxivPaperInfo对象列表, 总记录数)
+        
         实现逻辑:
         1. 解析XML命名空间
         2. 遍历所有entry（论文条目）
         3. 提取每个论文的字段信息
         4. 创建PaperInfo对象
-        5. 返回结果列表
-
-        异常处理:
-        - XML解析失败：记录错误日志，返回空列表
-        - 单篇论文解析失败：记录警告，继续解析下一篇
-        - 缺少必填字段：使用默认值，保证程序不崩溃
-
-        TODO:
-        - XML格式校验（XSD）
-        - 字段缺失时的默认值策略优化
-        - 性能优化（大批量XML解析）
+        5. 返回结果列表和总数
         '''
-
+        
         if not xml_content or not xml_content.strip():
             logger.warning("XML内容为空，返回空列表")
-            return []
-
+            return [], 0
+            
         papers = []
- 
+        total_results = 0
+        
         try:
-          
             # 解析XML，处理命名空间
             root = ET.fromstring(xml_content)
             namespace = {
                 'atom': 'http://www.w3.org/2005/Atom',
-                'arxiv': 'http://arxiv.org/schemas/atom'
+                'arxiv': 'http://arxiv.org/schemas/atom',
+                'opensearch': 'http://a9.com/-/spec/opensearch/1.1/'
             }
             # debug
-            logger.info(f"XML命名空间: {xml_content}")
+            # logger.info(f"XML命名空间: {xml_content}")
             logger.info("开始解析XML，查找论文条目")
-
+            
+            # 提取总数
+            total_elem = root.find('opensearch:totalResults', namespace)
+            if total_elem is not None and total_elem.text:
+                try:
+                    total_results = int(total_elem.text)
+                except ValueError:
+                    logger.warning(f"无法解析totalResults: {total_elem.text}")
+            
             # 遍历所有论文条目
             for entry in root.findall('atom:entry', namespace):
                 try:
@@ -96,21 +95,20 @@ class ArxivXmlParser:
                     paper = self._parse_entry(entry, namespace)
                     if paper:
                         papers.append(paper)
-                        logger.debug(f"成功解析论文: {paper.title[:50]}...")
-
+                        # logger.debug(f"成功解析论文: {paper.title[:50]}...")
                 except Exception as e:
                     # 单篇论文解析失败，记录警告，继续解析下一篇
                     logger.warning(f"解析单篇论文信息失败，跳过: {e}", exc_info=True)
                     continue
-
-            logger.info(f"XML解析完成，成功解析 {len(papers)} 篇论文")
-
+                    
+            logger.info(f"XML解析完成，成功解析 {len(papers)} 篇论文，总数: {total_results}")
+            
         except ET.ParseError as e:
             logger.error(f"XML解析失败，格式错误: {e}", exc_info=True)
         except Exception as e:
             logger.error(f"解析arXiv XML时发生未知错误: {e}", exc_info=True)
-
-        return papers
+            
+        return papers, total_results
 
 
     def _parse_entry(self, entry, namespace) -> ArxivPaperInfo:
