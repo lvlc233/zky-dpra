@@ -8,9 +8,8 @@
 """
 
 from langgraph.graph import StateGraph, END
-from .schema import MindMapAgentState
-from .node import load_paper_node, generate_mindmap_node
-from ..base.checkpointer import get_checkpointer
+from agent.mindmap_agent.schema import MindMapAgentState
+from agent.mindmap_agent.node import generate_mindmap_node
 
 def create_mindmap_agent_graph():
     """
@@ -18,15 +17,13 @@ def create_mindmap_agent_graph():
     """
     workflow = StateGraph(MindMapAgentState)
 
-    workflow.add_node("load_paper", load_paper_node)
     workflow.add_node("generate_mindmap", generate_mindmap_node)
 
-    workflow.set_entry_point("load_paper")
-    workflow.add_edge("load_paper", "generate_mindmap")
+    # 2. 定义边
+    workflow.set_entry_point("generate_mindmap")
     workflow.add_edge("generate_mindmap", END)
 
-    checkpointer = get_checkpointer()
     
-    return workflow.compile(checkpointer=checkpointer)
+    return workflow.compile()
 
 mindmap_agent_graph = create_mindmap_agent_graph()

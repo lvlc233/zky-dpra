@@ -121,21 +121,22 @@ class Rect(BaseModel):
     y: float = Field(..., description="矩形左上角的 y 坐标")
     width: float = Field(..., description="矩形的宽度")
     height: float = Field(..., description="矩形的高度")
-    page_index: int = Field(..., alias="pageIndex", description="矩形所在的页码索引 (从 0 开始)")
+    pageIndex: int = Field(..., description="矩形所在的页码索引 (从 0 开始)")
     model_config = ConfigDict(populate_by_name=True)
 
 
 class AnnotationRequest(BaseModel):
+    id: Optional[UUID] = Field(None, description="标注ID(可选,若提供则使用)")
     type: Literal['highlight','translation','note'] = Field(..., description="注解类型[高光,翻译,随笔内容]")
-    rect: List[Dict[str, float]] = Field(..., description="标注区域的几何坐标")
+    rects: List[Dict[str, float]] = Field(..., description="标注区域的几何坐标")
     content: str = Field(..., description="注解内容[随笔内容,翻译内容]")
     color: str = Field(..., description="RGB/Hex")
 
 
 class Annotation(BaseModel):
-    annotation_id: UUID = Field(..., alias="id", description="标注ID")
+    id: UUID = Field(..., description="标注ID")
     type: Literal['highlight', 'translation', 'note'] = Field(..., description="标注类型(highlight/note/translate)")
-    rect: List[Rect] = Field(..., description="标注区域坐标(JSON数组)")
+    rects: List[Rect] = Field(..., description="标注区域坐标(JSON数组)")
     content: Optional[str] = Field(None, description="标注内容(笔记/翻译结果)")
     color: Optional[str] = Field(None, description="标注颜色(Hex/RGB)")
 
@@ -143,10 +144,11 @@ class Annotation(BaseModel):
 
 
 class NoteMeta(BaseModel):
-    note_id: UUID = Field(..., alias="id", description="笔记id")
+    id: UUID = Field(..., description="笔记id")
     title: Optional[str] = Field(None, description="笔记标题")
     page: Optional[int] = Field(None, description="笔记对应的页码,默认为空")
     created_at: datetime = Field(..., description="创建的时间")
+    content: Optional[str] = Field(None, description="笔记内容")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -171,10 +173,11 @@ class MindMapEdge(BaseModel):
 class MindMap(BaseModel):
     nodes: List[MindMapNode] = Field(..., description="节点列表")
     edges: List[MindMapEdge] = Field(..., description="边列表")
+    system_notification: Optional[str] = Field(None, description="系统通知(如生成进度)")
 
 
 class Record(BaseModel):
-    record_id: UUID = Field(..., alias="id", description="记录id")
+    id: UUID = Field(..., description="记录id")
     title: Optional[str] = Field(..., description="对话记录的标题")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: Optional[datetime] = Field(None, description="更新时间")

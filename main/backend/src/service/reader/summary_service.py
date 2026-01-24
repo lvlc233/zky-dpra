@@ -13,7 +13,7 @@ from loguru import logger
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
-from base.pg.entity import Paper, PaperSummary
+from base.pg.entity import Paper, PaperSummary, Job
 from base.pg.service import ReaderRepository, PaperRepository
 from service.reader.schema import SummaryCreateDTO, SummaryDTO, AISummary
 from service.setting.setting_service import SettingService
@@ -56,11 +56,47 @@ class SummaryService:
     async def get_ai_summary(self, paper_id: UUID, user_id: UUID) -> Optional[AISummary]:
         summaries = await ReaderRepository.get_summaries_by_paper(self.session, paper_id, user_id)
         
-        if not summaries:
-            return None
+        if summaries:
+            config = {}
+            for s in summaries:
+                # 兼容旧数据: ai_summary -> summary
+                key = "summary" if s.summary_type == "ai_summary" else s.summary_type
+                config[key] = s.content
+            return AISummary(summary_config=config)
             
-        config = {s.summary_type: s.content for s in summaries}
-        return AISummary(summary_config=config)
+        # --- Auto-Trigger Logic ---
+        # If no summary exists, check if a job is already running/queued
+        from sqlalchemy import select
+        
+        # Check active jobs
+        stmt = select(Job).where(
+            Job.paper_id == paper_id,
+            Job.type == "summary",
+            Job.status.in_(["queued", "running"])
+        )
+        result = await self.session.execute(stmt)
+        active_job = result.scalar_one_or_none()
+        
+        if not active_job:
+            # Check if any failed job exists (optional: to avoid infinite retry loop if it always fails)
+            # But here we assume user wants to retry if they are asking for summary
+            
+            # No active job, trigger one
+            try:
+                from service.reader.job_service import JobService
+                from controller.api.reader.schema import JobCreateRequest
+                
+                logger.info(f"Auto-triggering summary job for paper {paper_id} (triggered by GET /ai/summary)")
+                job_service = JobService(self.session)
+                # Create job
+                await job_service.create_job(paper_id, JobCreateRequest(job_type="summary"), user_id)
+                return AISummary(summary_config={"系统通知": "正在自动触发导读生成任务，请稍候刷新..."})
+            except Exception as e:
+                logger.error(f"Failed to auto-trigger summary job: {e}")
+        else:
+            return AISummary(summary_config={"系统通知": "导读任务正在生成中，请稍后..."})
+                
+        return None
 
     async def get_summary(self, paper_id: UUID, summary_type: str) -> Optional[SummaryDTO]:
         """获取论文摘要"""

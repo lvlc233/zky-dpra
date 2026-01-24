@@ -23,6 +23,7 @@ from controller.api.collections.router import router as collections_router
 from controller.api.search.router import router as search_router
 from controller.api.settings.settings_router import router as settings_router
 from controller.api.jobs.router import router as jobs_router
+from controller.api.agent.router import router as agent_router
 
 # 导入异常处理器
 from controller.response import global_exception_handler
@@ -94,6 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(search_router, prefix="/api/v1")
     app.include_router(settings_router, prefix="/api/v1")
     app.include_router(jobs_router, prefix="/api/v1")
+    app.include_router(agent_router, prefix="/api/v1")
 
     @app.get("/")
     async def root():

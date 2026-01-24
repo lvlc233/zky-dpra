@@ -9,8 +9,15 @@ import {
   Search, 
   Layers, 
   Plus,
-  ChevronDown 
+  ChevronDown,
+  Settings,
+  Eye,
+  EyeOff,
+  Trash2,
+  MoreHorizontal
 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
 
 interface ReaderNavbarProps {
   className?: string;
@@ -19,6 +26,9 @@ interface ReaderNavbarProps {
   onToggleBookmark?: () => void;
   onSearch?: (query: string) => void;
   onViewManage?: () => void;
+  showAnnotations?: boolean;
+  onToggleAnnotations?: () => void;
+  onClearAllAnnotations?: () => void;
 }
 
 export const ReaderNavbar: React.FC<ReaderNavbarProps> = ({
@@ -28,6 +38,9 @@ export const ReaderNavbar: React.FC<ReaderNavbarProps> = ({
   onToggleBookmark,
   onSearch,
   onViewManage,
+  showAnnotations = true,
+  onToggleAnnotations,
+  onClearAllAnnotations,
 }) => {
   return (
     <header className={cn(
@@ -78,6 +91,41 @@ export const ReaderNavbar: React.FC<ReaderNavbarProps> = ({
           <Bookmark className={cn("w-3.5 h-3.5", isBookmarked && "fill-current")} />
           <span>{isBookmarked ? '已收藏' : '收藏'}</span>
         </button>
+        
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md">
+              <Settings className="w-4 h-4" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-2" align="end">
+             <div className="space-y-1">
+               <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                 标注设置
+               </div>
+               
+               {onToggleAnnotations && (
+                 <button 
+                    onClick={onToggleAnnotations}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-sm"
+                 >
+                    {showAnnotations ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    <span>{showAnnotations ? '隐藏所有标注' : '显示所有标注'}</span>
+                 </button>
+               )}
+               
+               {onClearAllAnnotations && (
+                 <button 
+                    onClick={onClearAllAnnotations}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm"
+                 >
+                    <Trash2 className="w-4 h-4" />
+                    <span>清空所有标注</span>
+                 </button>
+               )}
+             </div>
+          </PopoverContent>
+        </Popover>
       </div>
     </header>
   );

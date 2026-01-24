@@ -38,7 +38,7 @@ class NoteMetaResponse(BaseModel):
 
 
 class NoteResponse(BaseModel):
-    note_id: UUID = Field(..., alias="id", description="笔记ID")
+    id: UUID = Field(..., description="笔记ID")
     title: Optional[str] = Field(None, description="笔记标题")
     page: Optional[int] = Field(None, description="笔记对应的页码")
     created_at: datetime = Field(..., description="创建时间")
@@ -54,10 +54,11 @@ class AISummaryResponse(BaseModel):
 class MindMapResponse(BaseModel):
     nodes: List[MindMapNode]
     edges: List[MindMapEdge]
+    system_notification: Optional[str] = None
 
 
 class RecordResponse(BaseModel):
-    record_id: UUID = Field(..., alias="id", description="记录id")
+    id: UUID = Field(..., description="记录id")
     title: Optional[str] = Field(..., description="对话记录的标题")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: Optional[datetime] = Field(None, description="更新时间")

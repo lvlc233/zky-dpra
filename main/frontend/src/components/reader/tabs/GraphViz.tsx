@@ -1,34 +1,11 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GraphCanvas, GraphNode, GraphEdge, GraphCanvasRef } from 'reagraph';
-import { RotateCcw, Focus } from 'lucide-react';
-
-// ----------------------------------------------------------------------
-// Mock Data
-// ----------------------------------------------------------------------
-
-const MOCK_NODES: GraphNode[] = [
-  { id: '1', label: 'DeepPaperResearcher', fill: '#4F46E5', size: 25 }, 
-  { id: '2', label: 'LLM', fill: '#8B5CF6', size: 15 },
-  { id: '3', label: 'Knowledge Graph', fill: '#EC4899', size: 15 }, 
-  { id: '4', label: 'Multi-Agent', fill: '#10B981', size: 15 }, 
-  { id: '5', label: 'RAG', fill: '#F59E0B', size: 15 }, 
-  { id: '6', label: 'Citation Analysis', fill: '#6366F1' },
-  { id: '7', label: 'Summarization', fill: '#6366F1' },
-  { id: '8', label: 'Q&A System', fill: '#6366F1' },
-];
-
-const MOCK_EDGES: GraphEdge[] = [
-  { id: 'e1-2', source: '1', target: '2', label: 'uses' },
-  { id: 'e1-3', source: '1', target: '3', label: 'builds' },
-  { id: 'e1-4', source: '1', target: '4', label: 'employs' },
-  { id: 'e2-5', source: '2', target: '5', label: 'enhances' },
-  { id: 'e3-5', source: '3', target: '5', label: 'supports' },
-  { id: 'e1-6', source: '1', target: '6', label: 'performs' },
-  { id: 'e4-7', source: '4', target: '7', label: 'generates' },
-  { id: 'e4-8', source: '4', target: '8', label: 'enables' },
-];
+import { RotateCcw, Focus, Loader2, RefreshCw } from 'lucide-react';
+import { readerService } from '@/services/reader.service';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 // ----------------------------------------------------------------------
 // Component
@@ -43,6 +20,54 @@ export default function GraphViz({ paperId }: GraphVizProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<GraphCanvasRef | null>(null);
   const [isDark, setIsDark] = useState(false);
+  
+  const [nodes, setNodes] = useState<GraphNode[]>([]);
+  const [edges, setEdges] = useState<GraphEdge[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const fetchData = useCallback(async (isManual = false) => {
+      if (!paperId) return;
+      setLoading(true);
+      try {
+          const res = await readerService.getMindMap(paperId);
+          if (res) {
+              // 优先处理系统通知
+              if (res.system_notification) {
+                  setNotification(res.system_notification);
+                  // 如果有通知，通常意味着正在生成，数据可能为空或不完整
+                  // 但如果也有节点，我们还是可以显示（取决于业务逻辑，这里假设生成中就没有图）
+                  setNodes([]);
+                  setEdges([]);
+                  if (isManual) toast.info(res.system_notification);
+              } else {
+                  setNotification(null);
+                  setNodes(res.nodes.map(n => ({
+                      id: n.id,
+                      label: n.label || n.text, // Support both label and text
+                      fill: (n.data?.type || n.type) === 'root' ? '#4F46E5' : ((n.data?.type || n.type) === 'sub' ? '#8B5CF6' : '#EC4899'),
+                      size: (n.data?.type || n.type) === 'root' ? 25 : 15
+                  })));
+                  setEdges(res.edges.map(e => ({
+                      id: e.id || `${e.source || e.from_id}-${e.target || e.to_id}`,
+                      source: e.source || e.from_id,
+                      target: e.target || e.to_id,
+                      label: e.label
+                  })));
+                  if (isManual) toast.success("知识图谱已更新");
+              }
+          }
+      } catch (error) {
+          console.error("Failed to fetch mind map", error);
+          if (isManual) toast.error("获取知识图谱失败");
+      } finally {
+          setLoading(false);
+      }
+  }, [paperId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   useEffect(() => {
     // Initial check
@@ -111,6 +136,38 @@ export default function GraphViz({ paperId }: GraphVizProps) {
     }
   };
 
+  if (loading && nodes.length === 0 && !notification) {
+      return (
+        <div className="h-full flex items-center justify-center bg-white dark:bg-slate-900">
+            <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-4 border-indigo-200 dark:border-indigo-900 border-t-indigo-600 dark:border-t-indigo-500 rounded-full animate-spin" />
+            <span className="text-sm text-gray-500 dark:text-gray-400">正在加载知识图谱...</span>
+            </div>
+        </div>
+      );
+  }
+
+  if (notification) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center bg-white dark:bg-slate-900 p-8 text-center space-y-4">
+             <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 rounded-full flex items-center justify-center">
+                 <Loader2 className="w-6 h-6 text-indigo-600 dark:text-indigo-400 animate-spin" />
+             </div>
+             <div className="space-y-2">
+                 <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">生成中</h3>
+                 <p className="text-gray-500 dark:text-gray-400 max-w-sm">{notification}</p>
+             </div>
+             <button 
+                onClick={() => fetchData(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
+             >
+                 <RefreshCw className="w-4 h-4" />
+                 刷新状态
+             </button>
+        </div>
+      );
+  }
+
   return (
     <div 
       ref={containerRef}
@@ -119,8 +176,8 @@ export default function GraphViz({ paperId }: GraphVizProps) {
     >
       <GraphCanvas
         ref={graphRef}
-        nodes={MOCK_NODES}
-        edges={MOCK_EDGES}
+        nodes={nodes}
+        edges={edges}
         layoutType="forceDirected2d"
         labelType="all"
         sizingType="centrality"
@@ -131,11 +188,18 @@ export default function GraphViz({ paperId }: GraphVizProps) {
       
       {/* 简单的悬浮统计 */}
       <div className="absolute top-4 left-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border border-gray-200 dark:border-slate-700 text-xs font-medium text-gray-600 dark:text-gray-400">
-        {MOCK_NODES.length} Nodes · {MOCK_EDGES.length} Edges
+        {nodes.length} Nodes · {edges.length} Edges
       </div>
 
       {/* 控制按钮组 */}
       <div className="absolute top-4 right-4 flex gap-2">
+        <button 
+          onClick={() => fetchData(true)}
+          className="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 transition-colors"
+          title="刷新数据"
+        >
+            <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+        </button>
         <button
           onClick={handleFit}
           className="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 transition-colors"

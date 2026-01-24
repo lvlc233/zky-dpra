@@ -39,7 +39,7 @@ from common.model.enums import PaperStatus
 from controller.api.papers.schema import PapersUploadWebRequest, PapersUploadResponse
 
 # 导入 Entities (仅用于与 Repository 交互)
-from base.pg.entity import Paper, PaperChunk, User, Collection, Job
+from base.pg.entity import Paper, PaperChunk, User, Collection, Job, PaperSummary
 
 from base.config import settings
 from base.pg.service import PaperRepository, CollectionRepository, SessionDep, async_session_factory, JobRepository
@@ -324,8 +324,8 @@ class PaperService:
             # 检查是否已存在(避免重复)
             latest_job = await JobRepository.get_latest_job_by_paper_id(self.session, paper_id)
             if latest_job and latest_job.status in ["queued", "running", "in_progress"]:
-                logger.info(f"任务已存在且正在运行/排队: {latest_job.job_id}")
-                return latest_job.job_id
+                logger.info(f"任务已存在且正在运行/排队: {latest_job.id}")
+                return latest_job.id
 
             # 获取 user_id 需要查询 paper
             paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
@@ -345,8 +345,8 @@ class PaperService:
                 )
                 self.session.add(job)
                 await self.session.commit()
-                job_id = job.job_id
-                logger.info(f"任务记录已创建: job_id={job.job_id}")
+                job_id = job.id
+                logger.info(f"任务记录已创建: job_id={job.id}")
         except Exception as e:
              logger.error(f"创建任务记录失败: {e}")
              return None # 无法创建任务记录，无法继续
@@ -526,7 +526,7 @@ class PaperService:
         # 2. 获取最新 Job 信息
         job = await JobRepository.get_latest_job_by_paper_id(self.session, paper_id)
         if job:
-            dto.job_id = str(job.job_id)
+            dto.job_id = str(job.id)
         
         # 3. 自动触发/恢复逻辑
         # 场景 A: 论文状态为 PENDING (上传后未处理)，且没有 parse_text 任务 -> 自动触发
@@ -580,7 +580,7 @@ class PaperService:
                     redis_settings = RedisSettings(host=host, port=port, database=database)
                     pool = await create_pool(redis_settings)
                     
-                    arq_job_id = f"process_pdf:{active_parse_job.job_id}"
+                    arq_job_id = f"process_pdf:{active_parse_job.id}"
                     arq_job = ArqJob(arq_job_id, pool)
                     arq_status = await arq_job.status()
                     
@@ -588,8 +588,8 @@ class PaperService:
                     
                     if arq_status == 'not_found':
                         job_service = JobService(self.session)
-                        await job_service.re_enqueue_job(active_parse_job.job_id)
-                        logger.info(f"[AutoRecover] Redis任务丢失(status=not_found)，已恢复: {active_parse_job.job_id}")
+                        await job_service.re_enqueue_job(active_parse_job.id)
+                        logger.info(f"[AutoRecover] Redis任务丢失(status=not_found)，已恢复: {active_parse_job.id}")
                     else:
                         # Job exists in Redis (queued, running, complete), no need to re-enqueue
                         # logger.debug(f"[AutoRecover] 任务在Redis中状态为 {arq_status}，跳过恢复")
@@ -646,7 +646,7 @@ class PaperService:
             if dto.status in [PaperStatus.PROCESSING, PaperStatus.PENDING]:
                 job = await JobRepository.get_latest_job_by_paper_id(self.session, p.id)
                 if job:
-                    dto.job_id = str(job.job_id)
+                    dto.job_id = str(job.id)
             dtos.append(dto)
         return dtos
 
@@ -684,7 +684,7 @@ class PaperService:
         job = await JobRepository.get_latest_job_by_paper_id(self.session, paper_id)
         if job:
             return {
-                "job_id": str(job.job_id),
+                "job_id": str(job.id),
                 "status": job.status,
                 "stage": job.stage,
                 "progress": job.progress,
@@ -857,16 +857,248 @@ class PaperProcessingService:
             await _update_progress("error", 0, "failed", error=str(e))
             return False
 
+    async def summary(self, paper_id: UUID, job_id: UUID, redis: Any = None) -> bool:
+        """
+        [Job: summary] 生成论文总结
+        """
+        logger.info(f"开始执行 Job: summary, paper_id={paper_id}")
+        
+        async def _update_progress(stage: str, progress: float, status: str = "running", error: str = None, result: Any = None):
+            async with async_session_factory() as session:
+                await JobRepository.update_job_status(
+                    session, job_id, status, stage=stage, progress=progress, error=error, 
+                    end_at=datetime.now() if status in ["succeeded", "failed"] else None,
+                    result=result
+                )
+            if redis:
+                try:
+                    event_data = {
+                        "job_id": str(job_id), "status": status, "stage": stage, "progress": progress,
+                        "error": error, "result": result, "timestamp": datetime.now().isoformat()
+                    }
+                    await redis.publish(f"job_progress:{job_id}", json.dumps(event_data))
+                except: pass
+
+        try:
+            await _update_progress("starting", 0.0)
+            
+            async with async_session_factory() as session:
+                # 1. 获取论文全文
+                paper = await PaperRepository.get_paper_by_id(session, paper_id)
+                if not paper or not paper.full_text:
+                    await _update_progress("init", 0, "failed", error="论文不存在或无全文内容")
+                    return False
+                    
+                # 2. 获取用户配置
+                from service.setting.setting_service import SettingService
+                setting_service = SettingService(session)
+                user_settings = await setting_service.get_settings(paper.user_id)
+                agent_settings = user_settings.ai_reader_settings
+                summary_config = [agent for agent in agent_settings if agent.type == "summary"][0]
+                
+                # 构造 LLM 配置
+                llm_config ={
+                    "model_name": summary_config.llm_name,
+                    "model_provider": summary_config.provider,
+                    "base_url": summary_config.base_url,
+                    "api_key": summary_config.api_key,
+                    "temperature": 0.3
+                }
+                # Check if summary already exists? Maybe not, allow regeneration.
+
+            # 3. 调用 SummaryAgent
+            await _update_progress("generating", 30.0)
+            
+            # 避免循环导入，延迟导入
+            from agent.summary_agent.agent import summary_agent_graph
+            
+            # SummaryAgent 只需要 paper_content
+            initial_state = {"paper_content": paper.full_text}
+            
+            # invoke can be slow
+            result = await summary_agent_graph.ainvoke(initial_state, context=llm_config)
+            summary_content = result.get("summary")
+            
+            if not summary_content:
+                await _update_progress("generating", 100.0, "failed", error="生成总结为空")
+                return False
+            
+            # 4. 保存结果
+            await _update_progress("saving", 90.0)
+            
+            async with async_session_factory() as session:
+                # 保存到 PaperSummary 表
+                new_summary = PaperSummary(
+                    paper_id=paper_id,
+                    summary_type="summary",
+                    content=summary_content,
+                    created_at=datetime.now()
+                )
+                session.add(new_summary)
+                
+                # 同时更新 Paper 主表的 summary 字段 (如果为空)
+                paper_ref = await PaperRepository.get_paper_by_id(session, paper_id)
+                if paper_ref and not paper_ref.summary:
+                    paper_ref.summary = summary_content
+                    session.add(paper_ref)
+                    
+                await session.commit()
+            
+            await _update_progress("finished", 100.0, "succeeded", result={"summary_length": len(summary_content)})
+            return True
+
+        except Exception as e:
+            logger.error(f"Summary Failed: {e}", exc_info=True)
+            await _update_progress("error", 0, "failed", error=str(e))
+            return False
+
+    async def mind_map(self, paper_id: UUID, job_id: UUID, redis: Any = None) -> bool:
+        """
+        [Job: mind_map] 生成脑图
+        """
+        logger.info(f"开始执行 Job: mind_map, paper_id={paper_id}")
+        
+        async def _update_progress(stage: str, progress: float, status: str = "running", error: str = None, result: Any = None):
+            async with async_session_factory() as session:
+                await JobRepository.update_job_status(
+                    session, job_id, status, stage=stage, progress=progress, error=error, 
+                    end_at=datetime.now() if status in ["succeeded", "failed"] else None,
+                    result=result
+                )
+            if redis:
+                try:
+                    event_data = {
+                        "job_id": str(job_id), "status": status, "stage": stage, "progress": progress,
+                        "error": error, "result": result, "timestamp": datetime.now().isoformat()
+                    }
+                    await redis.publish(f"job_progress:{job_id}", json.dumps(event_data))
+                except: pass
+
+        try:
+            await _update_progress("starting", 0.0)
+            
+            async with async_session_factory() as session:
+                # 1. 获取论文全文
+                paper = await PaperRepository.get_paper_by_id(session, paper_id)
+                if not paper or not paper.full_text:
+                    await _update_progress("init", 0, "failed", error="论文不存在或无全文内容")
+                    return False
+                
+                # 2. 获取用户配置
+                from service.setting.setting_service import SettingService
+                setting_service = SettingService(session)
+                user_settings = await setting_service.get_settings(paper.user_id)
+                agent_settings = user_settings.ai_reader_settings
+                
+                # 优先查找 mind_map 配置，如果没有则回退到 summary 配置
+                mindmap_config = None
+                try:
+                    mindmap_config = [agent for agent in agent_settings if agent.type == "mind_map"][0]
+                except IndexError:
+                    try:
+                        mindmap_config = [agent for agent in agent_settings if agent.type == "summary"][0]
+                    except IndexError:
+                        pass
+
+                llm_config = {}
+                if mindmap_config:
+                    llm_config = {
+                        "model_name": mindmap_config.llm_name,
+                        "model_provider": mindmap_config.provider,
+                        "base_url": mindmap_config.base_url,
+                        "api_key": mindmap_config.api_key,
+                        "temperature": 0.3
+                    }
+            
+            # 3. 调用 MindMapAgent
+            await _update_progress("generating", 30.0)
+            
+            # 延迟导入以避免循环依赖
+            from agent.mindmap_agent.agent import mindmap_agent_graph
+            
+            initial_state = {"paper_content": paper.full_text}
+            
+            # invoke
+            result = await mindmap_agent_graph.ainvoke(initial_state, context=llm_config)
+            mindmap_data = result.get("mindmap_data")
+            
+            if not mindmap_data:
+                await _update_progress("generating", 100.0, "failed", error="生成脑图为空")
+                return False
+
+            # 4. 转换数据格式
+            # agent output: {nodes: [{id, label, type}], edges: [{source, target, label}]}
+            # service input: MindMapUpdateDTO(graph_data=GraphDataDTO(nodes=[{id, label, data}], edges=[{id, source, target, label}]))
+            
+            nodes = []
+            for n in mindmap_data.get("nodes", []):
+                nodes.append({
+                    "id": n["id"],
+                    "label": n["label"],
+                    "data": {"type": n.get("type", "topic")}
+                })
+                
+            edges = []
+            for i, e in enumerate(mindmap_data.get("edges", [])):
+                edges.append({
+                    "id": f"e{i}_{uuid.uuid4().hex[:8]}", # Generate edge ID
+                    "source": e["source"],
+                    "target": e["target"],
+                    "label": e.get("label")
+                })
+            
+            graph_data = {"nodes": nodes, "edges": edges}
+
+            # 5. 保存结果
+            await _update_progress("saving", 90.0)
+            
+            from service.reader.mind_map_service import MindMapService
+            from service.reader.schema import MindMapUpdateDTO, GraphDataDTO, MindMapCreateDTO
+            
+            async with async_session_factory() as session:
+                mind_map_service = MindMapService(session)
+                
+                # 检查是否存在
+                existing = await mind_map_service.get_mind_map_by_paper(paper_id, paper.user_id)
+                if existing:
+                    update_dto = MindMapUpdateDTO(graph_data=GraphDataDTO(**graph_data))
+                    await mind_map_service.update_mind_map(paper_id, paper.user_id, update_dto)
+                else:
+                    create_dto = MindMapCreateDTO(graph_data=GraphDataDTO(**graph_data))
+                    await mind_map_service.get_or_create_mind_map(paper_id, paper.user_id, create_dto)
+
+            await _update_progress("finished", 100.0, "succeeded", result={"nodes_count": len(nodes), "edges_count": len(edges)})
+            return True
+
+        except Exception as e:
+            logger.error(f"MindMap Failed: {e}", exc_info=True)
+            await _update_progress("error", 0, "failed", error=str(e))
+            return False
+
     async def _trigger_next_tasks(self, paper_id: UUID, user_id: UUID):
         """触发后续任务: Vectorize, Summary, MindMap"""
         from service.reader.job_service import JobService
         from controller.api.reader.schema import JobCreateRequest
+        from service.setting.setting_service import SettingService
         
         async with async_session_factory() as session:
             job_service = JobService(session)
+            setting_service = SettingService(session)
+
+            # Get user settings to check if embedding is enabled
+            try:
+                user_settings = await setting_service.get_settings(user_id)
+                agent_settings = user_settings.agent_settings
+                embedding_provider = agent_settings.embedding_provider
+            except Exception as e:
+                logger.warning(f"Failed to get user settings, using default: {e}")
+                embedding_provider = settings.embedding_type
             
-            # 1. Vectorize
-            await job_service.create_job(paper_id, JobCreateRequest(job_type="vectorize"), user_id)
+            # 1. Vectorize (Only if not disabled)
+            if embedding_provider != "none":
+                await job_service.create_job(paper_id, JobCreateRequest(job_type="vectorize"), user_id)
+            else:
+                logger.info(f"Skipping vectorize job for paper {paper_id} (Provider: {embedding_provider})")
             
             # 2. Summary
             await job_service.create_job(paper_id, JobCreateRequest(job_type="summary"), user_id)

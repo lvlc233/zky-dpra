@@ -1,7 +1,7 @@
 from uuid import UUID
 from typing import List, Annotated
 
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, Body, HTTPException
 from controller.response import Response
 from service.reader.reader_service import ReaderServiceDep
 from service.reader.toc_service import TocService
@@ -19,7 +19,11 @@ from controller.api.reader.schema import (
     MindMapResponse, RecordResponse, MessageResponse, JobListResponse,
     AnnotationResponse, JobResponse, JobCreateRequest
 )
-from service.reader.schema import AnnotationRequest
+from service.reader.schema import (
+    AnnotationRequest,
+    NoteCreateDTO,
+    NoteUpdateDTO
+)
 
 router = APIRouter(prefix="/papers", tags=["reader"])
 
@@ -91,6 +95,48 @@ async def get_note_detail(
     data = await service.get_note_detail(paper_id, note_id, current_user.id)
     return Response.success(NoteResponse.model_validate(data.model_dump()))
 
+
+@router.post("/{paper_id}/notes", response_model=Response[NoteResponse])
+async def create_note(
+    paper_id: UUID, 
+    req: NoteCreateDTO,
+    service: NoteServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """创建笔记"""
+    data = await service.create_note(paper_id, current_user.id, req)
+    return Response.success(NoteResponse.model_validate(data.model_dump()))
+
+
+@router.put("/{paper_id}/notes/{note_id}", response_model=Response[NoteResponse])
+async def update_note(
+    paper_id: UUID,
+    note_id: UUID,
+    req: NoteUpdateDTO,
+    service: NoteServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """更新笔记"""
+    data = await service.update_note(note_id, current_user.id, req)
+    if not data:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return Response.success(NoteResponse.model_validate(data.model_dump()))
+
+
+@router.delete("/{paper_id}/notes/{note_id}")
+async def delete_note(
+    paper_id: UUID,
+    note_id: UUID,
+    service: NoteServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """删除笔记"""
+    success = await service.delete_note(note_id, current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return Response.success()
+
+
 @router.get("/{paper_id}/ai/summary", response_model=Response[AISummaryResponse])
 async def get_ai_summary(
     paper_id: UUID, 
@@ -111,7 +157,11 @@ async def get_mind_map(
 ):
     """获取论文AI脑图"""
     data = await service.get_mind_map_data(paper_id, current_user.id)
-    return Response.success(MindMapResponse(nodes=data.nodes, edges=data.edges))
+    return Response.success(MindMapResponse(
+        nodes=data.nodes, 
+        edges=data.edges,
+        system_notification=data.system_notification
+    ))
 
 @router.get("/{paper_id}/ai/history", response_model=Response[List[RecordResponse]])
 async def get_ai_history(
@@ -202,4 +252,68 @@ async def update_annotation(
 ):
     """修改标注"""
     await service.update_annotation(paper_id, annotation_id, req, current_user.id)
+    return Response.success()
+
+
+@router.get("/{paper_id}/notes", response_model=Response[NoteMetaResponse])
+async def get_notes(
+    paper_id: UUID, 
+    service: NoteServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """获取论文笔记列表"""
+    data = await service.get_notes_meta(paper_id, current_user.id)
+    return Response.success(NoteMetaResponse(items=data))
+
+
+@router.get("/{paper_id}/notes/{note_id}", response_model=Response[NoteResponse])
+async def get_note_detail(
+    paper_id: UUID, 
+    note_id: UUID, 
+    service: NoteServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """获取笔记详情"""
+    data = await service.get_note_detail(paper_id, note_id, current_user.id)
+    return Response.success(NoteResponse.model_validate(data.model_dump()))
+
+
+@router.post("/{paper_id}/notes", response_model=Response[NoteResponse])
+async def create_note(
+    paper_id: UUID, 
+    req: NoteCreateDTO, 
+    service: NoteServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """创建笔记"""
+    data = await service.create_note(paper_id, current_user.id, req)
+    return Response.success(NoteResponse.model_validate(data.model_dump()))
+
+
+@router.put("/{paper_id}/notes/{note_id}", response_model=Response[NoteResponse])
+async def update_note(
+    paper_id: UUID, 
+    note_id: UUID, 
+    req: NoteUpdateDTO, 
+    service: NoteServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """更新笔记"""
+    data = await service.update_note(note_id, current_user.id, req)
+    if not data:
+         raise HTTPException(status_code=404, detail="Note not found")
+    return Response.success(NoteResponse.model_validate(data.model_dump()))
+
+
+@router.delete("/{paper_id}/notes/{note_id}")
+async def delete_note(
+    paper_id: UUID, 
+    note_id: UUID, 
+    service: NoteServiceDep,
+    current_user: User = Depends(get_current_user)
+):
+    """删除笔记"""
+    success = await service.delete_note(note_id, current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Note not found")
     return Response.success()

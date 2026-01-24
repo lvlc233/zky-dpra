@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Layer, Annotation, Rect as AnnotationRect } from '@/types/reader';
 import { Highlighter, MessageSquare, Languages, X, Check, Trash2, Palette, Edit2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface PDFPageOverlayProps {
   pageIndex: number; // 0-based
@@ -67,24 +68,41 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
   const [translationResult, setTranslationResult] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
   
-  // State for hover tooltip
-  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
-  const [hoverPosition, setHoverPosition] = useState<{ top: number; left: number } | null>(null);
+  // Draft annotation state (not yet saved to backend)
+  const [draftAnnotation, setDraftAnnotation] = useState<Annotation | null>(null);
 
   // Filter visible layers and their annotations for this page
   const visibleAnnotations = layers
     .filter(l => l.visible)
     .flatMap(l => l.annotations.map(a => ({ ...a, layerColor: l.color })))
-    .filter(a => a.rects.some(r => r.pageIndex === pageIndex));
+    .filter(a => (a.rects || []).some(r => r.pageIndex === pageIndex));
 
   // Handle click outside to close popup
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (activeAnnotationId && editPopupRef.current && !editPopupRef.current.contains(event.target as Node)) {
-        // Only close if we are not clicking an annotation (which would switch active)
-        // But annotations stop propagation, so this event listener on document shouldn't fire if annotation is clicked?
-        // Actually, handleAnnotationClick calls stopPropagation, so it's fine.
-        setActiveAnnotationId(null);
+      if (activeAnnotationId) {
+        // If popup is not rendered (ref is null) but we think we are editing, 
+        // it means the annotation is not found in layers (ghost state).
+        // We should clear active state to unblock user.
+        if (!editPopupRef.current) {
+             setActiveAnnotationId(null);
+        } else if (!editPopupRef.current.contains(event.target as Node)) {
+            // Clicked outside the popup
+            // If it's a draft, we might want to save or discard?
+            // Current behavior: just close, which leaves draft in limbo or clears it?
+            // If we close, we lose the draft if we don't save.
+            // Let's assume clicking outside acts as "Cancel" for draft if empty, or "Save" if content?
+            // Usually clicking outside implies "Done".
+            // But for safety, let's just close. If it was draft, it remains in state? 
+            // No, if we set activeId to null, the edit box disappears.
+            // If it's a draft, it will disappear from view if we rely on activeId to show it?
+            // In render: `activeAnnotation` uses `draftAnnotation`.
+            // But `visibleAnnotations` + `draftAnnotation` are rendered.
+            // So it will stay visible but not editable.
+            // But user said "automatically disappear".
+            // Let's strictly handle "Cancel" via button.
+            setActiveAnnotationId(null);
+        }
       }
     };
 
@@ -97,105 +115,36 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
     };
   }, [activeAnnotationId]);
 
-  // Handle Page-level interaction (Click and Hover) manually
-  // This allows us to set pointer-events-none on annotations to enable text selection through them
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  const handleDelete = React.useCallback(() => {
+    if (!activeAnnotationId) return;
     
-    // We need to attach listeners to the parent Page component to capture events
-    // because container itself might be covered or transparent
-    const pageElement = container.parentElement;
-    if (!pageElement) return;
+    // If it's a draft, just clear it
+    if (draftAnnotation && draftAnnotation.annotation_id === activeAnnotationId) {
+        setDraftAnnotation(null);
+        setActiveAnnotationId(null);
+        return;
+    }
 
-    const getRelativeCoords = (e: MouseEvent) => {
-      const rect = pageElement.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-      return { x, y };
-    };
+    if (onDeleteAnnotation) {
+      onDeleteAnnotation(activeAnnotationId);
+    }
+    setActiveAnnotationId(null);
+  }, [activeAnnotationId, draftAnnotation, onDeleteAnnotation]);
 
-    const findAnnotationAt = (x: number, y: number) => {
-      // Find the top-most annotation (last in list usually rendered on top, but we want any match)
-      // Reverse to hit the one visually on top if overlapping
-      return [...visibleAnnotations].reverse().find(a => 
-        a.rects.some(r => 
-          r.pageIndex === pageIndex &&
-          x >= r.x && x <= r.x + r.width &&
-          y >= r.y && y <= r.y + r.height
-        )
-      );
-    };
-
-    const handlePageClick = (e: MouseEvent) => {
-      // If user is selecting text, ignore click (selection logic handles it)
-      const selection = window.getSelection();
-      if (selection && selection.toString().length > 0) return;
+  // Handle Delete Key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!activeAnnotationId) return;
       
-      // If we are clicking inside the edit popup or toolbar, ignore
-      // (This is handled by bubbling usually, but since we listen on parent, we might catch it)
-      if ((e.target as HTMLElement).closest('.pointer-events-auto')) return;
-
-      const { x, y } = getRelativeCoords(e);
-      const annotation = findAnnotationAt(x, y);
-
-      if (annotation) {
-        // We found an annotation, trigger click logic manually
-        // We need to call the logic defined in handleAnnotationClick
-        // But we can't call internal function easily from here if it depends on state closure?
-        // Actually we can, because this useEffect depends on visibleAnnotations
-        
-        // Logic from handleAnnotationClick:
-      setActiveAnnotationId(annotation.annotation_id);
-      setNoteContent(annotation.content || '');
-      setTranslationResult(annotation.type === 'translate' ? (annotation.content || '') : '');
-        
-        const firstRect = annotation.rects.find(r => r.pageIndex === pageIndex);
-        if (firstRect) {
-          setEditPosition({
-            top: firstRect.y + firstRect.height,
-            left: firstRect.x + firstRect.width / 2
-          });
-        }
-      } else {
-        // Clicked on empty space (and not selecting text) -> Close popup
-        // Already handled by click-outside, but good to be explicit
-        // setActiveAnnotationId(null); // Optional
+      if (e.key === 'Delete' || (e.key === 'Backspace' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName))) {
+        handleDelete();
       }
     };
 
-    const handlePageMouseMove = (e: MouseEvent) => {
-      // Optimization: if we are editing, maybe skip hover?
-      if (activeAnnotationId) return;
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeAnnotationId, handleDelete]);
 
-      const { x, y } = getRelativeCoords(e);
-      const annotation = findAnnotationAt(x, y);
-
-      if (annotation && annotation.type === 'note') {
-         setHoveredAnnotationId(annotation.annotation_id);
-         // Position tooltip
-         const rect = annotation.rects.find(r => r.pageIndex === pageIndex);
-         if (rect) {
-            setHoverPosition({
-              top: rect.y,
-              left: rect.x + rect.width / 2
-            });
-         }
-      } else {
-         setHoveredAnnotationId(null);
-      }
-    };
-
-    pageElement.addEventListener('click', handlePageClick);
-    pageElement.addEventListener('mousemove', handlePageMouseMove);
-    pageElement.addEventListener('mouseleave', () => setHoveredAnnotationId(null));
-
-    return () => {
-      pageElement.removeEventListener('click', handlePageClick);
-      pageElement.removeEventListener('mousemove', handlePageMouseMove);
-      pageElement.removeEventListener('mouseleave', () => setHoveredAnnotationId(null));
-    };
-  }, [visibleAnnotations, activeAnnotationId, pageIndex]); // Re-bind when annotations change
 
   // Handle Text Selection
   useEffect(() => {
@@ -297,26 +246,42 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
     if (!onAddAnnotation) return;
 
     let content = '';
-    const newId = Date.now().toString();
-    
-    // Determine initial content
-    if (type === 'note') {
-      content = '';
-      setNoteContent('');
-    }
-
-    const newAnnotation: Annotation = {
-      annotation_id: newId,
-      type,
-      rects: selectedRects,
-      createdAt: Date.now(),
-      content,
-      color: color || (type === 'highlight' ? 'bg-yellow-300' : undefined)
+    // Use crypto.randomUUID() if available, otherwise use a random UUID generator
+    const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
     };
-
-    onAddAnnotation(newAnnotation);
-    
-    // Clear selection UI but keep internal state for popup positioning
+     const newId = generateUUID();
+     
+     // Determine initial content
+     if (type === 'note') {
+       content = '';
+       setNoteContent('');
+     }
+ 
+     const newAnnotation: Annotation = {
+       annotation_id: newId,
+       type,
+       rects: selectedRects,
+       createdAt: Date.now(),
+       content,
+       color: color || 'bg-yellow-300'
+     };
+ 
+     // If it's a note, enter draft mode first (don't save yet)
+     if (type === 'note') {
+        setDraftAnnotation(newAnnotation);
+     } else {
+        // For highlights/others, save immediately
+        onAddAnnotation(newAnnotation);
+     }
+     
+     // Clear selection UI but keep internal state for popup positioning
     window.getSelection()?.removeAllRanges();
     setShowToolbar(false);
 
@@ -362,7 +327,19 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
   };
 
   const handleSaveNote = () => {
-    if (!activeAnnotationId || !onUpdateAnnotation) return;
+    if (!activeAnnotationId) return;
+
+    // Check if we are saving a draft
+    if (draftAnnotation && draftAnnotation.annotation_id === activeAnnotationId) {
+        if (onAddAnnotation) {
+             onAddAnnotation({ ...draftAnnotation, content: noteContent });
+        }
+        setDraftAnnotation(null);
+        setActiveAnnotationId(null);
+        return;
+    }
+
+    if (!onUpdateAnnotation) return;
     const annotation = visibleAnnotations.find(a => a.annotation_id === activeAnnotationId);
     if (annotation) {
       onUpdateAnnotation({ ...annotation, content: noteContent });
@@ -373,104 +350,126 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
   const handleSaveTranslationAsNote = () => {
      if (!onAddAnnotation) return;
      
-     // We need to reconstruct rects? No, we used selectedRects but we cleared them.
-     // Wait, if we are in transient mode, we need the rects to save.
-     // But selectedRects state might be gone?
-     // Actually `selectedRects` state is preserved until next selection changes it.
-     // But `window.getSelection().removeAllRanges()` was called.
-     // State `selectedRects` is React state, so it persists.
-     
-     const newId = Date.now().toString();
+     const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    };
+     const newId = generateUUID();
      const newAnnotation: Annotation = {
         annotation_id: newId,
-        type: 'note', // Save as Note
-        rects: selectedRects, // Using the preserved selection rects
+        type: 'note', // Save as Note for better editability and tooltip support
+        rects: selectedRects, 
         createdAt: Date.now(),
         content: `[原文] ${translationModal.text}\n\n[译文] ${translationModal.result}`,
-        color: 'bg-yellow-300' // Default highlight for note
+        color: 'bg-green-300' // Green color to distinguish translation notes
       };
       
       onAddAnnotation(newAnnotation);
       setTranslationModal(prev => ({ ...prev, isOpen: false }));
   };
 
-  const handleDelete = () => {
-    if (!activeAnnotationId || !onDeleteAnnotation) return;
-    onDeleteAnnotation(activeAnnotationId);
-    setActiveAnnotationId(null);
-  };
 
-  const handleAnnotationMouseEnter = (e: React.MouseEvent, annotation: Annotation) => {
-    if (activeAnnotationId) return; // Don't show tooltip if editing
-    if (annotation.type !== 'note') return; // Only show for notes as per request
 
-    setHoveredAnnotationId(annotation.annotation_id);
-    
-    // Position tooltip near the mouse or the rect
-    // Using rect for stability
-    const rect = annotation.rects.find(r => r.pageIndex === pageIndex);
-    if (rect) {
-       setHoverPosition({
-         top: rect.y,
-         left: rect.x + rect.width / 2
-       });
-    }
-  };
+  const activeAnnotation = visibleAnnotations.find(a => a.annotation_id === activeAnnotationId) 
+    || (draftAnnotation?.annotation_id === activeAnnotationId ? draftAnnotation : undefined);
 
-  const handleAnnotationMouseLeave = () => {
-    setHoveredAnnotationId(null);
-  };
-
-  const activeAnnotation = visibleAnnotations.find(a => a.annotation_id === activeAnnotationId);
+  // Combine visibleAnnotations with draftAnnotation for rendering
+  const allAnnotationsToRender = [...visibleAnnotations];
+  if (draftAnnotation && !visibleAnnotations.some(a => a.annotation_id === draftAnnotation.annotation_id)) {
+     allAnnotationsToRender.push(draftAnnotation);
+  }
 
   return (
-    <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-none">
-      {/* Existing Annotations */}
-      {visibleAnnotations.map(annotation => (
-        <React.Fragment key={annotation.annotation_id}>
-          {annotation.rects.filter(r => r.pageIndex === pageIndex).map((rect, idx) => (
-            <div
-              key={`${annotation.annotation_id}-${idx}`}
-              className={cn(
-                "absolute transition-opacity mix-blend-multiply pointer-events-none",
-                annotation.color || annotation.layerColor || "bg-yellow-300",
-                annotation.type === 'note' && "border-b-[3px] border-red-500 border-dashed !bg-transparent", // Thicker dashed underline for notes
-                annotation.type === 'translate' && "border-b-2 border-green-500 border-dashed !bg-transparent"
-              )}
-              style={{
-                left: `${rect.x}%`,
-                top: `${rect.y}%`,
-                width: `${rect.width}%`,
-                height: `${rect.height}%`,
-                opacity: 0.4
-              }}
-            />
-          ))}
-          {/* Note Icon removed per user request */}
-        </React.Fragment>
-      ))}
+    <TooltipProvider delayDuration={100}>
+      <div ref={containerRef} className="absolute inset-0 z-[100] pointer-events-none">
+        {/* Existing Annotations */}
+        {allAnnotationsToRender.map(annotation => (
+          <React.Fragment key={annotation.annotation_id}>
+            {annotation.rects.filter(r => r.pageIndex === pageIndex).map((rect, idx) => {
+              const annotationElement = (
+                <div
+                  key={`${annotation.annotation_id}-${idx}`}
+                  className={cn(
+                    "absolute transition-all mix-blend-multiply cursor-pointer pointer-events-auto rounded-[2px]",
+                    annotation.color || annotation.layerColor || "bg-yellow-300",
+                    activeAnnotationId === annotation.annotation_id && "ring-2 ring-indigo-500 ring-offset-1 z-10",
+                    annotation.type === 'note' && "border-b-[3px] border-red-500 border-dashed !bg-transparent rounded-none", // Notes keep underline style
+                    annotation.type === 'translate' && "border-b-2 border-green-500 border-dashed !bg-transparent rounded-none"
+                  )}
+                  title="点击编辑或删除"
+                  style={{
+                    left: `${rect.x}%`,
+                    top: `${rect.y}%`,
+                    width: `${rect.width}%`,
+                    height: `${rect.height}%`,
+                    opacity: 0.4
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveAnnotationId(annotation.annotation_id);
+                    setNoteContent(annotation.content || '');
+                    setTranslationResult(annotation.type === 'translate' ? (annotation.content || '') : '');
+                    setEditPosition({
+                      top: rect.y + rect.height,
+                      left: rect.x + rect.width / 2
+                    });
+                  }}
+                />
+              );
 
-      {/* Hover Tooltip for Notes - Card Style */}
-      {hoveredAnnotationId && hoverPosition && !activeAnnotationId && (
-        <div 
-          className="absolute z-50 pointer-events-none bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 p-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 dark:border-slate-700 w-[280px] transform -translate-x-1/2 -translate-y-full"
-          style={{
-            left: `${hoverPosition.left}%`,
-            top: `${hoverPosition.top}%`,
-            marginTop: '-16px'
-          }}
-        >
-          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100 dark:border-slate-700">
-            <MessageSquare className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">备注内容</span>
-          </div>
-          <div className="text-sm leading-relaxed break-words text-gray-700 dark:text-gray-300">
-            {visibleAnnotations.find(a => a.annotation_id === hoveredAnnotationId)?.content || '无内容'}
-          </div>
-        </div>
-      )}
+              // Wrap notes (and legacy translations) with Tooltip
+              if ((annotation.type === 'note' || annotation.type === 'translate') && annotation.content && !activeAnnotationId) {
+                return (
+                  <Tooltip key={`${annotation.annotation_id}-${idx}`}>
+                    <TooltipTrigger asChild>
+                      {annotationElement}
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      side="top" 
+                      align="center"
+                      className="max-w-[280px] break-words"
+                    >
+                       <div className="flex justify-between items-center gap-2 mb-1 pb-1 border-b border-gray-100 dark:border-slate-700">
+                        <div className="flex items-center gap-1">
+                          {annotation.type === 'translate' || (annotation.content && annotation.content.includes('[译文]')) ? (
+                             <Languages className="w-3 h-3 text-green-500" />
+                          ) : (
+                             <MessageSquare className="w-3 h-3 text-indigo-500" />
+                          )}
+                          <span className="text-[10px] font-semibold text-gray-500 uppercase">
+                            {annotation.type === 'translate' || (annotation.content && annotation.content.includes('[译文]')) ? '翻译' : '备注'}
+                          </span>
+                        </div>
+                        <button 
+                          className="p-1 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-400 hover:text-red-500 rounded transition-colors"
+                          title="删除备注"
+                          onClick={(e) => {
+                             e.stopPropagation();
+                             onDeleteAnnotation?.(annotation.annotation_id);
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="text-sm">
+                        {annotation.content}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
 
-      {/* Creation Toolbar */}
+              return annotationElement;
+            })}
+          </React.Fragment>
+        ))}
+
+        {/* Creation Toolbar */}
       {showToolbar && toolbarPosition && !activeAnnotationId && (
         <div 
           className="absolute z-50 pointer-events-auto flex items-center gap-2 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 p-2 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.15)] border border-gray-100 dark:border-slate-700 transform -translate-x-1/2 -translate-y-full"
@@ -540,10 +539,11 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
             <div className="flex gap-1">
                <button 
                  onClick={handleDelete}
-                 className="p-1 hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600 rounded transition-colors"
-                 title="删除"
+                 className="flex items-center gap-1 px-2 py-1 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 rounded-md transition-colors text-xs font-medium border border-red-200 dark:border-red-800 shadow-sm"
+                 title="删除此标记 (Delete)"
                >
-                 <Trash2 className="w-3.5 h-3.5" />
+                 <Trash2 className="w-3 h-3" />
+                 <span>删除</span>
                </button>
                <button 
                  onClick={() => setActiveAnnotationId(null)}
@@ -674,5 +674,6 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
          </div>
       )}
     </div>
+    </TooltipProvider>
   );
 };

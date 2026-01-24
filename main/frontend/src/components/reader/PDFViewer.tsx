@@ -186,16 +186,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 renderAnnotationLayer={true}
                 customTextRenderer={textRenderer}
                 className="bg-white dark:bg-slate-200" // PDF pages are typically white, but we can dim them slightly if needed, though usually white is best for readability. Let's keep white for content but ensure container is dark. Actually, PDF content is rendered on canvas/img, so bg-white is behind it.
-              />
-              <PDFPageOverlay 
-                pageIndex={pageNumber - 1} // 0-based
-                scale={scale}
-                layers={layers}
-                activeViewId={activeViewId}
-                onAddAnnotation={onAddAnnotation}
-                onUpdateAnnotation={onUpdateAnnotation}
-                onDeleteAnnotation={onDeleteAnnotation}
-              />
+              >
+                <PDFPageOverlay 
+                  pageIndex={pageNumber - 1} // 0-based
+                  scale={scale}
+                  layers={layers}
+                  activeViewId={activeViewId}
+                  onAddAnnotation={onAddAnnotation}
+                  onUpdateAnnotation={onUpdateAnnotation}
+                  onDeleteAnnotation={onDeleteAnnotation}
+                />
+              </Page>
             </div>
           ) : (
             // Scroll Mode: Render all pages
@@ -213,16 +214,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                   renderAnnotationLayer={true}
                   customTextRenderer={textRenderer}
                   className="bg-white dark:bg-slate-200"
-                />
-                <PDFPageOverlay 
-                  pageIndex={index} // 0-based
-                  scale={scale}
-                  layers={layers}
-                  activeViewId={activeViewId}
-                  onAddAnnotation={onAddAnnotation}
-                  onUpdateAnnotation={onUpdateAnnotation}
-                  onDeleteAnnotation={onDeleteAnnotation}
-                />
+                >
+                  <PDFPageOverlay 
+                    pageIndex={index} // 0-based
+                    scale={scale}
+                    layers={layers}
+                    activeViewId={activeViewId}
+                    onAddAnnotation={onAddAnnotation}
+                    onUpdateAnnotation={onUpdateAnnotation}
+                    onDeleteAnnotation={onDeleteAnnotation}
+                  />
+                </Page>
               </div>
             ))
           )}

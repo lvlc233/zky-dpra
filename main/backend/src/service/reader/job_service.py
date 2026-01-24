@@ -33,7 +33,7 @@ class JobService:
         
         items = [
             JobDTO(
-                id=j.job_id,
+                id=j.id,
                 job_type=j.type,
                 status=j.status,
                 progress=float(j.progress) if j.progress is not None else 0.0,
@@ -60,7 +60,7 @@ class JobService:
 
         # Create Job
         new_job = Job(
-            job_id=uuid4(),
+            id=uuid4(),
             user_id=user_id,
             paper_id=paper_id,
             type=req.job_type,
@@ -76,14 +76,17 @@ class JobService:
         # Trigger background task
         try:
             if req.job_type == "parse_text":
-                await task_queue.enqueue_parse_text(str(paper_id), str(new_job.job_id))
+                await task_queue.enqueue_parse_text(str(paper_id), str(new_job.id))
             elif req.job_type == "vectorize":
-                await task_queue.enqueue_vectorize(str(paper_id), str(new_job.job_id))
+                await task_queue.enqueue_vectorize(str(paper_id), str(new_job.id))
             elif req.job_type == "summary":
-                await task_queue.enqueue_summary(str(paper_id), str(new_job.job_id))
+                await task_queue.enqueue_summary(str(paper_id), str(new_job.id))
             elif req.job_type == "mind_map":
-                await task_queue.enqueue_mind_map(str(paper_id), str(new_job.job_id))
+                await task_queue.enqueue_mind_map(str(paper_id), str(new_job.id))
+            elif req.job_type == "chat":
+                await task_queue.enqueue_chat(str(paper_id), str(new_job.id), req.params.get("message", ""))
             else:
+                from loguru import logger
                 logger.warning(f"Unsupported job type: {req.job_type}")
         except Exception as e:
              # log error but return success as job is created
@@ -91,7 +94,7 @@ class JobService:
         
         # Map entity to response
         return JobResponse(
-            id=new_job.job_id,
+            id=new_job.id,
             job_type=new_job.type,
             status=new_job.status,
             progress=new_job.progress,
@@ -105,7 +108,7 @@ class JobService:
         重新入队任务（用于恢复僵尸任务）
         Arq 保证幂等性：如果任务 ID 已在队列中，不会重复添加。
         """
-        stmt = select(Job).where(Job.job_id == job_id)
+        stmt = select(Job).where(Job.id == job_id)
         result = await self.session.execute(stmt)
         job = result.scalar_one_or_none()
         
@@ -114,13 +117,15 @@ class JobService:
             
         try:
             if job.type == "parse_text":
-                await task_queue.enqueue_parse_text(str(job.paper_id), str(job.job_id))
+                await task_queue.enqueue_parse_text(str(job.paper_id), str(job.id))
             elif job.type == "vectorize":
-                await task_queue.enqueue_vectorize(str(job.paper_id), str(job.job_id))
+                await task_queue.enqueue_vectorize(str(job.paper_id), str(job.id))
             elif job.type == "summary":
-                await task_queue.enqueue_summary(str(job.paper_id), str(job.job_id))
+                await task_queue.enqueue_summary(str(job.paper_id), str(job.id))
             elif job.type == "mind_map":
-                await task_queue.enqueue_mind_map(str(job.paper_id), str(job.job_id))
+                await task_queue.enqueue_mind_map(str(job.paper_id), str(job.id))
+            elif job.type == "chat":
+                await task_queue.enqueue_chat(str(job.paper_id), str(job.id), "")
             else:
                 return False
             return True
@@ -133,7 +138,7 @@ class JobService:
         stmt = (
             select(Job)
             .join(Paper)
-            .where(Job.job_id == job_id, Paper.user_id == user_id)
+            .where(Job.id == job_id, Paper.user_id == user_id)
         )
         result = await self.session.execute(stmt)
         job = result.scalar_one_or_none()
@@ -141,7 +146,7 @@ class JobService:
             raise HTTPException(status_code=404, detail="Job not found")
         
         return JobResponse(
-            id=job.job_id,
+            id=job.id,
             job_type=job.type,
             status=job.status,
             progress=job.progress,

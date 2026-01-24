@@ -34,13 +34,13 @@ async def main():
                 logger.warning("数据库中没有 Job 记录！")
             else:
                 for job in jobs:
-                    logger.info(f"Job: {job.job_id} | Type: {job.type} | Status: {job.status} | PaperID: {job.paper_id}")
+                    logger.info(f"Job: {job.id} | Type: {job.type} | Status: {job.status} | PaperID: {job.paper_id}")
                     
                     # 如果发现 queued/running 的任务，尝试手动触发
                     if job.status in ['queued', 'running'] and job.type == 'parse_text':
-                        logger.info(f"尝试手动 Re-enqueue Job: {job.job_id}")
+                        logger.info(f"尝试手动 Re-enqueue Job: {job.id}")
                         try:
-                            await task_queue.enqueue_parse_text(str(job.paper_id), str(job.job_id))
+                            await task_queue.enqueue_parse_text(str(job.paper_id), str(job.id))
                             logger.info("Re-enqueue 成功！请检查 Worker 日志。")
                         except Exception as e:
                             logger.error(f"Re-enqueue 失败: {e}")

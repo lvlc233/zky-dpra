@@ -55,7 +55,7 @@ export interface Rect {
 export interface Annotation {
   annotation_id: string;
   type: 'highlight' | 'translation' | 'note';
-  rect: Rect;
+  rects: Rect[];
   content: string;
   color: string;
 }
@@ -68,10 +68,11 @@ export interface View {
 }
 
 export interface NoteMeta {
-  note_id: string;
+  id: string;
   title: string;
   page?: number;
   created_at: string;
+  content?: string;
 }
 
 export interface Note extends NoteMeta {
@@ -81,19 +82,25 @@ export interface Note extends NoteMeta {
 export interface MindMapNode {
   id: string;
   text: string;
+  label?: string;
   type?: string;
+  data?: { type?: string; [key: string]: any };
   meta?: Record<string, string>;
 }
 
 export interface MindMapEdge {
+  id?: string;
   from_id: string;
   to_id: string;
+  source?: string;
+  target?: string;
   label?: string;
 }
 
 export interface MindMap {
   nodes: MindMapNode[];
   edges: MindMapEdge[];
+  system_notification?: string;
 }
 
 export interface AISummary {

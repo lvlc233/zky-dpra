@@ -85,7 +85,7 @@ class ReaderService:
                 # 但这里主要解决 "worker 后启动" 的问题，此时状态应该是 queued（如果入队成功但没消费）
                 # 或者根本没入队成功（如果当时 redis 挂了）。
                 # 重新入队是低成本且安全的。
-                await self.job_service.re_enqueue_job(active_parse_job.job_id)
+                await self.job_service.re_enqueue_job(active_parse_job.id)
             except Exception as e:
                 print(f"Failed to auto-recover active job: {e}")
 
@@ -122,6 +122,10 @@ class ReaderService:
             if ann.rects:
                 for r in ann.rects:
                     try:
+                        # Compatibility for page_index vs pageIndex
+                        if 'page_index' in r and 'pageIndex' not in r:
+                            r['pageIndex'] = r.get('page_index')
+                        
                         rects_list.append(Rect(**r))
                     except:
                         pass
@@ -129,7 +133,7 @@ class ReaderService:
             annotations.append(Annotation(
                 id=ann.id,
                 type=ann.type,
-                rect=rects_list,
+                rects=rects_list,
                 content=ann.content,
                 color=ann.color
             ))
@@ -149,7 +153,9 @@ class ReaderService:
         # Schema AISummary: summary_config: Dict[str, str]
         summary_config = {}
         for s in paper.summaries:
-            summary_config[s.summary_type] = s.content
+            # 兼容旧数据: ai_summary -> summary
+            key = "summary" if s.summary_type == "ai_summary" else s.summary_type
+            summary_config[key] = s.content
         ai_summary = AISummary(summary_config=summary_config) if summary_config else None
 
         # Mind Map
@@ -182,7 +188,7 @@ class ReaderService:
             # Spec: result: JobResult|None=None.
             jobs_dto.append(JobSchema(
                 id=job.id,
-                job_type=job.job_type,
+                job_type=job.type,
                 status=job.status,
                 progress=float(job.progress) / 100.0 if job.progress is not None else 0.0,
                 stage=job.stage,
@@ -213,6 +219,10 @@ class ReaderService:
             if ann.rects:
                 for r in ann.rects:
                     try:
+                        # Compatibility for page_index vs pageIndex
+                        if 'page_index' in r and 'pageIndex' not in r:
+                            r['pageIndex'] = r.get('page_index')
+
                         rects_list.append(Rect(**r))
                     except:
                         pass
@@ -220,7 +230,7 @@ class ReaderService:
             result.append(Annotation(
                 id=ann.id,
                 type=ann.type,
-                rect=rects_list,
+                rects=rects_list,
                 content=ann.content,
                 color=ann.color
             ))
@@ -232,10 +242,10 @@ class ReaderService:
              raise HTTPException(status_code=404, detail="Paper not found")
              
         annotation = AnnotationEntity(
-            id=uuid4(),
+            id=req.id if req.id else uuid4(),
             paper_id=paper_id,
             type=req.type,
-            rects=[r for r in req.rect], 
+            rects=[r for r in req.rects], 
             content=req.content,
             color=req.color
         )
@@ -254,7 +264,7 @@ class ReaderService:
              raise HTTPException(status_code=403, detail="Permission denied")
 
         annotation.type = req.type
-        annotation.rects = [r for r in req.rect]
+        annotation.rects = [r for r in req.rects]
         annotation.content = req.content
         annotation.color = req.color
         

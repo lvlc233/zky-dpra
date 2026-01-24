@@ -24,7 +24,8 @@ class NoteService:
                 id=n.id,
                 title=n.title,
                 page=n.page,
-                created_at=n.created_at
+                created_at=n.created_at,
+                content=n.content
             ) for n in notes
         ]
         return items

@@ -46,13 +46,13 @@ class SystemSettings(BaseModel):
 class AgentSettings(BaseModel):
     """Agent(RAG/Embedding) Settings"""
     # Embedding Configuration
-    embedding_provider: Literal['local', 'siliconflow', 'openai'] = 'local'
+    embedding_provider: Literal['local', 'siliconflow', 'openai', 'none'] = 'local'
     embedding_model: str = "bge-m3"
     embedding_api_key: str = ""
     embedding_base_url: str = ""
     
     # RAG/Chat Generation Configuration (Base Model)
-    rag_provider: Literal['siliconflow', 'openai', 'ollama'] = 'siliconflow'
+    rag_provider: Literal['siliconflow', 'openai', 'ollama'] = 'openai'
     rag_base_model: str = "deepseek-ai/DeepSeek-V3"
     rag_api_key: str = ""
     rag_base_url: str = "https://api.siliconflow.cn/v1"

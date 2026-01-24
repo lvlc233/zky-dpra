@@ -15,13 +15,42 @@ class MindMapService:
     async def get_mind_map_data(self, paper_id: UUID, user_id: UUID) -> Optional[MindMap]:
         mm = await self.get_mind_map_by_paper(paper_id, user_id)
         
-        if not mm or not mm.graph_data:
-            return MindMap(nodes=[], edges=[])
-            
-        gd = mm.graph_data
-        nodes = [MindMapNode(**n) for n in gd.get("nodes", [])]
-        edges = [MindMapEdge(**e) for e in gd.get("edges", [])]
-        return MindMap(nodes=nodes, edges=edges)
+        if mm and mm.graph_data:
+            gd = mm.graph_data
+            nodes = [MindMapNode(**n) for n in gd.get("nodes", [])]
+            edges = [MindMapEdge(**e) for e in gd.get("edges", [])]
+            return MindMap(nodes=nodes, edges=edges)
+
+        # --- Auto-Trigger Logic ---
+        from base.pg.entity import Job
+        from sqlalchemy import select
+        from loguru import logger
+        
+        # Check active jobs
+        stmt = select(Job).where(
+            Job.paper_id == paper_id,
+            Job.type == "mind_map",
+            Job.status.in_(["queued", "running"])
+        )
+        result = await self.session.execute(stmt)
+        active_job = result.scalar_one_or_none()
+        
+        if not active_job:
+            # No active job, trigger one
+            try:
+                from service.reader.job_service import JobService
+                from controller.api.reader.schema import JobCreateRequest
+                
+                logger.info(f"Auto-triggering mind_map job for paper {paper_id}")
+                job_service = JobService(self.session)
+                # Create job
+                await job_service.create_job(paper_id, JobCreateRequest(job_type="mind_map"), user_id)
+                return MindMap(nodes=[], edges=[], system_notification="正在自动触发脑图生成任务，请稍候刷新...")
+            except Exception as e:
+                logger.error(f"Failed to auto-trigger mind_map job: {e}")
+                return MindMap(nodes=[], edges=[])
+        else:
+             return MindMap(nodes=[], edges=[], system_notification="脑图任务正在生成中，请稍后...")
 
     async def get_mind_map_by_paper(self, paper_id: UUID, user_id: UUID) -> Optional[MindMapEntity]:
         """获取论文的思维导图"""

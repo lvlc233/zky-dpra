@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
 
     # Embedding 配置
-    embedding_type: Literal["local", "siliconflow", "openai", "ollama"] = "local"
+    embedding_type: Literal["local", "siliconflow", "openai", "ollama", "none"] = "local"
     
     # Local Embedding (ONNX)
     local_embedding_model_path: str = r"D:\模型\bge-m3-onnx\bge-m3-onnx"

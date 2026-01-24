@@ -56,9 +56,14 @@ export const readerService = {
     return request.get(`/papers/${paperId}/annotations`);
   },
 
-  addAnnotation: async (paperId: string, viewId: string, data: Omit<Annotation, 'annotation_id'>): Promise<void> => {
+  addAnnotation: async (paperId: string, viewId: string, data: Annotation): Promise<void> => {
      // Ignore viewId for now
-    return request.post(`/papers/${paperId}/annotations`, data);
+     // Map annotation_id to id for backend
+     const payload = {
+         ...data,
+         id: data.annotation_id
+     };
+    return request.post(`/papers/${paperId}/annotations`, payload);
   },
 
   updateAnnotation: async (paperId: string, viewId: string, annotationId: string, data: Omit<Annotation, 'annotation_id'>): Promise<void> => {
@@ -78,6 +83,18 @@ export const readerService = {
     return request.get(`/papers/${paperId}/notes/${noteId}`);
   },
 
+  createNote: async (paperId: string, data: { title: string; content: string; page?: number }): Promise<NoteResponse> => {
+    return request.post(`/papers/${paperId}/notes`, data);
+  },
+
+  updateNote: async (paperId: string, noteId: string, data: { title?: string; content?: string }): Promise<NoteResponse> => {
+    return request.put(`/papers/${paperId}/notes/${noteId}`, data);
+  },
+
+  deleteNote: async (paperId: string, noteId: string): Promise<void> => {
+    return request.delete(`/papers/${paperId}/notes/${noteId}`);
+  },
+
   // AI
   getSummary: async (paperId: string): Promise<AISummaryResponse> => {
     return request.get(`/papers/${paperId}/ai/summary`);
@@ -93,5 +110,39 @@ export const readerService = {
 
   getRecord: async (paperId: string, recordId: string): Promise<MessageResponse> => {
     return request.get(`/papers/${paperId}/ai/record/${recordId}`);
+  },
+
+  // Helper to get full layers (views + annotations)
+  getLayers: async (paperId: string): Promise<{ layers: any[] }> => {
+    // This aggregates views and their annotations
+    const views = await readerService.getViews(paperId);
+    if (!views || views.length === 0) return { layers: [] };
+
+    const layers = await Promise.all(views.map(async (view) => {
+        try {
+            const annos = await readerService.getAnnotations(paperId, view.view_id);
+            return {
+                view_id: view.view_id,
+                name: view.name,
+                type: (view.name.includes('Base') || view.name.includes('原文')) ? 'system' : 'user',
+                visible: view.enable,
+                annotations: (annos.items || []).map((a: any) => ({
+                    ...a,
+                    annotation_id: a.annotation_id || a.id,
+                    rects: a.rects || (a.rect ? [a.rect] : [])
+                })),
+                color: undefined
+            };
+        } catch (e) {
+            return {
+                view_id: view.view_id,
+                name: view.name,
+                type: 'user',
+                visible: view.enable,
+                annotations: [],
+            };
+        }
+    }));
+    return { layers };
   }
 };

@@ -4,7 +4,6 @@
 
 from typing import TypedDict
 
-# TODO: 可能需要给个工厂
 class BaseRuntimeWithModelConfig (TypedDict):
     base_url: str
     model_name: str

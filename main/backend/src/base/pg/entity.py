@@ -369,7 +369,7 @@ class Note(SQLModel, table=True):
     __tablename__ = "notes"
     __table_args__ = {"comment": "笔记表: 存储用户对论文的个人注释"}
 
-    note_id: UUID = Field(
+    id: UUID = Field(
         default_factory=uuid4,
         primary_key=True,
         sa_type=PGUUID(as_uuid=True),
@@ -460,7 +460,7 @@ class Annotation(SQLModel, table=True):
     __tablename__ = "annotations"
     __table_args__ = {"comment": "标注表: 存储PDF的高亮、笔记等标注信息"}
 
-    annotation_id: UUID = Field(
+    id: UUID = Field(
         default_factory=uuid4,
         primary_key=True,
         sa_type=PGUUID(as_uuid=True),
@@ -477,8 +477,9 @@ class Annotation(SQLModel, table=True):
         sa_column_kwargs={"comment": "标注类型(highlight/note/translate)"}
     )
     # 存储矩形坐标 [{"x":.., "y":.., "width":.., "height":.., "pageIndex":..}]
-    rect: Dict[str, Any] = Field(
-        sa_column=Column(JSON, comment="标注区域坐标(JSON对象)")
+    rects: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, comment="标注区域坐标(JSON数组)")
     )
     content: Optional[str] = Field(
         default=None,
@@ -510,7 +511,7 @@ class AgentSession(SQLModel, table=True):
     __tablename__ = "agent_sessions"
     __table_args__ = {"comment": "Agent会话表: 存储对话历史"}
 
-    record_id: UUID = Field(
+    id: UUID = Field(
         default_factory=uuid4,
         primary_key=True,
         sa_type=PGUUID(as_uuid=True),
@@ -563,7 +564,7 @@ class Job(SQLModel, table=True):
     __tablename__ = "jobs"
     __table_args__ = {"comment": "任务表: 异步任务状态与结果"}
 
-    job_id: UUID = Field(
+    id: UUID = Field(
         default_factory=uuid4,
         primary_key=True,
         sa_type=PGUUID(as_uuid=True),

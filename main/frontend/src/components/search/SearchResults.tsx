@@ -233,16 +233,18 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                     </Popover.Portal>
                   </Popover.Root>
 
+                  {paper.paper_id && (
                    <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDelete(paper.paper_id);
+                      handleDelete(paper.paper_id!);
                     }}
                     className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
                     title="删除论文"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                  )}
               </div>
 
             </div>

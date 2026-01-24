@@ -7,7 +7,7 @@ import { chatService } from '@/services/chat.service';
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'ai' | 'system';
+  role: 'user' | 'assistant' | 'system'; // Aligned with backend expected roles
   content: string;
   timestamp: number;
   citations?: Citation[];
@@ -31,38 +31,34 @@ export interface ToolCall {
 
 interface UseUnifiedChatOptions {
   agentType: string;
-  context?: any;
+  context?: { paper_id: string; [key: string]: any };
   onError?: (error: any) => void;
   onFinish?: () => void;
 }
 
 export const useUnifiedChat = ({ agentType, context, onError, onFinish }: UseUnifiedChatOptions) => {
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { token } = useAuthStore();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [chatSessionId, setChatSessionId] = useState<string>("");
 
-  const initSession = useCallback(async () => {
-    try {
-      const session = await chatService.createSession(agentType, context);
-      setSessionId(session.session_id);
-      return session.session_id;
-    } catch (e) {
-      logger.error('Failed to init chat session', e);
-      onError?.(e);
-      return null;
-    }
-  }, [agentType, context, onError]);
+  // Initialize session ID if not present
+  if (!chatSessionId) {
+      // Simple UUID generation for frontend session
+      const newSessionId = crypto.randomUUID();
+      setChatSessionId(newSessionId);
+  }
 
-  const sendMessage = useCallback(async (content: string, files: any[] = []) => {
+  // Clear messages function
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    // Reset session ID when clearing messages to start fresh context
+    setChatSessionId(crypto.randomUUID());
+  }, []);
+  
+  const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
-
-    let currentSessionId = sessionId;
-    if (!currentSessionId) {
-      currentSessionId = await initSession();
-      if (!currentSessionId) return;
-    }
 
     // Add User Message
     const userMsgId = Date.now().toString();
@@ -74,14 +70,16 @@ export const useUnifiedChat = ({ agentType, context, onError, onFinish }: UseUni
       status: 'completed'
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    // Optimistically add user message
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setIsLoading(true);
 
     // Add AI Placeholder
     const aiMsgId = (Date.now() + 1).toString();
     const aiMsg: ChatMessage = {
       id: aiMsgId,
-      role: 'ai',
+      role: 'assistant',
       content: '',
       timestamp: Date.now(),
       status: 'streaming'
@@ -91,13 +89,35 @@ export const useUnifiedChat = ({ agentType, context, onError, onFinish }: UseUni
     try {
       abortControllerRef.current = new AbortController();
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/chat/sessions/${currentSessionId}/message`, {
+      let url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/chat/message`; // Default/Fallback
+      let body: any = { content };
+
+      // Specialized logic for PaperChatAgent (Agentic RAG)
+      if (agentType === 'paper_copilot' && context?.paper_id) {
+        url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/agent/paper_chat/stream`;
+        
+        // For persistent sessions (LangGraph + Checkpointer), we only send the NEW message.
+        // The backend/graph will append it to the existing history.
+        // Sending full history would cause duplication.
+        const inputMessages = [{
+            role: 'user',
+            content: content
+        }];
+
+        body = {
+          paper_id: context.paper_id,
+          messages: inputMessages,
+          chat_session_id: chatSessionId
+        };
+      }
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ content, files }),
+        body: JSON.stringify(body),
         signal: abortControllerRef.current.signal
       });
 
@@ -112,72 +132,66 @@ export const useUnifiedChat = ({ agentType, context, onError, onFinish }: UseUni
       
       const parser = createParser({
         onEvent: (event) => {
-          if (event.type === 'event') {
-            try {
-              if (event.data === '[DONE]') return;
-              
-              const data = JSON.parse(event.data);
-              
-              // Handle different event types from backend
-              // Based on doc: metadata, token, tool_call, tool_result, citation, finish, error
-              
-              // 1. Token (Content Delta)
-              // Note: Backend doc says data: "content" directly for token event sometimes? 
-              // API_DOCUMENTATION_v1.md says: event: token -> data: {"content": "..."}
-              // FRONTEND_TO_BACKEND_API_REQ.md says: data: "这是" (string)
-              // We need to handle both cases or see actual implementation.
-              // Assuming JSON structure based on recent trends.
-              
-              // Let's assume standard format: { type, ...payload } or just payload based on event name
-              // Actually createParser gives us `event.event` as the event name if present.
-              // If backend sends `event: token\ndata: ...`, event.event will be 'token'.
-              
-              const eventType = event.event || 'token'; // Default to token if not specified?
+          try {
+            if (event.data === '[DONE]') return;
+            
+            const eventType = event.event;
+            const data = event.data ? JSON.parse(event.data) : {};
 
-              setMessages(prev => prev.map(msg => {
-                if (msg.id !== aiMsgId) return msg;
+            setMessages(prev => prev.map(msg => {
+              if (msg.id !== aiMsgId) return msg;
 
-                const updatedMsg = { ...msg };
+              const updatedMsg = { ...msg };
 
-                switch (eventType) {
-                  case 'token':
-                    // Handle both raw string and JSON object
-                    const text = typeof data === 'string' ? data : (data.content || data.token || '');
-                    updatedMsg.content += text;
-                    break;
-                  
-                  case 'citation':
-                    updatedMsg.citations = [...(updatedMsg.citations || []), data];
-                    break;
-                    
-                  case 'tool_call':
-                    updatedMsg.toolCalls = [...(updatedMsg.toolCalls || []), { ...data, status: 'start' }];
-                    break;
-                    
-                  case 'tool_result':
-                    // Find matching tool call and update
-                    if (updatedMsg.toolCalls) {
-                      updatedMsg.toolCalls = updatedMsg.toolCalls.map(tc => 
-                        tc.tool_name === data.tool_name ? { ...tc, status: 'success', result: data.result } : tc
-                      );
+              switch (eventType) {
+                case 'message':
+                  // data: { content: "..." }
+                  updatedMsg.content += (data.content || '');
+                  break;
+                
+                case 'tool_start':
+                  // data: { tool: "...", input: ... }
+                  updatedMsg.toolCalls = [
+                    ...(updatedMsg.toolCalls || []),
+                    { 
+                      tool_name: data.tool, 
+                      args: data.input, 
+                      status: 'start' 
                     }
-                    break;
+                  ];
+                  break;
+                  
+                case 'tool_end':
+                  // data: { tool: "...", output: ... }
+                  // Find the last matching tool call that is in 'start' status
+                  if (updatedMsg.toolCalls) {
+                    const toolIndex = updatedMsg.toolCalls.findLastIndex(
+                      tc => tc.tool_name === data.tool && tc.status === 'start'
+                    );
                     
-                  case 'error':
-                    updatedMsg.status = 'error';
-                    updatedMsg.content += `\n[Error: ${data.message || 'Unknown error'}]`;
-                    break;
-                }
-                return updatedMsg;
-              }));
+                    if (toolIndex !== -1) {
+                        const newToolCalls = [...updatedMsg.toolCalls];
+                        newToolCalls[toolIndex] = {
+                            ...newToolCalls[toolIndex],
+                            status: 'success',
+                            result: data.output
+                        };
+                        updatedMsg.toolCalls = newToolCalls;
+                    }
+                  }
+                  break;
 
-              if (eventType === 'finish') {
-                onFinish?.();
+                case 'error':
+                   updatedMsg.status = 'error';
+                   // Backend sends { error: "..." } but we were looking for { message: "..." }
+                   updatedMsg.content += `\n[Error: ${data.error || data.message || 'Unknown error'}]`;
+                   break;
               }
+              return updatedMsg;
+            }));
 
-            } catch (e) {
-              console.error("Parse error", e);
-            }
+          } catch (e) {
+            console.error("Parse error", e);
           }
         }
       });
@@ -193,44 +207,32 @@ export const useUnifiedChat = ({ agentType, context, onError, onFinish }: UseUni
       setMessages(prev => prev.map(msg => 
         msg.id === aiMsgId ? { ...msg, status: 'completed' } : msg
       ));
+      
+      onFinish?.();
 
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.log('Request aborted');
       } else {
-        logger.error("Send message failed", error);
-        toast.error("发送消息失败");
+        logger.error('Chat error', error);
         setMessages(prev => prev.map(msg => 
-            msg.id === aiMsgId 
-            ? { ...msg, status: 'error', content: msg.content + "\n[发送失败，请重试]" } 
-            : msg
+            msg.id === aiMsgId ? { ...msg, status: 'error', content: msg.content + '\n[Request Failed]' } : msg
         ));
+        onError?.(error);
+        toast.error("消息发送失败");
       }
     } finally {
       setIsLoading(false);
-      abortControllerRef.current = null;
     }
-  }, [sessionId, initSession, token, onFinish]);
-
-  const stop = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-      setIsLoading(false);
-    }
-  }, []);
-
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-  }, []);
+  }, [agentType, context, messages, token, onError, onFinish, chatSessionId]);
 
   return {
-    sessionId,
     messages,
-    isLoading,
+    setMessages, // Export setter
     sendMessage,
-    stop,
+    isLoading,
     clearMessages,
-    setMessages // Allow manual setting if needed (e.g. for history)
+    chatSessionId,
+    setChatSessionId
   };
 };

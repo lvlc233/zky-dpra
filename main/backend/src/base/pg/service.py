@@ -502,20 +502,20 @@ class ReaderRepository:
         return annotation
 
     @staticmethod
+    async def get_annotation_by_id(session: AsyncSession, annotation_id: UUID) -> Optional[Annotation]:
+        """根据ID获取标注"""
+        statement = select(Annotation).where(Annotation.id == annotation_id)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def update_annotation(session: AsyncSession, annotation: Annotation) -> Annotation:
         """更新标注"""
         session.add(annotation)
         await session.commit()
         await session.refresh(annotation)
         return annotation
-        
-    @staticmethod
-    async def get_annotation_by_id(session: AsyncSession, anno_id: UUID) -> Optional[Annotation]:
-        """获取标注详情"""
-        statement = select(Annotation).where(Annotation.annotation_id == anno_id)
-        result = await session.execute(statement)
-        return result.scalar_one_or_none()
-        
+
     @staticmethod
     async def delete_annotation(session: AsyncSession, annotation: Annotation) -> bool:
         """删除标注"""
@@ -529,7 +529,7 @@ class JobRepository:
 
     @staticmethod
     async def get_job_by_id(session: AsyncSession, job_id: UUID) -> Optional[Job]:
-        statement = select(Job).where(Job.job_id == job_id)
+        statement = select(Job).where(Job.id == job_id)
         result = await session.execute(statement)
         return result.scalar_one_or_none()
 
@@ -544,7 +544,7 @@ class JobRepository:
         error: Optional[str] = None,
         end_at: Optional[datetime] = None
     ) -> Optional[Job]:
-        statement = select(Job).where(Job.job_id == job_id)
+        statement = select(Job).where(Job.id == job_id)
         res = await session.execute(statement)
         job = res.scalar_one_or_none()
 

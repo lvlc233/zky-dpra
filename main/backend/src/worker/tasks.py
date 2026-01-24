@@ -10,12 +10,16 @@
 
 from typing import Any, Dict, Optional
 from uuid import UUID
+from datetime import datetime, timedelta
 
+from sqlalchemy import select
 from arq import create_pool, cron
 from arq.connections import RedisSettings
 from arq.worker import Worker
 
 from base.config import settings
+from base.pg.service import async_session_factory
+from base.pg.entity import Job
 from service.papers.paper_service import PaperProcessingService
 
 
@@ -79,21 +83,40 @@ async def vectorize_task(ctx: Dict[str, Any], paper_id: str, job_id: str) -> Dic
         logger.error(f"向量化任务异常: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
 
+
 async def summary_task(ctx: Dict[str, Any], paper_id: str, job_id: str) -> Dict[str, Any]:
     """
     总结任务 (summary)
     """
     logger.info(f"开始总结任务: {paper_id}, JobID: {job_id}")
-    # TODO: 实现总结逻辑
-    return {"status": "success", "message": "总结功能开发中"}
+    try:
+        uuid_paper_id = UUID(paper_id)
+        uuid_job_id = UUID(job_id)
+        
+        processing_service = PaperProcessingService()
+        success = await processing_service.summary(uuid_paper_id, uuid_job_id, redis=ctx.get('redis'))
+        
+        return {"status": "success" if success else "failed"}
+    except Exception as e:
+        logger.error(f"总结任务异常: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
 
 async def mind_map_task(ctx: Dict[str, Any], paper_id: str, job_id: str) -> Dict[str, Any]:
     """
     脑图生成任务 (mind_map)
     """
     logger.info(f"开始脑图任务: {paper_id}, JobID: {job_id}")
-    # TODO: 实现脑图逻辑
-    return {"status": "success", "message": "脑图功能开发中"}
+    try:
+        uuid_paper_id = UUID(paper_id)
+        uuid_job_id = UUID(job_id)
+        
+        processing_service = PaperProcessingService()
+        success = await processing_service.mind_map(uuid_paper_id, uuid_job_id, redis=ctx.get('redis'))
+        
+        return {"status": "success" if success else "failed"}
+    except Exception as e:
+        logger.error(f"脑图任务异常: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
 
 # 保留旧的 process_pdf_task 以兼容（或者标记为废弃）
 async def process_pdf_task(ctx: Dict[str, Any], paper_id: str, job_id: Optional[str] = None) -> Dict[str, Any]:
@@ -148,40 +171,59 @@ async def generate_embeddings_task(
 
 
 async def cleanup_failed_tasks(ctx: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    清理失败任务的定时任务
+        """
+        清理失败任务的定时任务
 
-    参数:
-    - ctx: 任务上下文
+        参数:
+        - ctx: 任务上下文
 
-    返回:
-    - dict: 清理结果
+        返回:
+        - dict: 清理结果
 
-    功能:
-    - 删除超过7天的失败任务记录
-    - 清理临时文件
-    - 释放存储空间
-    """
-    logger.info("开始清理失败任务")
+        功能:
+        - 标记超过1小时未完成的"running"任务为failed
+        - (可选) 删除超过7天的失败任务记录
+        """
+        logger.info("开始清理失败任务")
 
-    try:
-        # TODO: 实现清理逻辑
-        # 1. 查询数据库中失败的旧任务
-        # 2. 删除相关文件
-        # 3. 更新数据库记录
+        try:
+            async with async_session_factory() as session:
+                # 1. 查找并标记“僵尸”任务 (状态为 running 但创建超过 1 小时)
+                # 注意: 这里的超时时间可以根据实际任务平均耗时调整
+                cutoff_time = datetime.now() - timedelta(hours=1)
+                
+                # 查询所有 running 且创建时间早于 cutoff_time 的任务
+                stmt = select(Job).where(Job.status == "running", Job.created_at < cutoff_time)
+                result = await session.execute(stmt)
+                stuck_jobs = result.scalars().all()
+                
+                cleaned_count = 0
+                for job in stuck_jobs:
+                    logger.warning(f"Found stuck job {job.id} (created at {job.created_at}), marking as failed.")
+                    job.status = "failed"
+                    job.error = "Task execution timed out or worker crashed (cleanup)"
+                    job.end_at = datetime.now()
+                    session.add(job)
+                    cleaned_count += 1
+                
+                if cleaned_count > 0:
+                    await session.commit()
+                    logger.info(f"已清理 {cleaned_count} 个僵尸任务")
+                else:
+                    logger.info("未发现僵尸任务")
 
-        logger.info("失败任务清理完成")
-        return {
-            "status": "success",
-            "message": "清理完成"
-        }
+            logger.info("失败任务清理完成")
+            return {
+                "status": "success",
+                "message": f"清理完成, 处理了 {cleaned_count} 个僵尸任务"
+            }
 
-    except Exception as e:
-        logger.error(f"清理任务失败: {e}", exc_info=True)
-        return {
-            "status": "error",
-            "message": f"清理失败: {str(e)}"
-        }
+        except Exception as e:
+            logger.error(f"清理任务失败: {e}", exc_info=True)
+            return {
+                "status": "error",
+                "message": f"清理失败: {str(e)}"
+            }
 
 
 # 任务配置
@@ -204,11 +246,10 @@ class WorkerSettings:
 
     # 定时任务（cron jobs）
     cron_jobs = [
-        # 每天凌晨2点清理失败任务
+        # 每15分钟清理一次失败/僵尸任务
         cron(
             cleanup_failed_tasks,
-            hour=2,
-            minute=0
+            minute={0, 15, 30, 45}
         )
     ]
 

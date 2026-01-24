@@ -11,14 +11,23 @@ import {
   Bot,
   User,
   Loader2,
-  FileText
+  FileText,
+  RefreshCw,
+  History,
+  PlusCircle,
+  MessageSquare,
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { readerService } from '@/services/reader.service';
+import { agentService, AgentSession } from '@/services/agent.service';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
-import { useUnifiedChat } from '@/hooks/use-unified-chat';
+import { useUnifiedChat, ChatMessage } from '@/hooks/use-unified-chat';
 import ReactMarkdown from 'react-markdown';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
 
 interface GuideTabProps {
   paperId: string;
@@ -34,12 +43,73 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadi
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // History State
+  const [sessions, setSessions] = useState<AgentSession[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
   // Chat Hook
-  const { messages, sendMessage, isLoading: isSending, clearMessages } = useUnifiedChat({
+  const { messages, setMessages, sendMessage, isLoading: isSending, clearMessages, chatSessionId, setChatSessionId } = useUnifiedChat({
     agentType: 'paper_copilot',
     context: { paper_id: paperId },
     onError: (e) => toast.error("聊天服务连接失败"),
   });
+
+  // History Functions
+  const fetchSessions = async () => {
+      if (!paperId) return;
+      try {
+          const list = await agentService.getSessions(paperId);
+          setSessions(list);
+      } catch (e) {
+          logger.error("Failed to fetch sessions", e);
+      }
+  };
+
+  const handleNewChat = () => {
+      clearMessages(); // This generates new session ID
+      setIsHistoryOpen(false);
+      toast.success("已开启新对话");
+  };
+
+  const handleLoadSession = async (session: AgentSession) => {
+      if (session.thread_id) {
+           setChatSessionId(session.thread_id);
+           setIsHistoryOpen(false);
+           
+           try {
+               const history = await agentService.getHistory(session.thread_id);
+               const loadedMessages: ChatMessage[] = history.map((m, idx) => ({
+                   id: `hist-${idx}-${Date.now()}`,
+                   role: m.role,
+                   content: m.content,
+                   timestamp: Date.now(),
+                   status: 'completed'
+               }));
+               setMessages(loadedMessages);
+               toast.success("已加载历史会话");
+           } catch(e) {
+               logger.error("Failed to load history", e);
+               toast.error("加载历史失败");
+           }
+      }
+  };
+
+  const handleDeleteSession = async (e: React.MouseEvent, threadId: string) => {
+      e.stopPropagation();
+      if (!confirm("确定要删除这条对话记录吗？")) return;
+      
+      try {
+          await agentService.deleteSession(threadId);
+          toast.success("会话已删除");
+          fetchSessions();
+          if (chatSessionId === threadId) {
+              handleNewChat();
+          }
+      } catch (e) {
+          logger.error("Failed to delete session", e);
+          toast.error("删除失败");
+      }
+  };
 
   // Scroll to bottom
   useEffect(() => {
@@ -47,30 +117,29 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadi
   }, [messages]);
 
   // Init Summary
-  useEffect(() => {
-      const init = async () => {
-          if (!paperId) return;
+  const fetchSummary = async (isManual = false) => {
+      if (!paperId) return;
 
-          // 1. Get Summary
-          setIsGeneratingSummary(true);
-          try {
-              const res = await readerService.getSummary(paperId);
-              if (res && res.summary_config && Object.keys(res.summary_config).length > 0) {
-                  setSummaryData(res.summary_config);
-              } else {
-                  // If no summary, maybe trigger generation?
-                  // For now, let's try to generate if empty
-                   // const genSummary = await readerService.generateSummary(paperId); // Assuming this exists or will exist
-                   // setSummaryData(genSummary.summary_config);
-              }
-          } catch (e) {
-              logger.error("Failed to get summary", e, 'GuideTab');
-          } finally {
-              setIsGeneratingSummary(false);
+      // 1. Get Summary
+      setIsGeneratingSummary(true);
+      try {
+          const res = await readerService.getSummary(paperId);
+          if (res && res.summary_config && Object.keys(res.summary_config).length > 0) {
+              setSummaryData(res.summary_config);
+              if (isManual) toast.success("导读已更新");
+          } else {
+              if (isManual) toast.info("暂无最新导读内容");
           }
-      };
+      } catch (e) {
+          logger.error("Failed to get summary", e, 'GuideTab');
+          if (isManual) toast.error("获取导读失败");
+      } finally {
+          setIsGeneratingSummary(false);
+      }
+  };
 
-      init();
+  useEffect(() => {
+      fetchSummary();
   }, [paperId]);
 
   const handleSendMessage = async () => {
@@ -112,6 +181,17 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadi
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
               论文导读
+              <div 
+                role="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    fetchSummary(true);
+                }}
+                className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-colors ml-1 cursor-pointer"
+                title="刷新导读"
+              >
+                 <RefreshCw className={cn("w-3.5 h-3.5 text-gray-400 hover:text-indigo-500", isGeneratingSummary && "animate-spin")} />
+              </div>
             </h3>
             {isSummaryOpen && Object.keys(summaryData).length === 0 && !isGeneratingSummary && (
                 <span className="text-xs text-gray-400 mt-1">暂无导读内容</span>
@@ -134,7 +214,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadi
         </button>
         
         {isSummaryOpen && (
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-slate-700">
             {isGeneratingSummary || (isProcessing && Object.keys(summaryData).length === 0) ? (
               <div className="flex flex-col items-center justify-center py-8 text-center space-y-3">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
@@ -151,6 +231,13 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadi
               <>
                 {Object.keys(summaryData).length > 0 ? (
                   <div className="space-y-4">
+                    {summaryData['系统通知'] && (
+                         <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-sm rounded-lg flex items-center gap-2">
+                             <Loader2 className="w-4 h-4 animate-spin" />
+                             {summaryData['系统通知']}
+                         </div>
+                    )}
+                    {summaryData['summary'] && renderSummarySection('导读概览', summaryData['summary'], <Sparkles className="w-4 h-4" />)}
                     {summaryData['abstract'] && renderSummarySection('摘要', summaryData['abstract'], <BookOpen className="w-4 h-4" />)}
                     {summaryData['highlights'] && renderSummarySection('亮点', summaryData['highlights'], <Lightbulb className="w-4 h-4" />)}
                     {summaryData['conclusion'] && renderSummarySection('结论', summaryData['conclusion'], <List className="w-4 h-4" />)}
@@ -169,12 +256,68 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadi
       {/* 2. Chat Section */}
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         <div className="p-2 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex justify-between items-center">
-           <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-2">对话助手</span>
+           <div className="flex items-center gap-2">
+               <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-2">对话助手</span>
+               <Popover open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+                   <PopoverTrigger asChild>
+                       <button 
+                           onClick={() => {
+                               setIsHistoryOpen(true);
+                               fetchSessions();
+                           }}
+                           className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded transition-colors text-gray-400"
+                           title="历史记录"
+                       >
+                           <History className="w-3.5 h-3.5" />
+                       </button>
+                   </PopoverTrigger>
+                   <PopoverContent className="w-64 p-0" align="start">
+                       <div className="flex flex-col">
+                           <div className="flex items-center justify-between p-3 border-b bg-gray-50/50">
+                               <span className="text-sm font-medium">历史会话</span>
+                               <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleNewChat}>
+                                   <PlusCircle className="w-3 h-3 mr-1" />
+                                   新对话
+                               </Button>
+                           </div>
+                           <div className="max-h-60 overflow-y-auto p-1 space-y-0.5">
+                               {sessions.map(s => (
+                                   <div key={s.record_id} className="group flex items-center gap-1 w-full hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md pr-1 transition-colors">
+                                       <button
+                                           onClick={() => handleLoadSession(s)}
+                                           className={cn(
+                                               "flex-1 text-left px-3 py-2 text-sm truncate flex items-center gap-3",
+                                               chatSessionId === s.thread_id && "text-indigo-600 dark:text-indigo-400"
+                                           )}
+                                       >
+                                           <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                                           <div className="flex flex-col flex-1 min-w-0">
+                                                <span className="truncate font-medium">{s.title || "未命名会话"}</span>
+                                                <span className="text-[10px] text-gray-400">{format(new Date(s.created_at), "MM-dd HH:mm")}</span>
+                                           </div>
+                                       </button>
+                                       <button
+                                           onClick={(e) => handleDeleteSession(e, s.thread_id)}
+                                           className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 rounded transition-all"
+                                           title="删除会话"
+                                       >
+                                           <Trash2 className="w-3.5 h-3.5" />
+                                       </button>
+                                   </div>
+                               ))}
+                               {sessions.length === 0 && (
+                                   <div className="text-center py-8 text-xs text-gray-400">暂无历史记录</div>
+                               )}
+                           </div>
+                       </div>
+                   </PopoverContent>
+               </Popover>
+           </div>
            <button 
              onClick={clearMessages} 
              className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/50 transition-colors"
            >
-             清空记录
+             清空当前
            </button>
         </div>
 
@@ -209,7 +352,25 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadi
                       ? "bg-indigo-600 text-white rounded-tr-sm" 
                       : "bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 text-gray-800 dark:text-gray-200 rounded-tl-sm"
                   )}>
-                    {msg.role === 'ai' ? (
+                    {/* Tool Calls Status */}
+                    {msg.toolCalls && msg.toolCalls.length > 0 && (
+                      <div className="mb-2 flex flex-col gap-1 border-b border-gray-100 dark:border-slate-800 pb-2">
+                        {msg.toolCalls.map((tool, idx) => (
+                          <div key={idx} className="text-xs flex items-center gap-2 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800/50 px-2 py-1 rounded">
+                            {tool.status === 'start' ? (
+                              <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />
+                            ) : (
+                              <FileText className="w-3 h-3 text-emerald-500" />
+                            )}
+                            <span>
+                              {tool.tool_name === 'retrieve_paper_tool' ? '正在阅读论文...' : `调用工具: ${tool.tool_name}`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {msg.role === 'assistant' ? (
                         <div className="prose prose-sm dark:prose-invert max-w-none">
                             <ReactMarkdown>{msg.content || (msg.status === 'streaming' ? '...' : '')}</ReactMarkdown>
                         </div>

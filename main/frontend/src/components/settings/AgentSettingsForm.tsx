@@ -15,12 +15,13 @@ const AgentSettingsForm = ({ settings, onChange }: { settings: AgentSettings, on
                  value={settings.embedding_provider}
                  onChange={(e) => onChange({...settings, embedding_provider: e.target.value as any})}
                >
+                 <option value="none">Disabled (Close)</option>
                  <option value="local">Local (ONNX)</option>
                  <option value="siliconflow">SiliconFlow</option>
                  <option value="openai">OpenAI Compatible</option>
                </select>
              </div>
-             {settings.embedding_provider !== 'local' && (
+             {settings.embedding_provider !== 'local' && settings.embedding_provider !== 'none' && (
                <>
                  <div className="space-y-2">
                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">API Key</label>

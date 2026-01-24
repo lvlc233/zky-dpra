@@ -60,12 +60,20 @@ export default function ReaderPage({ params }: ReaderPageProps) {
                         const layersData = await Promise.all(views.map(async (view) => {
                             try {
                                 const annos = await readerService.getAnnotations(params.id, view.view_id);
+                                
+                                // Normalize annotations to ensure rects exists
+                                const normalizedAnnos = (annos.items || []).map((a: any) => ({
+                                    ...a,
+                                    annotation_id: a.annotation_id || a.id,
+                                    rects: a.rects || (a.rect ? [a.rect] : [])
+                                }));
+
                                 return {
                                     view_id: view.view_id,
                                     name: view.name,
                                     type: (view.name.includes('Base') || view.name.includes('原文')) ? 'system' : 'user',
                                     visible: view.enable,
-                                    annotations: annos.items || [],
+                                    annotations: normalizedAnnos,
                                     color: undefined
                                 } as Layer;
                             } catch (e) {
@@ -234,21 +242,7 @@ export default function ReaderPage({ params }: ReaderPageProps) {
 
   const handleAddAnnotation = async (annotation: Annotation) => {
       try {
-          const { annotation_id, ...data } = annotation;
-          await readerService.addAnnotation(params.id, activeViewId, data);
-          
-          // Re-fetch to get the real ID if needed, or just use optimistic with generated ID?
-          // The backend might assign a different ID. Ideally we should get the response.
-          // But addAnnotation returns void in current service definition.
-          // Let's assume for now we might need to refresh or just keep using the generated ID if backend accepts it?
-          // Actually, service.addAnnotation takes Omit<Annotation, 'annotation_id'>.
-          // This implies backend generates ID.
-          // If backend generates ID, we should update our local state with that ID.
-          // But `addAnnotation` returns void. This is a potential issue.
-          // Let's check reader.service.ts again. It returns void.
-          // Recommendation: Update reader.service.ts to return the created annotation or at least the ID.
-          // For now, I will use the generated ID and hope for the best, or trigger a refresh?
-          // Refreshing is safer.
+          await readerService.addAnnotation(params.id, activeViewId, annotation);
           
           const annos = await readerService.getAnnotations(params.id, activeViewId);
           setLayers(layers.map(l => {
@@ -305,6 +299,76 @@ export default function ReaderPage({ params }: ReaderPageProps) {
              // Revert logic needed ideally
         }
     }
+  };
+
+  const handleToggleAnnotations = async () => {
+    const currentLayer = layers.find(l => l.view_id === activeViewId);
+    if (!currentLayer) return;
+
+    const newVisible = !currentLayer.visible;
+
+    // Optimistic update
+    setLayers(layers.map(l => {
+        if (l.view_id === activeViewId) {
+            return { ...l, visible: newVisible };
+        }
+        return l;
+    }));
+
+    // Try to persist if backend supports it
+    try {
+        await readerService.updateView(params.id, activeViewId, newVisible);
+    } catch (e) {
+        // Ignore backend error for view update as it might be mocked
+        console.warn('Failed to persist view visibility');
+    }
+  };
+
+  const handleClearAllAnnotations = async () => {
+      // 弹出确认框 (UI blocking or use a custom modal? Using native confirm for speed as requested)
+      // Ideally use a UI Dialog, but confirm is faster to implement now.
+      if (!window.confirm('确定要清空当前所有标注吗？此操作不可恢复。')) {
+          return;
+      }
+
+      const currentLayer = layers.find(l => l.view_id === activeViewId);
+      if (!currentLayer || currentLayer.annotations.length === 0) {
+          toast.info("当前没有可清除的标注");
+          return;
+      }
+
+      const annotationsToDelete = [...currentLayer.annotations];
+
+      // Optimistic Clear
+      setLayers(layers.map(l => {
+          if (l.view_id === activeViewId) {
+              return { ...l, annotations: [] };
+          }
+          return l;
+      }));
+
+      try {
+          // Delete one by one (Backend should ideally provide bulk delete)
+          await Promise.all(annotationsToDelete.map(a => 
+              readerService.deleteAnnotation(params.id, activeViewId, a.annotation_id)
+          ));
+          toast.success("已清空所有标注");
+      } catch (e) {
+          logger.error("Failed to clear all annotations", e);
+          toast.error("清空标注失败，请刷新重试");
+          // Re-fetch to sync state
+          try {
+              const annos = await readerService.getAnnotations(params.id, activeViewId);
+              setLayers(layers.map(l => {
+                  if (l.view_id === activeViewId) {
+                      return { ...l, annotations: annos.items || [] };
+                  }
+                  return l;
+              }));
+          } catch (fetchErr) {
+              // ignore
+          }
+      }
   };
   
   if (isLoading) {
@@ -397,6 +461,9 @@ export default function ReaderPage({ params }: ReaderPageProps) {
         title={`Paper: ${paper.title}`}
         isBookmarked={!!paper.is_bookmarked}
         onSearch={setSearchQuery}
+        showAnnotations={layers.find(l => l.view_id === activeViewId)?.visible ?? true}
+        onToggleAnnotations={handleToggleAnnotations}
+        onClearAllAnnotations={handleClearAllAnnotations}
       />
 
       {/* 2. Main Workspace (Flex Row) */}

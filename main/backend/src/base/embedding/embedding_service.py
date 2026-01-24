@@ -235,6 +235,11 @@ class EmbeddingService:
             else None
         )
 
+        if self.provider == "none":
+            logger.info("Embedding provider set to NONE. Service disabled.")
+            self.primary_model = None
+            return
+
         self._init_models()
 
     def _init_models(self):
