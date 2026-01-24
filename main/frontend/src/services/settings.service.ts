@@ -3,7 +3,8 @@ import {
   SystemSettings, 
   SearchSettings, 
   AIReaderSettingsResponse, 
-  AIReaderSettingsRequest 
+  AIReaderSettingsRequest,
+  AgentSettings
 } from '@/types/settings';
 
 export const settingsService = {

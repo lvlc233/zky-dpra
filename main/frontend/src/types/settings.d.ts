@@ -38,3 +38,16 @@ export interface AIReaderSettingsResponse {
 export interface AIReaderSettingsRequest {
   items: AIReaderSettings[];
 }
+
+export interface AgentSettings {
+  embedding_provider: 'local' | 'siliconflow' | 'openai';
+  embedding_model: string;
+  embedding_api_key: string;
+  embedding_base_url: string;
+  
+  rag_provider: 'siliconflow' | 'openai' | 'ollama';
+  rag_base_model: string;
+  rag_api_key: string;
+  rag_base_url: string;
+  rag_temperature: number;
+}

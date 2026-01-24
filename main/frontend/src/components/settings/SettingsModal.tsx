@@ -12,8 +12,10 @@ import {
   SystemSettings, 
   SearchSettings, 
   AIReaderSettings, 
-  AIReaderType 
+  AIReaderType,
+  AgentSettings
 } from '@/types/settings';
+import { Bot } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -21,7 +23,7 @@ interface SettingsModalProps {
   onSettingsChanged?: () => void;
 }
 
-type SettingsTab = 'system' | 'search' | 'reader';
+type SettingsTab = 'system' | 'search' | 'reader' | 'agent';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSettingsChanged }) => {
   const { setTheme } = useTheme();
@@ -33,6 +35,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [searchSettings, setSearchSettings] = useState<SearchSettings | null>(null);
   const [readerSettings, setReaderSettings] = useState<AIReaderSettings[]>([]);
+  const [agentSettings, setAgentSettings] = useState<AgentSettings | null>(null);
 
   // Fetch data when tab changes
   useEffect(() => {
@@ -51,6 +54,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           const res = await settingsService.getAIReaderSettings();
           // Ensure we have all types or at least what comes back
           setReaderSettings(res.items || []);
+        } else if (activeTab === 'agent') {
+          const data = await settingsService.getAgentSettings();
+          setAgentSettings(data);
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -81,6 +87,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       } else if (activeTab === 'reader') {
         await settingsService.updateAIReaderSettings({ items: readerSettings });
         toast.success('阅读设置已保存');
+      } else if (activeTab === 'agent' && agentSettings) {
+        await settingsService.updateAgentSettings(agentSettings);
+        toast.success('Agent设置已保存');
       }
       // onClose(); // Optional: close on save? Usually better to stay.
       if (onSettingsChanged) {
@@ -123,6 +132,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                   onClick={() => setActiveTab('reader')}
                   icon={<BookOpen className="w-4 h-4" />}
                   label="AI 阅读设置"
+                />
+                <TabButton 
+                  active={activeTab === 'agent'} 
+                  onClick={() => setActiveTab('agent')}
+                  icon={<Bot className="w-4 h-4" />}
+                  label="Agent 设置"
                 />
               </nav>
 
@@ -215,6 +230,8 @@ const TabButton = ({ active, onClick, icon, label }: { active: boolean; onClick:
     {label}
   </button>
 );
+
+import { AgentSettingsForm } from './AgentSettingsForm';
 
 // --- Sub-components ---
 
@@ -384,7 +401,7 @@ const ReaderSettingsForm = ({ settings, onChange }: { settings: AIReaderSettings
 
         {/* Chat Specific Config */}
         {activeType === 'chat' && (
-          <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+          <div className="pt-4 border-t border-gray-100 dark:border-gray-800 space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <div className="text-sm font-medium text-gray-700 dark:text-gray-300">启用向量搜索</div>
@@ -397,6 +414,67 @@ const ReaderSettingsForm = ({ settings, onChange }: { settings: AIReaderSettings
                 })} 
               />
             </div>
+
+            {/* Vector Search Configuration */}
+            {currentSetting.config?.enable_vector_search && (
+              <div className="pl-4 border-l-2 border-indigo-100 dark:border-indigo-900/30 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Embedding Provider</label>
+                    <select 
+                        className="w-full text-sm border-gray-200 dark:border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 bg-gray-50 dark:bg-slate-800 dark:text-gray-200 p-2 outline-none"
+                        value={currentSetting.config?.embedding_provider || 'openai'}
+                        onChange={(e) => updateSetting(activeType, { 
+                            config: { ...currentSetting.config, embedding_provider: e.target.value } 
+                        })}
+                    >
+                        <option value="openai">OpenAI Compatible</option>
+                        <option value="siliconflow">SiliconFlow</option>
+                        <option value="local">Local</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Embedding Model</label>
+                    <input 
+                        type="text" 
+                        placeholder="e.g. text-embedding-3-small"
+                        className="w-full text-sm border-gray-200 dark:border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 bg-gray-50 dark:bg-slate-800 dark:text-gray-200 p-2 outline-none"
+                        value={currentSetting.config?.embedding_model || ''}
+                        onChange={(e) => updateSetting(activeType, { 
+                            config: { ...currentSetting.config, embedding_model: e.target.value } 
+                        })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Embedding Base URL</label>
+                  <input 
+                    type="text" 
+                    placeholder="https://api.openai.com/v1"
+                    className="w-full text-sm border-gray-200 dark:border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 bg-gray-50 dark:bg-slate-800 dark:text-gray-200 p-2 outline-none"
+                    value={currentSetting.config?.embedding_base_url || ''}
+                    onChange={(e) => updateSetting(activeType, { 
+                        config: { ...currentSetting.config, embedding_base_url: e.target.value } 
+                    })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Embedding API Key</label>
+                  <input 
+                    type="password" 
+                    placeholder="sk-..."
+                    className="w-full text-sm border-gray-200 dark:border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 bg-gray-50 dark:bg-slate-800 dark:text-gray-200 p-2 outline-none"
+                    value={currentSetting.config?.embedding_api_key || ''}
+                    onChange={(e) => updateSetting(activeType, { 
+                        config: { ...currentSetting.config, embedding_api_key: e.target.value } 
+                    })}
+                  />
+                  <p className="text-xs text-gray-400 dark:text-gray-500">密钥将加密存储，不会在前端明文显示</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

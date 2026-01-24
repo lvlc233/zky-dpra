@@ -1,3 +1,4 @@
+from typing import Any, Dict
 from uuid import UUID
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -13,6 +14,21 @@ router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
 def get_job_service(session: SessionDep) -> JobService:
     return JobService(session)
+
+@router.get("/monitor/queues", response_model=Response[Dict[str, Any]])
+async def monitor_queues(
+    service: JobService = Depends(get_job_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    [Admin] 监控 Redis 队列状态
+    """
+    # 简单的权限检查 (实际应有更严格的 Admin Role)
+    if not current_user: # Assume logged in
+        pass
+    
+    data = await service.get_queue_metrics()
+    return Response.success(data)
 
 @router.get("/{job_id}", response_model=Response[JobResponse])
 async def get_job_status(

@@ -1,13 +1,13 @@
 
 import logging
-from typing import AsyncGenerator, Optional, List, Annotated
+from typing import AsyncGenerator, Optional, List, Annotated, Tuple, Dict, Any
 from uuid import UUID
 from datetime import datetime
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.future import select
-from sqlalchemy import func, delete, Tuple, update
+from sqlalchemy import func, delete, update
 from sqlalchemy.orm import selectinload
 from fastapi import Depends
 
@@ -102,6 +102,13 @@ class PaperRepository:
         statement = select(Paper).where(Paper.id == paper_id)
         result = await session.execute(statement)
         return result.scalar_one_or_none()
+        
+    @staticmethod
+    async def get_paper_status(session: AsyncSession, paper_id: UUID) -> Optional[Paper]:
+        """
+        获取论文状态 (别名 get_paper_by_id)
+        """
+        return await PaperRepository.get_paper_by_id(session, paper_id)
 
     @staticmethod
     async def create_paper(session: AsyncSession, paper: Paper) -> Paper:
@@ -145,6 +152,7 @@ class PaperRepository:
         authors: Optional[List[str]] = None,
         toc: Optional[List] = None,
         summary: Optional[str] = None,
+        full_text: Optional[str] = None,
         published_at: Optional[datetime] = None,
         source: Optional[str] = None,
         source_id: Optional[str] = None
@@ -154,20 +162,27 @@ class PaperRepository:
         paper = result.scalar_one_or_none()
         
         if paper:
-            if title:
+            if title is not None:
                 paper.title = title
-            if authors:
+            if authors is not None:
                 paper.authors = authors
-            if toc:
-                paper.toc = toc
-            if summary:
+            if toc is not None:
+                # Ensure toc is a list
+                if isinstance(toc, list):
+                    paper.toc = toc
+                else:
+                    logger.warning(f"TOC format invalid (expected list, got {type(toc)}), resetting to empty list")
+                    paper.toc = []
+            if summary is not None:
                 paper.summary = summary
-            if published_at:
+            if full_text is not None:
+                paper.full_text = full_text
+            if published_at is not None:
                 paper.published_at = published_at
-            if source:
+            if source is not None:
                 paper.source = source
-            if source_id:
-                paper.source_id = source_id
+            if source_id is not None:
+                paper.source_ref = source_id
             session.add(paper)
             await session.commit()
             await session.refresh(paper)
@@ -507,3 +522,70 @@ class ReaderRepository:
         await session.delete(annotation)
         await session.commit()
         return True
+
+
+class JobRepository:
+    """任务相关的数据访问层"""
+
+    @staticmethod
+    async def get_job_by_id(session: AsyncSession, job_id: UUID) -> Optional[Job]:
+        statement = select(Job).where(Job.job_id == job_id)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def update_job_status(
+        session: AsyncSession,
+        job_id: UUID,
+        status: str,
+        stage: Optional[str] = None,
+        progress: Optional[float] = None,
+        result: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+        end_at: Optional[datetime] = None
+    ) -> Optional[Job]:
+        statement = select(Job).where(Job.job_id == job_id)
+        res = await session.execute(statement)
+        job = res.scalar_one_or_none()
+
+        if job:
+            job.status = status
+            if stage is not None:
+                job.stage = stage
+            if progress is not None:
+                job.progress = progress
+            if result is not None:
+                job.result = result
+            if error is not None:
+                job.error = error
+            if end_at is not None:
+                job.end_at = end_at
+            
+            session.add(job)
+            await session.commit()
+            await session.refresh(job)
+        return job
+
+    @staticmethod
+    async def get_latest_job_by_paper_id(session: AsyncSession, paper_id: UUID) -> Optional[Job]:
+        statement = select(Job).where(Job.paper_id == paper_id).order_by(Job.created_at.desc()).limit(1)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def reset_interrupted_jobs(session: AsyncSession) -> None:
+        """重置意外中断的任务"""
+        # 将所有 running 状态的任务重置为 failed (或 queued)
+        # 这里选择标记为 failed，因为 Arq 任务队列在重启后丢失，无法继续执行
+        # 用户需要在前端手动重试
+        statement = (
+            update(Job)
+            .where(Job.status == "running")
+            .values(
+                status="failed",
+                error="System restarted, task interrupted.",
+                end_at=datetime.now()
+            )
+        )
+        await session.execute(statement)
+        await session.commit()

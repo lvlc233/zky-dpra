@@ -66,6 +66,7 @@ class PaperListResponse(BaseModel):
 class PaperUploadResponse(BaseModel):
     """论文上传响应模型 (Service Output)"""
     paper_id: str
+    job_id: Optional[str] = None
     status: str
     message: str
 
@@ -91,6 +92,7 @@ class PaperDTO(BaseModel):
     published_at: Optional[datetime] = None
     source: Optional[str] = None
     toc: Optional[List] = None
+    job_id: Optional[str] = None
     # updated_at 暂时不包含，因为Entity中没有
 
 

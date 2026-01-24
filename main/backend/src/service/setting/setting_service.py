@@ -32,6 +32,7 @@ from service.setting.schema import (
     SearchSetting,
     Settings,
     SystemSettings,
+    AgentSettings,
 )
 
 
@@ -71,6 +72,11 @@ class SettingService:
         user = await self._get_user(user_id)
         if not user.settings:
             return Settings()
+        
+        # Ensure we return a Pydantic model, not a dict
+        if isinstance(user.settings, dict):
+            return Settings(**user.settings)
+            
         return user.settings
 
     # --- Search Settings ---
@@ -86,6 +92,30 @@ class SettingService:
         await self._save_settings(user, settings)
         return settings.search_settings
 
+    # --- Agent Settings ---
+
+    async def get_agent_settings(self, user_id: UUID) -> AgentSettings:
+        settings = await self.get_settings(user_id)
+        # Mask keys
+        agent_settings = AgentSettings(**settings.agent_settings.model_dump())
+        agent_settings.embedding_api_key = self._mask_api_key(agent_settings.embedding_api_key)
+        agent_settings.rag_api_key = self._mask_api_key(agent_settings.rag_api_key)
+        return agent_settings
+
+    async def update_agent_settings(self, user_id: UUID, data: AgentSettings) -> AgentSettings:
+        user = await self._get_user(user_id)
+        current_settings = user.settings or Settings()
+        
+        # Handle masking: if key is masked (****), keep original
+        if self._is_masked(data.embedding_api_key):
+            data.embedding_api_key = current_settings.agent_settings.embedding_api_key
+        if self._is_masked(data.rag_api_key):
+            data.rag_api_key = current_settings.agent_settings.rag_api_key
+            
+        current_settings.agent_settings = data
+        await self._save_settings(user, current_settings)
+        return data
+
     # --- AI Reader Settings ---
 
     async def get_ai_reader_settings(self, user_id: UUID) -> List[AIReaderSettings]:
@@ -98,6 +128,11 @@ class SettingService:
             )
             # 掩盖 API Key
             masked_item.api_key = self._mask_api_key(item.api_key)
+            
+            # 掩盖 config 中的 embedding_api_key
+            if 'embedding_api_key' in masked_item.config:
+                masked_item.config['embedding_api_key'] = self._mask_api_key(masked_item.config['embedding_api_key'])
+            
             masked_items.append(masked_item)
         return masked_items
 
@@ -111,14 +146,23 @@ class SettingService:
         
         new_items: List[AIReaderSettings] = []
         for item in items:
+            old_item = old_items_map.get(item.type)
+            
             if self._is_masked(item.api_key):
                 # 尝试从旧设置中找到对应的真实 Key
-                old_item = old_items_map.get(item.type)
                 if old_item:
                     item.api_key = old_item.api_key
                 else:
                     # 如果没有旧项且提交了掩码（不应发生），则设为空或保持原样
-                    item.api_key = "" 
+                    item.api_key = ""
+            
+            # 处理 config 中的 embedding_api_key
+            if 'embedding_api_key' in item.config and self._is_masked(item.config['embedding_api_key']):
+                if old_item and 'embedding_api_key' in old_item.config:
+                    item.config['embedding_api_key'] = old_item.config['embedding_api_key']
+                else:
+                    item.config['embedding_api_key'] = ""
+                    
             new_items.append(item)
             
         settings.ai_reader_settings = new_items

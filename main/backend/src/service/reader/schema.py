@@ -201,7 +201,7 @@ class JobResult(BaseModel):
 
 class Job(BaseModel):
     job_id: UUID = Field(..., alias="id", description="作业ID")
-    type: Literal['toc', 'summary', 'mind_map', 'deep_research', 'chat'] = Field(..., alias="job_type", description="作业类型")
+    type: Literal['parse_text', 'vectorize', 'summary', 'mind_map', 'chat'] = Field(..., alias="job_type", description="作业类型")
     status: Literal['queued', 'running', 'blocked', 'succeeded', 'failed', 'canceled', 'expired'] = Field(..., description="作业状态")
     progress: Optional[float] = Field(None, description="作业进度(0-1)")
     stage: Optional[str] = Field(None, description="作业当前阶段")

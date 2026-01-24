@@ -304,8 +304,37 @@ async def get_paper_status(
         toc=paper.toc,
         file_url=_resolve_file_url(request, paper.file_url or f"/api/v1/papers/{paper.id}/file"),
         published_at=paper.published_at,
-        source=paper.source
+        source=paper.source,
+        job_id=paper.job_id
     ))
+
+
+@router.get("/{paper_id}/job-status", response_model=Response[dict])
+async def get_paper_job_status(
+    paper_id: str,
+    paper_service: PaperServiceDep,
+    current_user: User = Depends(get_current_user),
+):
+    """获取论文最新的后台处理任务状态"""
+    try:
+        paper_uuid = UUID(paper_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的论文ID格式",
+        )
+
+    # 验证权限
+    paper = await paper_service.get_paper_status(paper_uuid, current_user.id)
+    if not paper:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="论文不存在或无访问权限",
+        )
+
+    job_status = await paper_service.get_latest_job(paper_uuid)
+    # 如果没有 Job 记录，返回 None，前端可以据此判断显示默认状态
+    return Response.success(data=job_status)
 
 
 @router.post("/{paper_id}/process", response_model=Response[dict], status_code=status.HTTP_202_ACCEPTED)
@@ -365,7 +394,8 @@ async def list_user_papers(
             toc=p.toc,
             file_url=_resolve_file_url(request, p.file_url),
             published_at=p.published_at,
-            source=p.source
+            source=p.source,
+            job_id=p.job_id
         )
         for p in papers
     ])

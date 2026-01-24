@@ -71,7 +71,7 @@ class MessageResponse(BaseModel):
 
 class JobCreateRequest(BaseModel):
     """创建任务请求"""
-    job_type: Literal['toc', 'summary', 'mind_map', 'deep_research', 'chat'] = Field(..., description="作业类型")
+    job_type: Literal['parse_text', 'vectorize', 'summary', 'mind_map', 'chat'] = Field(..., description="作业类型")
     params: Optional[Dict[str, Any]] = Field(None, description="任务参数")
 
 

@@ -16,12 +16,42 @@ from langchain_core.prompts import ChatPromptTemplate
 from base.pg.entity import Paper, PaperSummary
 from base.pg.service import ReaderRepository, PaperRepository
 from service.reader.schema import SummaryCreateDTO, SummaryDTO, AISummary
+from service.setting.setting_service import SettingService
 
 class SummaryService:
     def __init__(self, session: AsyncSession):
         self.session = session
-        # TODO: 从配置读取模型参数
-        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+
+    async def _get_llm(self, user_id: UUID) -> ChatOpenAI:
+        """根据用户配置获取 LLM 实例"""
+        setting_service = SettingService(self.session)
+        settings = await setting_service.get_ai_reader_settings(user_id)
+        
+        # 优先查找 summary 类型的配置
+        target_setting = next((s for s in settings if s.type == 'summary'), None)
+        # 其次查找 chat 类型的配置
+        if not target_setting:
+            target_setting = next((s for s in settings if s.type == 'chat'), None)
+        # 最后尝试任意配置
+        if not target_setting and settings:
+             target_setting = settings[0]
+             
+        if target_setting and target_setting.api_key:
+             return ChatOpenAI(
+                 model=target_setting.llm_name or "gpt-4o-mini",
+                 temperature=0.3,
+                 api_key=target_setting.api_key,
+                 base_url=target_setting.base_url or None
+             )
+        
+        # 如果没有配置，尝试使用环境变量(保持向后兼容)，或者抛出明确错误
+        try:
+            return ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="未配置 AI 模型参数，请前往设置页面配置 API Key。"
+            )
 
     async def get_ai_summary(self, paper_id: UUID, user_id: UUID) -> Optional[AISummary]:
         summaries = await ReaderRepository.get_summaries_by_paper(self.session, paper_id, user_id)
@@ -98,7 +128,8 @@ class SummaryService:
             ("user", "论文标题: {title}\n\n内容:\n{context}")
         ])
 
-        chain = prompt | self.llm
+        llm = await self._get_llm(paper.user_id)
+        chain = prompt | llm
         
         try:
             response = await chain.ainvoke({

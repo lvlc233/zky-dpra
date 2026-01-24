@@ -141,7 +141,10 @@ class MarkerPDFParser(BasePDFParser):
                 logger.info("Marker模型加载完成")
             except Exception as e:
                 logger.error(f"Marker模型加载失败: {e}")
-                self.converter = None
+                # 初始化失败时抛出异常，以便工厂类可以降级处理
+                raise ImportError(f"Marker模型加载失败: {e}")
+        else:
+            raise ImportError("marker-pdf库未安装")
         
         logger.info("MarkerPDFParser初始化完成")
 
@@ -309,7 +312,9 @@ class PyMuPDFParser(BasePDFParser):
         # 提取TOC
         try:
             toc = doc.get_toc()
-        except Exception:
+            logger.info(f"PDF TOC提取结果: {len(toc)} items")
+        except Exception as e:
+            logger.warning(f"PDF TOC提取失败: {e}")
             toc = []
 
         # 提取元数据
@@ -436,8 +441,16 @@ class PDFParserFactory:
         if parser_type == "auto":
             # 优先使用Marker（质量更好），如果不可用则使用PyMuPDF（速度更快/备选）
             if MARKER_AVAILABLE:
-                logger.info("使用MarkerPDFParser (Auto)")
-                return MarkerPDFParser()
+                try:
+                    logger.info("尝试初始化 MarkerPDFParser (Auto)...")
+                    return MarkerPDFParser()
+                except Exception as e:
+                    logger.warning(f"MarkerPDFParser 初始化失败 ({e})，自动降级使用 PyMuPDFParser")
+                    if PYMUPDF_AVAILABLE:
+                        return PyMuPDFParser()
+                    else:
+                        logger.warning("PyMuPDFParser 也不可用，返回 MockParser")
+                        return PyMuPDFParser() # PyMuPDFParser handles missing dep with mock
             elif PYMUPDF_AVAILABLE:
                 logger.info("使用PyMuPDFParser (Auto)")
                 return PyMuPDFParser()

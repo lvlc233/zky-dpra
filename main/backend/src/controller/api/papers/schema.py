@@ -73,6 +73,7 @@ class PapersUploadResponse(BaseModel):
     paper_id: UUID = Field(..., description="论文全局唯一标识")
     title: str = Field(..., description="论文标题")
     status: str = Field(..., description="处理状态")  # Literal['processing','success','failed']
+    job_id: Optional[str] = Field(None, description="任务ID")
     message: Optional[str] = None
 
 
@@ -103,6 +104,7 @@ class PaperStatusResponse(BaseModel):
     file_url: Optional[str] = Field(None, description="文件访问URL")
     published_at: Optional[datetime] = Field(None, description="发表时间")
     source: Optional[str] = Field(None, description="来源")
+    job_id: Optional[str] = Field(None, description="当前处理任务ID")
 
 
 __all__ = ["PaperFetchRequest", "PaperUploadRequest", "PaperStatusResponse"]

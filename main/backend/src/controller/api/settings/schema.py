@@ -2,7 +2,7 @@ from typing import List
 
 from pydantic import BaseModel
 
-from service.setting.schema import AIReaderSettings, SystemSettings
+from service.setting.schema import AIReaderSettings, SystemSettings, AgentSettings
 
 
 class AIReaderSettingsRequest(BaseModel):
@@ -11,6 +11,14 @@ class AIReaderSettingsRequest(BaseModel):
 
 class AIReaderSettingsResponse(BaseModel):
     items: List[AIReaderSettings]
+
+
+class AgentSettingsRequest(BaseModel):
+    agent_settings: AgentSettings
+
+
+class AgentSettingsResponse(BaseModel):
+    agent_settings: AgentSettings
 
 
 class SystemSettingsRequest(BaseModel):

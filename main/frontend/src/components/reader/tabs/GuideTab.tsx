@@ -10,52 +10,43 @@ import {
   Sparkles,
   Bot,
   User,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { readerService } from '@/services/reader.service';
-import { chatService } from '@/services/chat.service';
 import { toast } from 'sonner';
-import { createParser } from 'eventsource-parser';
-import { useAuthStore } from '@/store/use-auth-store';
 import { logger } from '@/lib/logger';
-
-interface Message {
-  id: string;
-  role: 'ai' | 'user';
-  content: string;
-  timestamp: number;
-}
+import { useUnifiedChat } from '@/hooks/use-unified-chat';
+import ReactMarkdown from 'react-markdown';
 
 interface GuideTabProps {
   paperId: string;
+  isProcessing?: boolean;
+  loadingStage?: string;
+  progress?: number;
 }
 
-export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
+export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadingStage, progress }) => {
   const [isSummaryOpen, setIsSummaryOpen] = useState(true);
   const [inputValue, setInputValue] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'ai',
-      content: '你好！我是你的 AI 阅读助手。关于这篇论文，你想了解什么？你可以试着问我：\n1. 这篇论文的核心创新点是什么？\n2. 实验数据表现如何？',
-      timestamp: Date.now()
-    }
-  ]);
-  const [summary, setSummary] = useState<string>('');
+  const [summaryData, setSummaryData] = useState<Record<string, string>>({});
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [isSending, setIsSending] = useState(false);
-  const { token } = useAuthStore();
-  const scrollViewportRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Chat Hook
+  const { messages, sendMessage, isLoading: isSending, clearMessages } = useUnifiedChat({
+    agentType: 'paper_copilot',
+    context: { paper_id: paperId },
+    onError: (e) => toast.error("聊天服务连接失败"),
+  });
 
   // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Init Session & Summary
+  // Init Summary
   useEffect(() => {
       const init = async () => {
           if (!paperId) return;
@@ -63,29 +54,19 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
           // 1. Get Summary
           setIsGeneratingSummary(true);
           try {
-              const summaryData = await readerService.getSummary(paperId);
-              if (summaryData && summaryData.content) {
-                  setSummary(summaryData.content);
+              const res = await readerService.getSummary(paperId);
+              if (res && res.summary_config && Object.keys(res.summary_config).length > 0) {
+                  setSummaryData(res.summary_config);
               } else {
-                  // If no summary, maybe trigger generation? Or just wait.
+                  // If no summary, maybe trigger generation?
                   // For now, let's try to generate if empty
-                   const genSummary = await readerService.generateSummary(paperId);
-                   setSummary(genSummary.content);
+                   // const genSummary = await readerService.generateSummary(paperId); // Assuming this exists or will exist
+                   // setSummaryData(genSummary.summary_config);
               }
           } catch (e) {
               logger.error("Failed to get summary", e, 'GuideTab');
-              // toast.error("获取导读失败");
           } finally {
               setIsGeneratingSummary(false);
-          }
-
-          // 2. Create Chat Session
-          try {
-              const session = await chatService.createSession('paper_copilot', { paper_id: paperId });
-              setSessionId(session.id);
-          } catch (e) {
-              logger.error("Failed to create chat session", e, 'GuideTab');
-              toast.error("聊天服务连接失败");
           }
       };
 
@@ -93,88 +74,10 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
   }, [paperId]);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !sessionId || isSending) return;
-
-    const userContent = inputValue.trim();
-    const newUserMsg: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: userContent,
-      timestamp: Date.now()
-    };
-
-    setMessages(prev => [...prev, newUserMsg]);
+    if (!inputValue.trim() || isSending) return;
+    const content = inputValue.trim();
     setInputValue('');
-    setIsSending(true);
-
-    // AI Message Placeholder
-    const aiMsgId = (Date.now() + 1).toString();
-    setMessages(prev => [...prev, {
-        id: aiMsgId,
-        role: 'ai',
-        content: '',
-        timestamp: Date.now()
-    }]);
-
-    try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/chat/sessions/${sessionId}/message`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ content: userContent }),
-        });
-
-        if (!response.ok) {
-            throw new Error(response.statusText);
-        }
-
-        if (!response.body) return;
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        
-        const parser = createParser({
-      onEvent: (event: any) => {
-        if (event.type === 'event') {
-          try {
-            // Check for [DONE]
-            if (event.data === '[DONE]') return;
-            
-            const data = JSON.parse(event.data);
-            const delta = data.content || "";
-            
-            setMessages(prev => prev.map(msg => 
-              msg.id === aiMsgId 
-                ? { ...msg, content: msg.content + delta }
-                : msg
-            ));
-          } catch (e) {
-            console.error("Parse error", e);
-          }
-        }
-      }
-    });
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value);
-            parser.feed(chunk);
-        }
-
-    } catch (error) {
-        console.error("Send message failed", error);
-        toast.error("发送消息失败");
-        setMessages(prev => prev.map(msg => 
-            msg.id === aiMsgId 
-            ? { ...msg, content: "抱歉，我遇到了一些问题，请稍后再试。" }
-            : msg
-        ));
-    } finally {
-        setIsSending(false);
-    }
+    await sendMessage(content);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -183,6 +86,19 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
       handleSendMessage();
     }
   };
+
+  // Helper to render summary sections
+  const renderSummarySection = (title: string, content: string, icon: React.ReactNode) => (
+    <div className="space-y-2" key={title}>
+      <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+        {icon}
+        <h4 className="text-sm font-medium">{title}</h4>
+      </div>
+      <div className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed bg-gray-50 dark:bg-slate-800 p-3 rounded-lg prose dark:prose-invert max-w-none">
+        <ReactMarkdown>{content}</ReactMarkdown>
+      </div>
+    </div>
+  );
 
   return (
     <div className="h-full flex flex-col bg-gray-50/30 dark:bg-slate-800/30">
@@ -197,17 +113,14 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
               <Sparkles className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
               论文导读
             </h3>
-            {isSummaryOpen && (
-               <div className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mt-2 p-1 max-h-60 overflow-y-auto">
-                 {isGeneratingSummary ? (
-                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>正在生成导读...</span>
-                    </div>
-                 ) : (
-                    summary || "暂无导读内容"
-                 )}
-               </div>
+            {isSummaryOpen && Object.keys(summaryData).length === 0 && !isGeneratingSummary && (
+                <span className="text-xs text-gray-400 mt-1">暂无导读内容</span>
+            )}
+            {isSummaryOpen && isGeneratingSummary && (
+                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mt-2 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>正在生成导读...</span>
+                </div>
             )}
           </div>
           {isSummaryOpen ? (
@@ -220,66 +133,37 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
           )}
         </button>
         
-        <div className={cn(
-           "grid transition-all duration-500 ease-in-out bg-white dark:bg-slate-900",
-           isSummaryOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-         )}>
-          <div className="overflow-hidden">
-            <div className="px-4 pb-4">
-             <ScrollArea className="h-[40vh] pr-4">
-                <div className="space-y-6">
-                  {/* Abstract Section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
-                      <BookOpen className="w-4 h-4" />
-                      <h4 className="text-sm font-medium">核心摘要</h4>
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed bg-gray-50 dark:bg-slate-800 p-3 rounded-lg">
-                      本文提出了一种基于 Agent 的深度论文研究系统 (DeepPaperResearcher)。
-                      该系统利用大语言模型 (LLM) 和图数据库，实现了对海量学术论文的自动化检索、
-                      阅读、分析和总结。实验结果表明，该系统在处理复杂科研任务时，效率比传统方法提升了 10 倍。
-                    </p>
-                  </div>
-
-                  {/* Key Points Section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
-                      <List className="w-4 h-4" />
-                      <h4 className="text-sm font-medium">主要贡献</h4>
-                    </div>
-                    <ul className="space-y-2">
-                      {[
-                        "提出了基于图结构的论文知识表示方法",
-                        "设计了多 Agent 协作的论文阅读与评分机制",
-                        "实现了端到端的自动化科研报告生成流程"
-                      ].map((point, index) => (
-                        <li key={index} className="flex gap-2 text-sm text-gray-600 dark:text-gray-400">
-                          <span className="text-indigo-400 dark:text-indigo-500 font-bold">•</span>
-                          <span>{point}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Insights Section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
-                      <Lightbulb className="w-4 h-4" />
-                      <h4 className="text-sm font-medium">创新点分析</h4>
-                    </div>
-                    <div className="bg-indigo-50 dark:bg-indigo-900/50 p-3 rounded-lg text-sm text-indigo-900 dark:text-indigo-100 border border-indigo-100 dark:border-indigo-800">
-                      不同于传统的 RAG 方法，本文采用了动态知识图谱来增强上下文理解能力，
-                      有效解决了跨文档推理的难题。
-                    </div>
-                  </div>
+        {isSummaryOpen && (
+          <div className="p-4 space-y-4">
+            {isGeneratingSummary || (isProcessing && Object.keys(summaryData).length === 0) ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center space-y-3">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {loadingStage?.includes('summary') ? '正在生成导读...' : '正在解析论文...'}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {progress ? `当前进度: ${progress}%` : 'DeepPaper 正在深度阅读并总结全文'}
+                  </p>
                 </div>
-             </ScrollArea>
-             
-             {/* Divider Gradient */}
-             <div className="h-4 bg-gradient-to-t from-white dark:from-slate-900 to-transparent -mt-4 relative z-10 pointer-events-none" />
-            </div>
-           </div>
-        </div>
+              </div>
+            ) : (
+              <>
+                {Object.keys(summaryData).length > 0 ? (
+                  <div className="space-y-4">
+                    {summaryData['abstract'] && renderSummarySection('摘要', summaryData['abstract'], <BookOpen className="w-4 h-4" />)}
+                    {summaryData['highlights'] && renderSummarySection('亮点', summaryData['highlights'], <Lightbulb className="w-4 h-4" />)}
+                    {summaryData['conclusion'] && renderSummarySection('结论', summaryData['conclusion'], <List className="w-4 h-4" />)}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                    暂无导读内容
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
       
       {/* 2. Chat Section */}
@@ -287,7 +171,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
         <div className="p-2 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex justify-between items-center">
            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-2">对话助手</span>
            <button 
-             onClick={() => setMessages([])} 
+             onClick={clearMessages} 
              className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/50 transition-colors"
            >
              清空记录
@@ -296,32 +180,59 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
 
         <ScrollArea className="flex-1 p-4">
           <div className="space-y-6 pb-4">
+            {messages.length === 0 && (
+                <div className="text-center text-gray-400 text-sm mt-10">
+                    <Bot className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>你好！我是你的 AI 阅读助手。</p>
+                    <p>关于这篇论文，你想了解什么？</p>
+                </div>
+            )}
             {messages.map((msg) => (
               <div key={msg.id} className={cn(
                 "flex gap-3",
-                msg.role === 'user' ? "flex-row-reverse" : ""
+                msg.role === 'user' ? "flex-row-reverse" : "flex-row"
               )}>
-                {/* Avatar */}
                 <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-sm",
-                  msg.role === 'ai' 
-                    ? "bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400" 
-                    : "bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-gray-400"
+                  "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+                  msg.role === 'user' ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300" : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300"
                 )}>
-                  {msg.role === 'ai' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                  {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
                 </div>
-
-                {/* Bubble */}
+                
                 <div className={cn(
-                  "p-3 rounded-2xl text-sm shadow-sm max-w-[85%] leading-relaxed whitespace-pre-wrap",
-                  msg.role === 'ai' 
-                    ? "bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 text-gray-800 dark:text-gray-200 rounded-tl-none" 
-                    : "bg-indigo-600 dark:bg-indigo-500 text-white rounded-tr-none"
+                  "flex flex-col max-w-[85%]",
+                  msg.role === 'user' ? "items-end" : "items-start"
                 )}>
-                  {msg.content}
-                  {msg.role === 'ai' && msg.content === '' && (
-                    <span className="inline-block w-2 h-4 bg-indigo-400 animate-pulse ml-1 align-middle"></span>
+                  <div className={cn(
+                    "rounded-2xl px-4 py-2 text-sm shadow-sm",
+                    msg.role === 'user' 
+                      ? "bg-indigo-600 text-white rounded-tr-sm" 
+                      : "bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 text-gray-800 dark:text-gray-200 rounded-tl-sm"
+                  )}>
+                    {msg.role === 'ai' ? (
+                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <ReactMarkdown>{msg.content || (msg.status === 'streaming' ? '...' : '')}</ReactMarkdown>
+                        </div>
+                    ) : (
+                        msg.content
+                    )}
+                  </div>
+                  
+                  {/* Citations */}
+                  {msg.citations && msg.citations.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                          {msg.citations.map((citation, idx) => (
+                              <div key={idx} className="text-xs bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 px-2 py-1 rounded border border-gray-200 dark:border-slate-700 max-w-full truncate">
+                                  Reference: {citation.text.substring(0, 30)}...
+                              </div>
+                          ))}
+                      </div>
                   )}
+
+                  <span className="text-[10px] text-gray-400 mt-1 px-1">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {msg.status === 'error' && <span className="text-red-500 ml-2">发送失败</span>}
+                  </span>
                 </div>
               </div>
             ))}
@@ -331,40 +242,31 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId }) => {
 
         {/* Input Area */}
         <div className="p-4 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
-           {/* Quick Actions (Optional placeholder) */}
-           {messages.length < 2 && (
-             <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
-                {['深度思考', '解释方法', '总结结论'].map(tag => (
-                  <button 
-                    key={tag}
-                    onClick={() => setInputValue(`请${tag}：`)}
-                    className="flex-shrink-0 px-3 py-1 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-400 text-xs rounded-full transition-colors whitespace-nowrap"
-                  >
-                    {tag}
-                  </button>
-                ))}
-             </div>
-           )}
-
-           <div className="relative">
-             <textarea
-               value={inputValue}
-               onChange={(e) => setInputValue(e.target.value)}
-               onKeyDown={handleKeyDown}
-               placeholder="输入问题，Enter 发送..."
-               className="w-full h-24 p-3 pr-10 text-sm border border-gray-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 resize-none bg-gray-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 text-gray-900 dark:text-gray-100 transition-all"
-             />
-             <button
-               onClick={handleSendMessage}
-               disabled={!inputValue.trim()}
-               className="absolute bottom-3 right-3 p-1.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-             >
-               <Send className="w-4 h-4" />
-             </button>
-           </div>
-           <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-2 text-center">
-              AI 内容仅供参考，请核对原文
-           </div>
+          <div className="relative flex items-end gap-2 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-2 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+            <textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="问点什么..."
+              className="flex-1 bg-transparent border-none focus:ring-0 text-sm max-h-32 min-h-[40px] resize-none py-2 px-1 text-gray-900 dark:text-gray-100 placeholder:text-gray-400"
+              rows={1}
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!inputValue.trim() || isSending}
+              className={cn(
+                "p-2 rounded-lg transition-all flex-shrink-0",
+                inputValue.trim() && !isSending
+                  ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700 active:scale-95"
+                  : "bg-gray-200 dark:bg-slate-700 text-gray-400 cursor-not-allowed"
+              )}
+            >
+              {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </div>
+          <div className="text-center mt-2">
+             <p className="text-[10px] text-gray-400">AI 可能会产生错误，请仔细甄别。</p>
+          </div>
         </div>
       </div>
     </div>

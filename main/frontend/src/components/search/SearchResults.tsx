@@ -10,6 +10,7 @@ import * as Popover from '@radix-ui/react-popover';
 import { toast } from 'sonner';
 import { collectionService } from '@/services/collection.service';
 import { paperService } from '@/services/paper.service';
+import { PaperStatusBadge } from './PaperStatusBadge';
 
 interface Collection {
   id: string;
@@ -80,41 +81,6 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
       onPaperUpdate?.();
     } catch (error: any) {
       toast.error(error.message || '删除失败');
-    }
-  };
-
-  const getStatusBadge = (status?: string) => {
-    switch (status) {
-      case 'processed':
-      case 'success':
-        return (
-          <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-            <CheckCircle className="w-3 h-3" />
-            <span>已完成</span>
-          </div>
-        );
-      case 'processing':
-        return (
-          <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-            <Clock className="w-3 h-3 animate-spin" />
-            <span>处理中</span>
-          </div>
-        );
-      case 'error':
-      case 'failed':
-        return (
-          <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
-            <AlertCircle className="w-3 h-3" />
-            <span>异常</span>
-          </div>
-        );
-      default:
-        return (
-          <div className="flex items-center gap-1 text-gray-400">
-            <Clock className="w-3 h-3" />
-            <span>未处理</span>
-          </div>
-        );
     }
   };
 
@@ -219,7 +185,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
 
               {/* Status Column */}
               <div className="col-span-1 text-xs">
-                 {getStatusBadge(paper.analysis_status || paper.status)}
+                 <PaperStatusBadge status={paper.analysis_status || paper.status} jobId={paper.job_id} />
               </div>
 
               {/* Actions Column */}

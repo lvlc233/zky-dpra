@@ -22,7 +22,7 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Annotated
+from typing import List, Optional, Annotated, Any, Dict
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -42,7 +42,7 @@ from controller.api.papers.schema import PapersUploadWebRequest, PapersUploadRes
 from base.pg.entity import Paper, PaperChunk, User, Collection, Job
 
 from base.config import settings
-from base.pg.service import PaperRepository, CollectionRepository, SessionDep, async_session_factory
+from base.pg.service import PaperRepository, CollectionRepository, SessionDep, async_session_factory, JobRepository
 from base.pdf_parser.parser import PDFParseResult, parse_pdf, extract_pdf_text, PyMuPDFParser
 from base.embedding.embedding_service import EmbeddingService, embed_batch
 from base.embedding.text_splitter import SemanticTextSplitter
@@ -129,7 +129,8 @@ class PaperService:
                         paper_id=uuid.UUID(upload_resp.paper_id),
                         title=filename, 
                         status=upload_resp.status,
-                        message=upload_resp.message
+                        message=upload_resp.message,
+                        job_id=upload_resp.job_id
                     ))
                     
                 except Exception as e:
@@ -295,13 +296,14 @@ class PaperService:
             logger.info(f"论文记录创建成功: {paper.id}")
 
             # 5. 触发异步处理任务
-            # TODO: 这个解析好像有问题。TODO::作者标记,1. 要不要等待解析完成才持久化到本地?2.现在是先存储元数据到数据库,哪如果第一次解析,失败,那什么时候会再解析呢?
-            await self._trigger_process_task(paper.id, file_path)
+            # 已移除自动触发，改为在阅读页面触发解析任务
+            # job_id = await self._trigger_process_task(paper.id, file_path)
 
             return PaperUploadResponse(
                 paper_id=str(paper.id),
                 status=paper.analysis_status,
-                message="论文上传成功，正在处理中"
+                message="论文上传成功，请在阅读页面开始解析",
+                job_id=None
             )
 
         except Exception as e:
@@ -312,15 +314,20 @@ class PaperService:
             raise
     
     # TODO: 这个异步任务创建和调度是否合理呃?
-    async def _trigger_process_task(self, paper_id: UUID, file_path: Path):
+    async def _trigger_process_task(self, paper_id: UUID, file_path: Path) -> Optional[UUID]:
         """
         触发PDF处理异步任务
         """
+        job_id = None
         # 0. 创建任务记录 (持久化)
         try:
-            # 检查是否已存在(避免重复) - 这里简化为直接创建新任务
-            # 获取 user_id 需要查询 paper，这里暂略，直接从 paper_id 关联
-            # 为了简单，我们先获取 paper 的 user_id
+            # 检查是否已存在(避免重复)
+            latest_job = await JobRepository.get_latest_job_by_paper_id(self.session, paper_id)
+            if latest_job and latest_job.status in ["queued", "running", "in_progress"]:
+                logger.info(f"任务已存在且正在运行/排队: {latest_job.job_id}")
+                return latest_job.job_id
+
+            # 获取 user_id 需要查询 paper
             paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
             if paper:
                 # 计算 params_hash
@@ -338,9 +345,11 @@ class PaperService:
                 )
                 self.session.add(job)
                 await self.session.commit()
+                job_id = job.job_id
                 logger.info(f"任务记录已创建: job_id={job.job_id}")
         except Exception as e:
              logger.error(f"创建任务记录失败: {e}")
+             return None # 无法创建任务记录，无法继续
 
         try:
             redis_url = settings.arq_redis_url
@@ -351,41 +360,35 @@ class PaperService:
 
             if not host:
                 raise ValueError(f"Invalid Redis URL: {redis_url}")
-
-            try:
-                reader, writer = await asyncio.wait_for(
-                    asyncio.open_connection(host, port),
-                    timeout=0.2,
-                )
-                writer.close()
-                await writer.wait_closed()
-            except Exception:
-                # TODO: 这里的确是需要异步任务的一个执行。其实应该分为3个模块论文上传
-                # 1.解析: 存储解析结果给AI进行利用(在上传的时候就进行处理,而不用等到需要AI需要的时候再解析->持久化))
-                # 2.pdf持久化: 存储到本地文件系统或是对象存储,用于在离线的情况下,存储论文(思考: 我真的需要存储完整的论文嘛?我这边只做pdf解析和元数据存储(url或file?),想就保留着吧,再说)
-                # 3.pdf元数据持久化: 存储基础的信息和可引用信息,可服务与收藏夹。
-                logger.warning(f"Redis不可用，跳过任务入队: {host}:{port}, paper_id={paper_id}")
-
-                return
-
+            
+            # 使用 arq 客户端入队
             redis_settings = RedisSettings(
                 host=host,
                 port=port,
                 database=database
             )
             
-            pool = None
-            try:
-                pool = await create_pool(redis_settings)
-                await pool.enqueue_job('process_pdf_task', str(paper_id))
-            finally:
-                if pool is not None:
-                    await pool.close()
+            pool = await create_pool(redis_settings)
             
-            logger.info(f"已触发PDF处理任务: {paper_id}")
+            # 使用 deterministic job_id 防止 Redis 层面重复 (process_pdf:{job_id})
+            # 但 arq 的 job_id 需要全局唯一，如果复用 job_id，arq 会防止重复入队
+            # 这里我们已经创建了新的 DB job record，所以 job_id 是新的
+            # 如果我们想复用之前的 job_id (如果它还在队列中)，上面的 check 已经处理了
+            
+            await pool.enqueue_job(
+                "process_pdf_task", 
+                str(paper_id), 
+                str(job_id) if job_id else None,
+                _job_id=f"process_pdf:{job_id}" if job_id else None
+            )
+                 
+            await pool.close()
+            logger.info(f"异步任务已触发: paper_id={paper_id}")
+            
         except Exception as e:
-            logger.error(f"触发PDF处理任务失败: {e}", exc_info=True)
-            # 记录错误但不抛出异常，避免影响上传响应
+            logger.error(f"触发异步任务失败: {e}", exc_info=True)
+            
+        return job_id
     
     async def _fetch_arxiv_metadata(self, arxiv_id: str) -> dict:
         """
@@ -452,7 +455,6 @@ class PaperService:
             logger.warning(f"arXiv API fetch failed: {e}")
             return {}
 
-    #TODO: 用这里的redis做嘛?不用我们的worker下的内容,Agent需要获取重新了解下整个项目对这种解析的任务的了解,并汇报给我。
     def _validate_file(self, filename: str, file_content: bytes) -> bool:
         """
         验证文件类型和大小
@@ -502,7 +504,7 @@ class PaperService:
             analysis_status=PaperStatus.PENDING.value,
             published_at=published_at,
             source=source,
-            source_id=source_ref
+            source_ref=source_ref
         )
 
         if paper.file_url is None:
@@ -512,12 +514,90 @@ class PaperService:
 
     async def get_paper_status(self, paper_id: UUID, user_id: UUID) -> Optional[PaperDTO]:
         """
-        获取论文处理状态/详情 (返回 DTO)
+        获取论文状态，并包含自动恢复/触发逻辑
         """
+        # 1. 获取论文基础信息
         paper = await PaperRepository.get_paper_by_id(self.session, paper_id)
-        if paper and paper.user_id == user_id:
-            return self._entity_to_dto(paper)
-        return None
+        if not paper or paper.user_id != user_id:
+            return None
+            
+        dto = self._entity_to_dto(paper)
+        
+        # 2. 获取最新 Job 信息
+        job = await JobRepository.get_latest_job_by_paper_id(self.session, paper_id)
+        if job:
+            dto.job_id = str(job.job_id)
+        
+        # 3. 自动触发/恢复逻辑
+        # 场景 A: 论文状态为 PENDING (上传后未处理)，且没有 parse_text 任务 -> 自动触发
+        # 场景 B: 论文状态为 PROCESSING，有任务但很久没动静 -> 尝试恢复 (暂只处理 queued 状态的恢复)
+        
+        should_trigger = False
+        should_recover = False
+        
+        # 检查是否存在活跃的 parse_text 任务
+        active_parse_job = None
+        if job and job.type == 'parse_text' and job.status in ['queued', 'running']:
+            active_parse_job = job
+            
+        # 检查是否已完成
+        has_completed_parse_job = False
+        if job and job.type == 'parse_text' and job.status == 'succeeded':
+            has_completed_parse_job = True
+        
+        if not active_parse_job and not has_completed_parse_job and dto.status != PaperStatus.COMPLETED:
+             # 没有活跃任务，也没有完成的任务，且论文状态不是 COMPLETED -> 需要触发
+             should_trigger = True
+             
+        elif active_parse_job and active_parse_job.status == 'queued':
+             # 有排队中的任务 -> 尝试恢复 (以防 Worker 重启后丢失内存队列)
+             should_recover = True
+
+        if should_trigger:
+            # 避免循环导入
+            from service.reader.job_service import JobService
+            from controller.api.reader.schema import JobCreateRequest
+            try:
+                job_service = JobService(self.session)
+                await job_service.create_job(paper_id, JobCreateRequest(job_type='parse_text'), user_id)
+                logger.info(f"[AutoTrigger] 已自动触发解析任务: {paper_id}")
+            except Exception as e:
+                logger.error(f"[AutoTrigger] 触发失败: {e}")
+                
+        if should_recover and active_parse_job:
+            from service.reader.job_service import JobService
+            from arq.jobs import Job as ArqJob
+            
+            try:
+                # 1. Check Redis status to avoid duplicate enqueue
+                redis_url = settings.arq_redis_url
+                parsed = urlparse(redis_url)
+                host = parsed.hostname
+                port = parsed.port or 6379
+                database = int(parsed.path.lstrip("/") or "0")
+                
+                if host:
+                    redis_settings = RedisSettings(host=host, port=port, database=database)
+                    pool = await create_pool(redis_settings)
+                    
+                    arq_job_id = f"process_pdf:{active_parse_job.job_id}"
+                    arq_job = ArqJob(arq_job_id, pool)
+                    arq_status = await arq_job.status()
+                    
+                    await pool.close()
+                    
+                    if arq_status == 'not_found':
+                        job_service = JobService(self.session)
+                        await job_service.re_enqueue_job(active_parse_job.job_id)
+                        logger.info(f"[AutoRecover] Redis任务丢失(status=not_found)，已恢复: {active_parse_job.job_id}")
+                    else:
+                        # Job exists in Redis (queued, running, complete), no need to re-enqueue
+                        # logger.debug(f"[AutoRecover] 任务在Redis中状态为 {arq_status}，跳过恢复")
+                        pass
+            except Exception as e:
+                logger.error(f"[AutoRecover] 恢复检测失败: {e}")
+
+        return dto
 
     async def get_paper_detail(self, paper_id: UUID, user_id: UUID) -> Optional[PaperDTO]:
         """
@@ -559,7 +639,16 @@ class PaperService:
         获取用户的论文列表 (返回 DTO 列表)
         """
         papers = await PaperRepository.get_user_papers(self.session, user_id, limit, offset)
-        return [self._entity_to_dto(p) for p in papers]
+        dtos = []
+        for p in papers:
+            dto = self._entity_to_dto(p)
+            # 如果是处理中，获取最新的 job_id
+            if dto.status in [PaperStatus.PROCESSING, PaperStatus.PENDING]:
+                job = await JobRepository.get_latest_job_by_paper_id(self.session, p.id)
+                if job:
+                    dto.job_id = str(job.job_id)
+            dtos.append(dto)
+        return dtos
 
     async def get_file_path(self, paper: PaperDTO) -> Optional[Path]:
         """
@@ -590,6 +679,22 @@ class PaperService:
         logger.info(f"论文已删除: {paper_id}")
         return True
 
+    async def get_latest_job(self, paper_id: UUID) -> Optional[dict]:
+        """获取论文最新的任务状态"""
+        job = await JobRepository.get_latest_job_by_paper_id(self.session, paper_id)
+        if job:
+            return {
+                "job_id": str(job.job_id),
+                "status": job.status,
+                "stage": job.stage,
+                "progress": job.progress,
+                "error": job.error,
+                "created_at": job.created_at,
+                "end_at": job.end_at,
+                "result": job.result
+            }
+        return None
+
 
 async def get_paper_service(session: SessionDep) -> PaperService:
     """获取 PaperService 实例"""
@@ -607,87 +712,176 @@ class PaperProcessingService:
         # TODO: 初始化PDF解析器、向量化模型等
         pass
 
-    async def process_pdf(self, paper_id: UUID) -> bool:
+    async def parse_text(self, paper_id: UUID, job_id: UUID, redis: Any = None) -> bool:
         """
-        处理PDF文件
+        [Job: parse_text] 解析PDF正文
         """
-        logger.info(f"开始处理PDF: {paper_id}")
+        logger.info(f"开始执行 Job: parse_text, paper_id={paper_id}, job_id={job_id}")
+        
+        async def _update_progress(stage: str, progress: float, status: str = "running", error: str = None, result: Any = None):
+            async with async_session_factory() as session:
+                await JobRepository.update_job_status(
+                    session, job_id, status, stage=stage, progress=progress, error=error,
+                    end_at=datetime.now() if status in ["succeeded", "failed"] else None
+                )
+            if redis:
+                event_data = {
+                    "job_id": str(job_id), "status": status, "stage": stage, "progress": progress,
+                    "error": error, "result": result, "timestamp": datetime.now().isoformat()
+                }
+                try:
+                    await redis.publish(f"job_progress:{job_id}", json.dumps(event_data))
+                except Exception as e:
+                    logger.warning(f"Redis publish failed: {e}")
 
         try:
-            # 1. 获取论文记录并更新状态
+            # 1. 检查论文 & 更新状态
+            await _update_progress("starting", 0.0)
+            
             async with async_session_factory() as session:
                 paper = await PaperRepository.get_paper_by_id(session, paper_id)
                 if not paper:
-                    logger.error(f"论文不存在: {paper_id}")
+                    await _update_progress("init", 0, "failed", error="论文不存在")
                     return False
                 
-                # 更新状态为处理中
+                # 更新论文状态为 processing
                 await PaperRepository.update_paper_status(session, paper_id, PaperStatus.PROCESSING)
-                paper.analysis_status = PaperStatus.PROCESSING.value # 更新本地对象状态
 
             # 2. 获取文件路径
             upload_dir = Path(settings.upload_dir)
             file_path = upload_dir / paper.file_key
-
             if not file_path.exists():
-                logger.error(f"文件不存在: {file_path}")
-                await self._update_status(paper_id, PaperStatus.FAILED, "文件不存在")
+                await _update_progress("init", 0, "failed", error="文件不存在")
                 return False
 
-            # 3. 解析PDF
+            # 3. 解析PDF正文 & 元数据
+            await _update_progress("parsing_text", 10.0)
             text_content = await self._parse_pdf(file_path)
             if not text_content:
-                logger.error("PDF解析失败")
-                await self._update_status(paper_id, PaperStatus.FAILED, "PDF解析失败")
+                await _update_progress("parsing", 30.0, "failed", error="PDF解析失败")
                 return False
-
-            # 4. 提取元数据（标题、作者等）
+                
+            await _update_progress("extracting_metadata", 50.0)
             metadata = await self._extract_metadata(file_path, text_content)
 
-            # 5. 分割文本
-            chunks = self._split_text(text_content)
-
-            # 6. 生成向量嵌入
-            embeddings = await self._generate_embeddings(chunks)
-
-            # 7. 存储chunks
-            await self._save_chunks(paper_id, chunks, embeddings)
-
-            # 8. 更新论文记录
+            # 4. 更新 Paper 记录
+            await _update_progress("saving_to_db", 80.0)
+            
             published_at = None
-            if metadata.get("published_date"):
-                try:
-                    p_date_str = metadata.get("published_date")
-                    if len(p_date_str) == 10:
-                        published_at = datetime.strptime(p_date_str, "%Y-%m-%d")
-                    elif len(p_date_str) == 7:
-                        published_at = datetime.strptime(p_date_str, "%Y-%m")
-                    elif len(p_date_str) == 4:
-                        published_at = datetime.strptime(p_date_str, "%Y")
-                except Exception as e:
-                    logger.warning(f"处理PDF时日期解析失败: {e}")
+            try:
+                p_date_str = metadata.get("published_date")
+                if p_date_str:
+                    if len(p_date_str) == 10: published_at = datetime.strptime(p_date_str, "%Y-%m-%d")
+                    elif len(p_date_str) == 7: published_at = datetime.strptime(p_date_str, "%Y-%m")
+                    elif len(p_date_str) == 4: published_at = datetime.strptime(p_date_str, "%Y")
+            except: pass
 
-            await self._update_paper_after_processing(
-                paper_id,
-                title=metadata.get("title"),
-                authors=metadata.get("authors", []),
-                summary=metadata.get("abstract"),
-                published_at=published_at,
-                source=metadata.get("source"),
-                source_id=metadata.get("source_id")
-            )
+            async with async_session_factory() as session:
+                await PaperRepository.update_paper_metadata(
+                    session, paper_id, 
+                    title=metadata.get("title"),
+                    authors=metadata.get("authors", []),
+                    toc=metadata.get("toc"),
+                    summary=metadata.get("abstract"),
+                    full_text=text_content,
+                    published_at=published_at,
+                    source=metadata.get("source"),
+                    source_id=metadata.get("source_id")
+                )
+                await PaperRepository.update_paper_status(session, paper_id, PaperStatus.COMPLETED)
 
-            logger.info(f"PDF处理完成: {paper_id}")
+            await _update_progress("finished", 100.0, "succeeded")
+            
+            # 5. 触发后续任务链 (Vectorize, etc.)
+            await self._trigger_next_tasks(paper_id, paper.user_id)
+            
             return True
 
         except Exception as e:
-            logger.error(f"PDF处理失败: {e}", exc_info=True)
-            await self._update_status(
-                paper_id,
-                PaperStatus.FAILED,
-                f"处理失败: {str(e)}"
-            )
+            logger.error(f"Parse Text Failed: {e}", exc_info=True)
+            await _update_progress("error", 0, "failed", error=str(e))
+            # 更新 Paper 状态为 Failed
+            async with async_session_factory() as session:
+                 await PaperRepository.update_paper_status(session, paper_id, PaperStatus.FAILED, error_message=str(e))
             return False
+
+    async def vectorize(self, paper_id: UUID, job_id: UUID, redis: Any = None) -> bool:
+        """
+        [Job: vectorize] 向量化
+        """
+        logger.info(f"开始执行 Job: vectorize, paper_id={paper_id}")
+        
+        async def _update_progress(stage: str, progress: float, status: str = "running", error: str = None):
+            async with async_session_factory() as session:
+                await JobRepository.update_job_status(session, job_id, status, stage=stage, progress=progress, error=error, end_at=datetime.now() if status in ["succeeded", "failed"] else None)
+            if redis:
+                try:
+                    await redis.publish(f"job_progress:{job_id}", json.dumps({"job_id": str(job_id), "status": status, "progress": progress, "stage": stage}))
+                except: pass
+
+        try:
+            # 1. Get Paper
+            async with async_session_factory() as session:
+                paper = await PaperRepository.get_paper_by_id(session, paper_id)
+                if not paper: return False
+                
+                # Load settings
+                from service.setting.setting_service import SettingService
+                setting_service = SettingService(session)
+                user_settings = await setting_service.get_settings(paper.user_id)
+                # ... (Load embedding config logic) ...
+                embedding_config = {} # Simplified for now
+
+            # 2. Re-read text (since we might not have full_text in DB yet)
+            upload_dir = Path(settings.upload_dir)
+            file_path = upload_dir / paper.file_key
+            text_content = await self._parse_pdf(file_path) # Re-parse or read from cache? Re-parsing is slow.
+            # Optimization: If parse_text saved to a temp file or DB, use it.
+            # For now, re-parse is safe but slow.
+            if not text_content: raise Exception("Cannot read text for vectorization")
+
+            await _update_progress("splitting", 20.0)
+            chunks = self._split_text(text_content)
+            
+            await _update_progress("embedding", 40.0)
+            embeddings = await self._generate_embeddings(chunks, embedding_config)
+            
+            await _update_progress("saving", 80.0)
+            await self._save_chunks(paper_id, chunks, embeddings)
+            
+            await _update_progress("finished", 100.0, "succeeded")
+            return True
+
+        except Exception as e:
+            logger.error(f"Vectorize Failed: {e}", exc_info=True)
+            await _update_progress("error", 0, "failed", error=str(e))
+            return False
+
+    async def _trigger_next_tasks(self, paper_id: UUID, user_id: UUID):
+        """触发后续任务: Vectorize, Summary, MindMap"""
+        from service.reader.job_service import JobService
+        from controller.api.reader.schema import JobCreateRequest
+        
+        async with async_session_factory() as session:
+            job_service = JobService(session)
+            
+            # 1. Vectorize
+            await job_service.create_job(paper_id, JobCreateRequest(job_type="vectorize"), user_id)
+            
+            # 2. Summary
+            await job_service.create_job(paper_id, JobCreateRequest(job_type="summary"), user_id)
+            
+            # 3. MindMap
+            await job_service.create_job(paper_id, JobCreateRequest(job_type="mind_map"), user_id)
+        
+        logger.info(f"已触发后续任务链: paper_id={paper_id}")
+
+    # [Deprecated] 保留旧方法以兼容，或者标记废弃
+    async def process_pdf(self, paper_id: UUID, job_id: Optional[UUID] = None, redis: Any = None) -> bool:
+        logger.warning("process_pdf is deprecated. Using parse_text instead.")
+        if job_id:
+            return await self.parse_text(paper_id, job_id, redis)
+        return False
 
     async def _parse_pdf(self, file_path: Path) -> Optional[str]:
         """
@@ -724,6 +918,7 @@ class PaperProcessingService:
                 "source": parse_result.source,
                 "source_id": parse_result.source_id,
                 "pages": len(parse_result.pages),
+                "toc": getattr(parse_result, "toc", []),
                 **parse_result.metadata
             }
 
@@ -754,14 +949,29 @@ class PaperProcessingService:
         logger.info(f"文本分割完成，共 {len(chunks)} 个块")
         return chunks
 
-    async def _generate_embeddings(self, chunks: List[str]) -> List[List[float]]:
+    async def _generate_embeddings(self, chunks: List[str], embedding_config: Optional[Dict[str, Any]] = None) -> List[List[float]]:
         """
         生成文本向量嵌入
         """
         try:
             logger.info(f"开始生成向量嵌入，chunks数量: {len(chunks)}")
+            
+            # 准备配置参数
+            config = embedding_config or {}
+            provider = config.get("embedding_provider")
+            model_name = config.get("embedding_model")
+            api_key = config.get("embedding_api_key")
+            base_url = config.get("embedding_base_url")
+
             # 使用嵌入服务批量生成向量
-            embeddings = await embed_batch(chunks, model_type="openai")
+            embeddings = await embed_batch(
+                chunks, 
+                model_type="auto",
+                provider=provider,
+                model_name=model_name,
+                api_key=api_key,
+                base_url=base_url
+            )
             logger.info(f"向量生成完成，向量维度: {len(embeddings[0]) if embeddings else 0}")
             return embeddings
         except Exception as e:
@@ -798,6 +1008,7 @@ class PaperProcessingService:
         authors: Optional[List[str]] = None,
         toc: Optional[List] = None,
         summary: Optional[str] = None,
+        full_text: Optional[str] = None,
         published_at: Optional[datetime] = None,
         source: Optional[str] = None,
         source_id: Optional[str] = None
@@ -814,6 +1025,7 @@ class PaperProcessingService:
                 authors, 
                 toc, 
                 summary, 
+                full_text,
                 published_at,
                 source,
                 source_id

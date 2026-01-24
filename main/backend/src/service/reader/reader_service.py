@@ -16,9 +16,13 @@ from service.reader.schema import (
 )
 
 
+from service.reader.job_service import JobService
+
 class ReaderService:
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.job_service = JobService(session)
+
     async def get_paper_meta(self, paper_id: UUID, user_id: UUID) -> PaperReaderMeta:
         # 1. Fetch Paper with relationships
         stmt = (
@@ -39,21 +43,76 @@ class ReaderService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paper not found")
 
         # 2. Fetch Jobs separately (no relationship in entity)
-        stmt_jobs = select(Job).where(Job.paper_id == paper_id)
+        stmt_jobs = select(Job).where(Job.paper_id == paper_id).order_by(Job.created_at.desc())
         result_jobs = await self.session.execute(stmt_jobs)
         jobs_entities = result_jobs.scalars().all()
+
+        # Check and trigger parse_text job if needed
+        # Condition: Paper is unprocessed/pending, and no active parse_text job exists
+        active_parse_job = next(
+            (j for j in jobs_entities if j.type == 'parse_text' and j.status in ['queued', 'running']),
+            None
+        )
+        has_completed_parse_job = any(
+            j.type == 'parse_text' and j.status == 'succeeded'
+            for j in jobs_entities
+        )
+        
+        # 1. 自动触发：如果没有 active 且没有 completed
+        if not active_parse_job and not has_completed_parse_job:
+            from controller.api.reader.schema import JobCreateRequest
+            try:
+                # Trigger parse_text
+                await self.job_service.create_job(
+                    paper_id, 
+                    JobCreateRequest(job_type='parse_text'), 
+                    user_id
+                )
+                # Refresh jobs list
+                result_jobs = await self.session.execute(stmt_jobs)
+                jobs_entities = result_jobs.scalars().all()
+            except Exception as e:
+                print(f"Failed to auto-trigger parse_text job: {e}")
+        
+        # 2. 自动恢复：如果有 active 任务 (queued/running)，但可能因为 Worker 重启或未启动而卡住
+        # 策略：如果任务处于 queued 状态超过 30 秒，或者 running 但很久没更新（这里暂只处理 queued），
+        # 且我们知道用户正在请求该页面，那么重新 enqueue 一次是安全的（Arq 幂等）。
+        # 简单起见，只要有 active_parse_job，我们就尝试 re-enqueue，确保它在 Redis 中。
+        elif active_parse_job:
+            try:
+                # 只有当它是 queued 时才 re-enqueue，或者 running 但没有心跳？
+                # running 状态比较复杂，可能是真的在跑。如果 worker 死掉，running 状态不会变。
+                # 但这里主要解决 "worker 后启动" 的问题，此时状态应该是 queued（如果入队成功但没消费）
+                # 或者根本没入队成功（如果当时 redis 挂了）。
+                # 重新入队是低成本且安全的。
+                await self.job_service.re_enqueue_job(active_parse_job.job_id)
+            except Exception as e:
+                print(f"Failed to auto-recover active job: {e}")
+
 
         # 3. Construct Response
         
         # TOC
         toc = None
         if paper.toc:
-            # Assuming paper.toc is List[dict] matching TocItem structure or close to it
             try:
-                toc_items = [TocItem(**item) for item in paper.toc]
-                toc = Toc(items=toc_items)
-            except Exception:
-                toc = None # Handle parsing error or empty
+                # PyMuPDF TOC 格式: [[lvl, title, page], ...]
+                # TocItem Schema: title: str, page: int
+                # 需要转换格式
+                toc_items = []
+                for item in paper.toc:
+                    if isinstance(item, list) and len(item) >= 3:
+                        # PyMuPDF 格式
+                        toc_items.append(TocItem(title=item[1], page=item[2]))
+                    elif isinstance(item, dict):
+                        # 已经是字典格式 (可能是前端上传或其他解析器)
+                        toc_items.append(TocItem(**item))
+                
+                if toc_items:
+                    toc = Toc(items=toc_items)
+            except Exception as e:
+                print(f"Failed to parse TOC: {e}")
+                toc = None
 
         # Annotations
         annotations = []

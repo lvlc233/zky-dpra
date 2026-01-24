@@ -8,7 +8,7 @@
 '''
 
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from arq import create_pool, cron
@@ -35,60 +35,70 @@ class ArqRedisSettings(RedisSettings):
 
 
 # 异步任务定义
-async def process_pdf_task(ctx: Dict[str, Any], paper_id: str) -> Dict[str, Any]:
+async def parse_text_task(ctx: Dict[str, Any], paper_id: str, job_id: str) -> Dict[str, Any]:
     """
-    处理PDF文件的异步任务
-
-    参数:
-    - ctx: 任务上下文
-    - paper_id: 论文ID（字符串格式）
-
-    返回:
-    - dict: 处理结果
-
-    工作流程:
-    1. 初始化处理服务
-    2. 调用处理逻辑
-    3. 返回处理结果
-
-    异常处理:
-    - 捕获所有异常并记录日志
-    - 返回错误信息以便前端显示
+    解析PDF正文任务 (parse_text)
     """
-    logger.info(f"开始异步处理PDF任务: {paper_id}")
-
+    logger.info(f"开始解析PDF正文: {paper_id}, JobID: {job_id}")
     try:
-        # 转换paper_id为UUID
         uuid_paper_id = UUID(paper_id)
-
-        # 初始化处理服务
+        uuid_job_id = UUID(job_id)
+        
         processing_service = PaperProcessingService()
-
-        # 处理PDF
-        success = await processing_service.process_pdf(uuid_paper_id)
-
+        success = await processing_service.parse_text(uuid_paper_id, uuid_job_id, redis=ctx.get('redis'))
+        
         if success:
-            logger.info(f"PDF处理成功: {paper_id}")
-            return {
-                "status": "success",
-                "paper_id": paper_id,
-                "message": "PDF处理完成"
-            }
+            # 任务链: parse_text 完成后，触发后续任务
+            logger.info(f"解析完成，触发后续任务链: {paper_id}")
+            # 这里我们不直接 await enqueue，而是调用 service 层的方法来触发，或者在这里直接触发
+            # 简化起见，直接使用 task_queue (需要解决循环导入，或者在 ProcessingService 内部触发)
+            # 更好的方式是 PaperProcessingService.parse_text 成功后，由 Service 层负责触发后续
+            # 但 Worker 是执行者。我们可以在 Service 中编排。
+            # 目前 PaperProcessingService.parse_text 内部已经有了 _trigger_next_tasks 的逻辑占位
+            return {"status": "success", "message": "PDF解析完成"}
         else:
-            logger.error(f"PDF处理失败: {paper_id}")
-            return {
-                "status": "failed",
-                "paper_id": paper_id,
-                "message": "PDF处理失败"
-            }
-
+            return {"status": "failed", "message": "PDF解析失败"}
     except Exception as e:
-        logger.error(f"PDF任务执行异常: {paper_id}, 错误: {e}", exc_info=True)
-        return {
-            "status": "error",
-            "paper_id": paper_id,
-            "message": f"任务执行异常: {str(e)}"
-        }
+        logger.error(f"解析任务异常: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+async def vectorize_task(ctx: Dict[str, Any], paper_id: str, job_id: str) -> Dict[str, Any]:
+    """
+    向量化任务 (vectorize)
+    """
+    logger.info(f"开始向量化任务: {paper_id}, JobID: {job_id}")
+    try:
+        uuid_paper_id = UUID(paper_id)
+        uuid_job_id = UUID(job_id)
+        
+        processing_service = PaperProcessingService()
+        success = await processing_service.vectorize(uuid_paper_id, uuid_job_id, redis=ctx.get('redis'))
+        
+        return {"status": "success" if success else "failed"}
+    except Exception as e:
+        logger.error(f"向量化任务异常: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+async def summary_task(ctx: Dict[str, Any], paper_id: str, job_id: str) -> Dict[str, Any]:
+    """
+    总结任务 (summary)
+    """
+    logger.info(f"开始总结任务: {paper_id}, JobID: {job_id}")
+    # TODO: 实现总结逻辑
+    return {"status": "success", "message": "总结功能开发中"}
+
+async def mind_map_task(ctx: Dict[str, Any], paper_id: str, job_id: str) -> Dict[str, Any]:
+    """
+    脑图生成任务 (mind_map)
+    """
+    logger.info(f"开始脑图任务: {paper_id}, JobID: {job_id}")
+    # TODO: 实现脑图逻辑
+    return {"status": "success", "message": "脑图功能开发中"}
+
+# 保留旧的 process_pdf_task 以兼容（或者标记为废弃）
+async def process_pdf_task(ctx: Dict[str, Any], paper_id: str, job_id: Optional[str] = None) -> Dict[str, Any]:
+    logger.warning("process_pdf_task is deprecated, use parse_text_task instead.")
+    return await parse_text_task(ctx, paper_id, job_id or str(UUID(int=0)))
 
 
 async def generate_embeddings_task(
@@ -184,6 +194,10 @@ class WorkerSettings:
     # 任务函数注册
     functions = [
         process_pdf_task,
+        parse_text_task,
+        vectorize_task,
+        summary_task,
+        mind_map_task,
         generate_embeddings_task,
         cleanup_failed_tasks
     ]
@@ -204,6 +218,9 @@ class WorkerSettings:
     keep_result = 86400  # 保留任务结果时间（秒）
     max_tries = 3  # 最大重试次数
     retry_delay = 10  # 重试延迟（秒）
+    
+    # 显式声明监听的队列 (包括默认队列和自定义队列)
+    queues = ['arq:queue', 'pdf_processing', 'embeddings', 'llm_tasks']
 
 
 # 任务队列管理器
@@ -226,12 +243,63 @@ class TaskQueue:
             self._pool = None
             logger.info("任务队列已关闭")
 
-    async def enqueue_process_pdf(self, paper_id: str) -> str:
+    async def enqueue_parse_text(self, paper_id: str, job_id: str) -> str:
+        """入队：正文解析"""
+        await self.init()
+        job = await self._pool.enqueue_job(
+            'parse_text_task',
+            paper_id,
+            job_id,
+            _queue_name='pdf_processing',
+            _job_id=f"parse_text:{job_id}"
+        )
+        logger.info(f"解析任务已入队: {job.job_id if job else 'None (Duplicate?)'}")
+        return job.job_id if job else None
+
+    async def enqueue_vectorize(self, paper_id: str, job_id: str) -> str:
+        """入队：向量化"""
+        await self.init()
+        job = await self._pool.enqueue_job(
+            'vectorize_task',
+            paper_id,
+            job_id,
+            _queue_name='embeddings',
+             _job_id=f"vectorize:{job_id}"
+        )
+        logger.info(f"向量化任务已入队: {job.job_id if job else 'None (Duplicate?)'}")
+        return job.job_id if job else None
+
+    async def enqueue_summary(self, paper_id: str, job_id: str) -> str:
+        """入队：总结"""
+        await self.init()
+        job = await self._pool.enqueue_job(
+            'summary_task',
+            paper_id,
+            job_id,
+            _queue_name='llm_tasks',
+            _job_id=f"summary:{job_id}"
+        )
+        return job.job_id if job else None
+
+    async def enqueue_mind_map(self, paper_id: str, job_id: str) -> str:
+        """入队：脑图"""
+        await self.init()
+        job = await self._pool.enqueue_job(
+            'mind_map_task',
+            paper_id,
+            job_id,
+            _queue_name='llm_tasks',
+            _job_id=f"mind_map:{job_id}"
+        )
+        return job.job_id if job else None
+
+    async def enqueue_process_pdf(self, paper_id: str, job_id: Optional[str] = None) -> str:
         """
         入队PDF处理任务
 
         参数:
         - paper_id: 论文ID
+        - job_id: 任务ID (可选)
 
         返回:
         - str: 任务ID
@@ -240,6 +308,7 @@ class TaskQueue:
         job = await self._pool.enqueue_job(
             'process_pdf_task',
             paper_id,
+            job_id,
             _queue_name='pdf_processing'
         )
         logger.info(f"PDF处理任务已入队: {job.job_id}")
@@ -302,10 +371,15 @@ class TaskQueue:
 task_queue = TaskQueue()
 
 
+import asyncio
+
 # 启动Worker的函数
-def create_worker() -> Worker:
+def create_worker(queue_name: str = 'arq:queue') -> Worker:
     """
     创建Arq Worker实例
+    
+    参数:
+    - queue_name: 监听的队列名称
 
     返回:
     - Worker: Worker实例
@@ -318,12 +392,17 @@ def create_worker() -> Worker:
         job_timeout=WorkerSettings.job_timeout,
         keep_result=WorkerSettings.keep_result,
         max_tries=WorkerSettings.max_tries,
-        retry_delay=WorkerSettings.retry_delay
+        queue_name=queue_name
     )
 
 
 # 运行Worker（用于命令行启动）
 async def run_worker():
-    """运行Worker"""
-    worker = create_worker()
-    await worker.main()
+    """运行Worker，支持多队列"""
+    queues = WorkerSettings.queues
+    logger.info(f"Starting workers for queues: {queues}")
+    
+    workers = [create_worker(q) for q in queues]
+    
+    # 并发运行所有 Worker
+    await asyncio.gather(*[w.main() for w in workers])

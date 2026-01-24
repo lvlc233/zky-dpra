@@ -1,5 +1,5 @@
 import request from '@/lib/request';
-import { PapersUploadResponse, PaperReaderMetaResponse, JobListResponse, JobResponse, SearchedPaperMetaResponse } from '@/types/api';
+import { PapersUploadResponse, PaperReaderMetaResponse, JobListResponse, JobResponse, SearchedPaperMetaResponse, PaperJobStatusResponse, PaperStatusResponse } from '@/types/api';
 import { Paper, Job } from '@/types/models';
 
 export const paperService = {
@@ -34,7 +34,8 @@ export const paperService = {
           published_at: item.created_at,
           source: 'Upload',
           tags: [],
-          status: item.status === 'completed' ? 'success' : (item.status === 'pending' ? 'processing' : item.status)
+          status: item.status === 'completed' ? 'success' : (item.status === 'pending' ? 'processing' : item.status),
+          job_id: item.job_id
       }));
   },
 
@@ -95,5 +96,14 @@ export const paperService = {
         };
       }
     return request.get(`/papers/${id}/status`);
+  },
+
+  getJobStatus: async (paperId: string): Promise<PaperJobStatusResponse | null> => {
+    return request.get(`/papers/${paperId}/job-status`);
+  },
+
+  getSSEUrl: (jobId: string, token: string) => {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+    return `${baseUrl}/jobs/${jobId}/events?token=${token}`;
   },
 };

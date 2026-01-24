@@ -43,8 +43,25 @@ class SystemSettings(BaseModel):
     system_colour: Literal['light', 'dark'] = 'light'  # 系统颜色 明亮|暗黑
 
 
+class AgentSettings(BaseModel):
+    """Agent(RAG/Embedding) Settings"""
+    # Embedding Configuration
+    embedding_provider: Literal['local', 'siliconflow', 'openai'] = 'local'
+    embedding_model: str = "bge-m3"
+    embedding_api_key: str = ""
+    embedding_base_url: str = ""
+    
+    # RAG/Chat Generation Configuration (Base Model)
+    rag_provider: Literal['siliconflow', 'openai', 'ollama'] = 'siliconflow'
+    rag_base_model: str = "deepseek-ai/DeepSeek-V3"
+    rag_api_key: str = ""
+    rag_base_url: str = "https://api.siliconflow.cn/v1"
+    rag_temperature: float = 0.7
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ai_reader_settings: List[AIReaderSettings] = Field(default_factory=list)
     search_settings: SearchSetting = Field(default_factory=SearchSetting)
     system_settings: SystemSettings = Field(default_factory=SystemSettings)
+    agent_settings: AgentSettings = Field(default_factory=AgentSettings)

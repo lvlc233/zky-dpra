@@ -21,6 +21,7 @@ export interface TokenPairResponse {
 // Papers
 export interface PapersUploadResponse {
   paper_id: string;
+  job_id?: string;
   title: string;
   status: 'processing' | 'success' | 'failed';
 }
@@ -79,4 +80,31 @@ export interface JobListResponse {
 }
 export interface JobResponse {
   job: Job;
+}
+
+export interface PaperJobStatusResponse {
+  job_id: string;
+  status: 'pending' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  stage: string;
+  progress: number;
+  error?: string;
+  created_at: string;
+  end_at?: string;
+  result?: any;
+}
+
+export interface PaperStatusResponse {
+  paper_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  title: string;
+  authors: string[];
+  abstract: string;
+  progress: number;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+  toc?: any[];
+  file_url?: string;
+  published_at?: string;
+  source?: string;
 }

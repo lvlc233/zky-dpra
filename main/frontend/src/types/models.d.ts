@@ -26,6 +26,7 @@ export interface Paper {
   status?: 'processing' | 'success' | 'failed'; // From upload response
   analysis_status?: 'unprocessed' | 'processing' | 'processed' | 'error'; // From PaperMetaDTO
   is_bookmarked?: boolean;
+  job_id?: string; // Active job ID for processing papers
 }
 
 export interface Collection {

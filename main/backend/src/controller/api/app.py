@@ -38,7 +38,20 @@ setup_logging()
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("System starting up...")
-   
+    
+    # 任务恢复逻辑
+    try:
+        from base.pg.service import async_session_factory, JobRepository
+        async with async_session_factory() as session:
+            # 重置所有 running 状态的任务为 queued
+            # 原因: 服务重启意味着内存中的任务丢失，需要重新调度或标记失败
+            # 简单策略: 标记为 failed (用户手动重试) 或 queued (自动重试)
+            # 根据需求: "异常的项目不自动回复,而是需要用户手动点击" -> 标记为 failed
+            logger.info("Checking for interrupted jobs...")
+            await JobRepository.reset_interrupted_jobs(session)
+    except Exception as e:
+        logger.error(f"Failed to recover jobs: {e}")
+
     yield
     # Shutdown
     logger.info("System shutting down...")

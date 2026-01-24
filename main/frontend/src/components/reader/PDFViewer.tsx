@@ -124,6 +124,16 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     }
   }, [containerWidth]);
 
+  // Handle Scroll to Page in Scroll Mode
+  useEffect(() => {
+    if (viewMode === 'scroll' && pageNumber) {
+      const element = document.getElementById(`page_${pageNumber}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [pageNumber, viewMode]);
+
   return (
     <div 
       ref={containerRef} 
@@ -191,7 +201,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             // Scroll Mode: Render all pages
             // Note: In production, use react-window or similar for virtualization
             Array.from(new Array(numPages || 0), (_, index) => (
-              <div key={`page_${index + 1}`} className="mb-4 last:mb-0 relative">
+              <div 
+                key={`page_${index + 1}`} 
+                id={`page_${index + 1}`}
+                className="mb-4 last:mb-0 relative"
+              >
                  <Page 
                   pageNumber={index + 1} 
                   scale={scale} 

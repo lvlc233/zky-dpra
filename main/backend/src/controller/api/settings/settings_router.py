@@ -24,6 +24,8 @@ from controller.api.settings.schema import (
     AIReaderSettingsResponse,
     SystemSettingsRequest,
     SystemSettingsResponse,
+    AgentSettingsRequest,
+    AgentSettingsResponse,
 )
 from controller.api.search.schema import (
     SearchSettingsRequest,
@@ -82,6 +84,27 @@ async def update_system_settings(
     """更新系统设置"""
     settings = await service.update_system_settings(current_user.id, data.system_settings)
     return Response.success(data=SystemSettingsResponse(system_settings=settings))
+
+
+@router.get("/agent", response_model=Response[AgentSettingsResponse])
+async def get_agent_settings(
+    current_user: CurrentUserDep,
+    service: SettingServiceDep,
+):
+    """获取Agent(RAG/Embedding)设置"""
+    settings = await service.get_agent_settings(current_user.id)
+    return Response.success(data=AgentSettingsResponse(agent_settings=settings))
+
+
+@router.patch("/agent", response_model=Response[AgentSettingsResponse])
+async def update_agent_settings(
+    data: AgentSettingsRequest,
+    current_user: CurrentUserDep,
+    service: SettingServiceDep,
+):
+    """更新Agent(RAG/Embedding)设置"""
+    settings = await service.update_agent_settings(current_user.id, data.agent_settings)
+    return Response.success(data=AgentSettingsResponse(agent_settings=settings))
 
 
 @router.get("/search", response_model=Response[SearchSettingsResponse])
