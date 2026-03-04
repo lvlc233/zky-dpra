@@ -4,14 +4,17 @@ import { Paper, Job } from '@/types/models';
 
 export const paperService = {
   uploadLocal: async (files: File[], collectionId?: string): Promise<PapersUploadResponse[]> => {
-    const formData = new FormData();
-    files.forEach(file => formData.append('files', file));
-    if (collectionId) {
-      formData.append('collection_id', collectionId);
-    }
-    return request.post('/papers/upload/local', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const promises = files.map(file => {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (collectionId) {
+        formData.append('collection_id', collectionId);
+      }
+      return request.post('/papers/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
     });
+    return Promise.all(promises);
   },
 
   uploadWeb: async (urls: string[], collectionId?: string): Promise<PapersUploadResponse[]> => {

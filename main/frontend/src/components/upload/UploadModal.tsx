@@ -9,6 +9,7 @@ import { paperService } from '@/services/paper.service';
 import { logger } from '@/lib/logger';
 
 import { useUploadStore } from '@/store/upload.store';
+import { UploadFileItem } from './UploadFileItem';
 
 interface UploadModalProps {
   // Compatibility props, optional now

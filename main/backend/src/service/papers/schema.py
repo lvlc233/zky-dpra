@@ -67,6 +67,7 @@ class PaperUploadResponse(BaseModel):
     """论文上传响应模型 (Service Output)"""
     paper_id: str
     job_id: Optional[str] = None
+    title: str
     status: str
     message: str
 

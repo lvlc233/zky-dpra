@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { FileText, CheckCircle2, AlertCircle, Trash2, Loader2, PlayCircle } from 'lucide-react';
 import { useJobProgress } from '@/hooks/use-job-progress';
 import { cn } from '@/lib/utils';
-import { FileItem } from './UploadModal';
+import type { FileItem } from './UploadModal';
 
 export interface UploadFileItemProps {
   item: FileItem;

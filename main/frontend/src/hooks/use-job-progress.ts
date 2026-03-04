@@ -104,16 +104,16 @@ export const useJobProgress = (jobId: string | null, options: UseJobProgressOpti
         }
     });
 
-    eventSource.addEventListener('error', (e: MessageEvent) => {
-         const data = JSON.parse(e.data);
-         setState(prev => ({
-            ...prev,
-            status: 'failed',
-            error: data.message
-        }));
-        closeConnection();
-        options.onFailed?.(data.message);
-    });
+    eventSource.addEventListener('job_error', (e: MessageEvent) => {
+        const data = JSON.parse(e.data);
+        setState(prev => ({
+           ...prev,
+           status: 'failed',
+           error: data.message
+       }));
+       closeConnection();
+       options.onFailed?.(data.message);
+   });
 
     return () => {
       closeConnection();

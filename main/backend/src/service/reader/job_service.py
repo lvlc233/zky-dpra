@@ -257,4 +257,11 @@ class JobService:
             state=state,
             payload=payload
         )
-        return f"id: {uuid4()}\nevent: Job{state.capitalize()}\ndata: {envelope.model_dump_json()}\n\n"
+        
+        # Use lowercase event names matching frontend expectations
+        # Map "error" to "job_error" to avoid conflict with native SSE error event
+        event_name = state.lower()
+        if event_name == "error":
+            event_name = "job_error"
+            
+        return f"id: {uuid4()}\nevent: {event_name}\ndata: {envelope.model_dump_json()}\n\n"

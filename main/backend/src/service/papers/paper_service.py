@@ -296,14 +296,15 @@ class PaperService:
             logger.info(f"论文记录创建成功: {paper.id}")
 
             # 5. 触发异步处理任务
-            # 已移除自动触发，改为在阅读页面触发解析任务
-            # job_id = await self._trigger_process_task(paper.id, file_path)
+            # 恢复自动触发
+            job_id = await self._trigger_process_task(paper.id, file_path)
 
             return PaperUploadResponse(
                 paper_id=str(paper.id),
                 status=paper.analysis_status,
-                message="论文上传成功，请在阅读页面开始解析",
-                job_id=None
+                title=paper.title,
+                message="论文上传成功，后台处理中...",
+                job_id=str(job_id) if job_id else None
             )
 
         except Exception as e:
@@ -893,17 +894,35 @@ class PaperProcessingService:
                 from service.setting.setting_service import SettingService
                 setting_service = SettingService(session)
                 user_settings = await setting_service.get_settings(paper.user_id)
-                agent_settings = user_settings.ai_reader_settings
-                summary_config = [agent for agent in agent_settings if agent.type == "summary"][0]
+                agent_settings = user_settings.ai_reader_settings or []
+                
+                # Safely get summary config
+                summary_config = next((agent for agent in agent_settings if agent.type == "summary"), None)
+                if not summary_config:
+                    # Fallback to chat or first available
+                    summary_config = next((agent for agent in agent_settings if agent.type == "chat"), None)
+                
+                if not summary_config and agent_settings:
+                    summary_config = agent_settings[0]
                 
                 # 构造 LLM 配置
-                llm_config ={
-                    "model_name": summary_config.llm_name,
-                    "model_provider": summary_config.provider,
-                    "base_url": summary_config.base_url,
-                    "api_key": summary_config.api_key,
+                llm_config = {
+                    "model_name": "gpt-3.5-turbo",
+                    "model_provider": "openai",
                     "temperature": 0.3
                 }
+                
+                if summary_config:
+                    llm_config.update({
+                        "model_name": summary_config.llm_name,
+                        "model_provider": summary_config.provider,
+                        "base_url": summary_config.base_url,
+                        "api_key": summary_config.api_key,
+                        "temperature": 0.3
+                    })
+                else:
+                    logger.warning("No summary or fallback config found, using default config")
+                
                 # Check if summary already exists? Maybe not, allow regeneration.
 
             # 3. 调用 SummaryAgent
@@ -988,27 +1007,34 @@ class PaperProcessingService:
                 from service.setting.setting_service import SettingService
                 setting_service = SettingService(session)
                 user_settings = await setting_service.get_settings(paper.user_id)
-                agent_settings = user_settings.ai_reader_settings
+                agent_settings = user_settings.ai_reader_settings or []
                 
-                # 优先查找 mind_map 配置，如果没有则回退到 summary 配置
-                mindmap_config = None
-                try:
-                    mindmap_config = [agent for agent in agent_settings if agent.type == "mind_map"][0]
-                except IndexError:
-                    try:
-                        mindmap_config = [agent for agent in agent_settings if agent.type == "summary"][0]
-                    except IndexError:
-                        pass
+                # Safely get mind_map config with fallbacks
+                mindmap_config = next((agent for agent in agent_settings if agent.type == "mind_map"), None)
+                if not mindmap_config:
+                    mindmap_config = next((agent for agent in agent_settings if agent.type == "summary"), None)
+                if not mindmap_config:
+                    mindmap_config = next((agent for agent in agent_settings if agent.type == "chat"), None)
+                
+                if not mindmap_config and agent_settings:
+                    mindmap_config = agent_settings[0]
 
-                llm_config = {}
+                llm_config = {
+                    "model_name": "gpt-3.5-turbo",
+                    "model_provider": "openai",
+                    "temperature": 0.3
+                }
+
                 if mindmap_config:
-                    llm_config = {
+                    llm_config.update({
                         "model_name": mindmap_config.llm_name,
                         "model_provider": mindmap_config.provider,
                         "base_url": mindmap_config.base_url,
                         "api_key": mindmap_config.api_key,
                         "temperature": 0.3
-                    }
+                    })
+                else:
+                    logger.warning("No mind_map or fallback config found, using default config")
             
             # 3. 调用 MindMapAgent
             await _update_progress("generating", 30.0)
