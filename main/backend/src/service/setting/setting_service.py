@@ -22,6 +22,7 @@ from typing import List
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -113,6 +114,7 @@ class SettingService:
             data.rag_api_key = current_settings.agent_settings.rag_api_key
             
         current_settings.agent_settings = data
+        logger.info(f"Updating agent settings for user {user_id}: {data}")
         await self._save_settings(user, current_settings)
         return data
 
@@ -166,6 +168,8 @@ class SettingService:
             new_items.append(item)
             
         settings.ai_reader_settings = new_items
+        logger.info(f"Updating AI reader settings for user {user_id}: {new_items}")
+        
         await self._save_settings(user, settings)
         
         return await self.get_ai_reader_settings(user_id)

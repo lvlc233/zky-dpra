@@ -270,12 +270,23 @@ class EmbeddingService:
 
         # 2. 初始化 Fallback Model (SiliconFlow)
         # 如果主模型不是 SiliconFlow，且全局配置了 SiliconFlow，则配置 SiliconFlow 为回退
-        if self.provider != "siliconflow" and settings.siliconflow_api_key:
-            try:
-                self.fallback_model = self._create_siliconflow_model_from_settings()
-                logger.info("SiliconFlow 回退模型初始化成功")
-            except Exception as e:
-                logger.warning(f"回退模型初始化失败: {e}")
+        # 修正: 即使主模型配置失败 (self.primary_model is None)，我们也应该尝试配置回退模型
+        # 或者如果主模型就是 SiliconFlow 但失败了，那也没办法回退到自己。
+        
+        # 简化逻辑: 只要有 SiliconFlow 的全局配置，就创建一个备用
+        if settings.siliconflow_api_key:
+            # 避免重复: 如果当前主模型已经是 SiliconFlow 且参数相同，则不需要
+            is_same = (self.provider == "siliconflow" and self.api_key == settings.siliconflow_api_key)
+            if not is_same:
+                try:
+                    self.fallback_model = OpenAIEmbeddingModel(
+                        model=settings.siliconflow_embedding_model,
+                        api_key=settings.siliconflow_api_key,
+                        base_url=settings.siliconflow_base_url
+                    )
+                    logger.info("SiliconFlow 回退模型初始化成功")
+                except Exception as e:
+                    logger.warning(f"回退模型初始化失败: {e}")
 
     def _create_openai_compatible_model(self) -> OpenAIEmbeddingModel:
         if not self.api_key:
@@ -362,11 +373,11 @@ class EmbeddingService:
         
         # 尝试回退模型
         if self.fallback_model:
-            logger.info("切换到回退模型 (SiliconFlow)...")
+            logger.info(f"切换到回退模型 (SiliconFlow)...{self.fallback_model.model_name}")
             try:
                 return await self.fallback_model.embed_batch(texts)
             except Exception as e:
-                logger.error(f"回退模型批量调用失败: {e}")
+                logger.error(f"回退模型批量调用失败: {e},{self.fallback_model.model_name}")
         
         raise RuntimeError("所有嵌入模型均不可用")
 

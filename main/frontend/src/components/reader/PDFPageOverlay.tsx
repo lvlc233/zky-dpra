@@ -75,7 +75,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
   const visibleAnnotations = layers
     .filter(l => l.visible)
     .flatMap(l => l.annotations.map(a => ({ ...a, layerColor: l.color })))
-    .filter(a => (a.rects || []).some(r => r.pageIndex === pageIndex));
+    .filter(a => (a.rects || []).some(r => Number(r.pageIndex) === pageIndex));
 
   // Handle click outside to close popup
   useEffect(() => {
@@ -88,19 +88,6 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
              setActiveAnnotationId(null);
         } else if (!editPopupRef.current.contains(event.target as Node)) {
             // Clicked outside the popup
-            // If it's a draft, we might want to save or discard?
-            // Current behavior: just close, which leaves draft in limbo or clears it?
-            // If we close, we lose the draft if we don't save.
-            // Let's assume clicking outside acts as "Cancel" for draft if empty, or "Save" if content?
-            // Usually clicking outside implies "Done".
-            // But for safety, let's just close. If it was draft, it remains in state? 
-            // No, if we set activeId to null, the edit box disappears.
-            // If it's a draft, it will disappear from view if we rely on activeId to show it?
-            // In render: `activeAnnotation` uses `draftAnnotation`.
-            // But `visibleAnnotations` + `draftAnnotation` are rendered.
-            // So it will stay visible but not editable.
-            // But user said "automatically disappear".
-            // Let's strictly handle "Cancel" via button.
             setActiveAnnotationId(null);
         }
       }
@@ -309,7 +296,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
     setTranslationResult(annotation.type === 'translate' ? (annotation.content || '') : '');
     
     // Position popup near the first rect of the annotation on this page
-    const firstRect = annotation.rects.find(r => r.pageIndex === pageIndex);
+    const firstRect = annotation.rects.find(r => Number(r.pageIndex) === pageIndex);
     if (firstRect) {
       setEditPosition({
         top: firstRect.y + firstRect.height,

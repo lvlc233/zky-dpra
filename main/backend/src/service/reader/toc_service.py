@@ -19,7 +19,8 @@ class TocService:
         if toc_data is None: 
              # Check if paper exists first if strict 404 is needed
              # For now, consistent with previous logic
-             raise HTTPException(status_code=404, detail="Paper not found or TOC empty")
+             # UPDATE: Return empty TOC instead of 404 to prevent infinite retry loops in frontend
+             return Toc(items=[])
              
         items = [TocItem(**item) for item in toc_data]
         return Toc(items=items)

@@ -189,6 +189,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                         onChange={setReaderSettings} 
                       />
                     )}
+                    {activeTab === 'agent' && agentSettings && (
+                      <AgentSettingsForm 
+                        settings={agentSettings} 
+                        onChange={setAgentSettings} 
+                      />
+                    )}
                   </>
                 )}
               </div>

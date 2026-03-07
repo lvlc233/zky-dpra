@@ -53,5 +53,5 @@ async def retrieve_paper_tool(
         return formatted
         
     except Exception as e:
-        logger.error(f"Tool execution failed: {e}")
+        logger.exception("Tool execution failed: {}", e)
         return f"检索失败: {str(e)}"

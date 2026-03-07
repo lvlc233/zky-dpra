@@ -30,6 +30,37 @@ async def _get_model(session: AsyncSession, user_id: UUID) -> ChatOpenAI:
         setting_service = SettingService(session)
         # 获取原始设置（包含未掩码的 API Key）
         user_settings = await setting_service.get_settings(user_id)
+        
+        # 优先使用 AgentSettings (RAG Config)
+        if hasattr(user_settings, 'agent_settings') and user_settings.agent_settings:
+            agent_settings = user_settings.agent_settings
+            
+            # 如果配置了 RAG 设置，则优先使用
+            if agent_settings.rag_provider in ['siliconflow', 'openai', 'ollama']:
+                api_key = agent_settings.rag_api_key
+                base_url = agent_settings.rag_base_url
+                model_name = agent_settings.rag_base_model
+                
+                # SiliconFlow / OpenAI
+                if agent_settings.rag_provider in ['siliconflow', 'openai']:
+                    if api_key:
+                        return ChatOpenAI(
+                            model=model_name,
+                            temperature=agent_settings.rag_temperature,
+                            api_key=api_key,
+                            base_url=base_url
+                        )
+                
+                # Ollama
+                elif agent_settings.rag_provider == 'ollama':
+                     return ChatOpenAI(
+                        model=model_name,
+                        temperature=agent_settings.rag_temperature,
+                        base_url=base_url,
+                        api_key="ollama" # Ollama doesn't need key but langchain might require string
+                    )
+
+        # Fallback to AIReaderSettings (Old logic)
         ai_settings = user_settings.ai_reader_settings
         
         # 查找配置优先级: chat > summary > first

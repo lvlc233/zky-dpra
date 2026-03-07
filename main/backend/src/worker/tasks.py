@@ -80,7 +80,7 @@ async def vectorize_task(ctx: Dict[str, Any], paper_id: str, job_id: str) -> Dic
         
         return {"status": "success" if success else "failed"}
     except Exception as e:
-        logger.error(f"向量化任务异常: {e}", exc_info=True)
+        logger.exception("向量化任务异常: {}", e)
         return {"status": "error", "message": str(e)}
 
 

@@ -761,6 +761,10 @@ class PaperProcessingService:
             if not text_content:
                 await _update_progress("parsing", 30.0, "failed", error="PDF解析失败")
                 return False
+            
+            # 去除 NULL 字节，防止 PostgreSQL 报错
+            if isinstance(text_content, str):
+                text_content = text_content.replace("\x00", "")
                 
             await _update_progress("extracting_metadata", 50.0)
             metadata = await self._extract_metadata(file_path, text_content)
@@ -777,13 +781,20 @@ class PaperProcessingService:
                     elif len(p_date_str) == 4: published_at = datetime.strptime(p_date_str, "%Y")
             except: pass
 
+            # Sanitize metadata fields
+            title = metadata.get("title")
+            if isinstance(title, str): title = title.replace("\x00", "")
+            
+            summary = metadata.get("abstract")
+            if isinstance(summary, str): summary = summary.replace("\x00", "")
+
             async with async_session_factory() as session:
                 await PaperRepository.update_paper_metadata(
                     session, paper_id, 
-                    title=metadata.get("title"),
+                    title=title,
                     authors=metadata.get("authors", []),
                     toc=metadata.get("toc"),
-                    summary=metadata.get("abstract"),
+                    summary=summary,
                     full_text=text_content,
                     published_at=published_at,
                     source=metadata.get("source"),
@@ -830,8 +841,38 @@ class PaperProcessingService:
                 from service.setting.setting_service import SettingService
                 setting_service = SettingService(session)
                 user_settings = await setting_service.get_settings(paper.user_id)
-                # ... (Load embedding config logic) ...
-                embedding_config = {} # Simplified for now
+                
+                # 构造 embedding_config
+                embedding_config = {}
+                provider = "local"
+                
+                # 1. 优先检查 AgentSettings
+                if hasattr(user_settings, 'agent_settings') and user_settings.agent_settings:
+                    agent = user_settings.agent_settings
+                    provider = agent.embedding_provider
+                    if provider in ['openai', 'siliconflow']:
+                        embedding_config = {
+                            "embedding_provider": provider,
+                            "embedding_model": agent.embedding_model,
+                            "embedding_api_key": agent.embedding_api_key,
+                            "embedding_base_url": agent.embedding_base_url
+                        }
+                
+                # 2. 回退检查 AIReaderSettings (chat config)
+                if provider == "local" or not embedding_config:
+                    ai_settings = user_settings.ai_reader_settings or []
+                    chat_setting = next((s for s in ai_settings if s.type == 'chat'), None)
+                    if chat_setting and chat_setting.config:
+                        emb_provider = chat_setting.config.get('embedding_provider')
+                        if emb_provider and emb_provider != 'local':
+                            embedding_config = {
+                                "embedding_provider": emb_provider,
+                                "embedding_model": chat_setting.config.get('embedding_model'),
+                                "embedding_api_key": chat_setting.config.get('embedding_api_key'),
+                                "embedding_base_url": chat_setting.config.get('embedding_base_url')
+                            }
+                
+                logger.info(f"Vectorize Job Config: {embedding_config}")
 
             # 2. Re-read text (since we might not have full_text in DB yet)
             upload_dir = Path(settings.upload_dir)

@@ -215,10 +215,10 @@ class PaperChunk(SQLModel, table=True):
     )
 
     embedding: List[float] = Field(
-        sa_column=Column(Vector(1536), comment="向量Embedding(默认1536维)")
+        sa_column=Column(Vector(1024), comment="向量Embedding(本地模型默认1024维)")
     )
     embedding_model: str = Field(
-        default="text-embedding-3-small",
+        default="bge-m3",
         sa_column_kwargs={"comment": "用于生成Embedding的模型"}
     )
 

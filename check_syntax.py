@@ -21,3 +21,5 @@ if __name__ == "__main__":
     print(f"Checking syntax in {target_dir}...")
     check_syntax(target_dir)
     print("Done.")
+
+
