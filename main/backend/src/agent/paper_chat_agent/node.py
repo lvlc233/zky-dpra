@@ -14,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from service.setting.setting_service import SettingService
 from .schema import InPaperChatState
-from .prompts import paper_chat_prompt
+from .prompts import PAPER_CHAT_SYSTEM
 from .tools import retrieve_paper_tool
+from base.pg.service import PaperRepository
 
 # 1. 定义工具列表
 tools = [retrieve_paper_tool]
@@ -112,14 +113,29 @@ async def agent_node(state: InPaperChatState, config: RunnableConfig) -> Dict[st
         raise ValueError("Session or User ID missing in config")
         
     user_id = UUID(user_id_val) if isinstance(user_id_val, str) else user_id_val
+    paper_id = configuration.get("paper_id")
     
-    # 动态初始化模型
+    # 3. 获取论文信息以增强上下文
+    paper_title = "未知论文"
+    if paper_id:
+        paper = await PaperRepository.get_paper_by_id(session, paper_id)
+        if paper:
+            paper_title = paper.title
+
+    # 4. 动态初始化模型
     model = await _get_model(session, user_id)
     model_with_tools = model.bind_tools(tools)
     
-    chain = paper_chat_prompt | model_with_tools
+    # 5. 注入论文信息到 System Prompt
+    # 注意: paper_chat_prompt 是 ChatPromptTemplate
+    # 我们需要替换其中的 system 消息
+    messages = [
+        ("system", PAPER_CHAT_SYSTEM.format(paper_title=paper_title, paper_id=str(paper_id))),
+        *state["messages"]
+    ]
     
-    response = await chain.ainvoke(state, config)
+    # 使用 ainvoke
+    response = await model_with_tools.ainvoke(messages, config)
     
     return {"messages": [response]}
 

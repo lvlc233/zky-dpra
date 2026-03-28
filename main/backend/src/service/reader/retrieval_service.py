@@ -98,8 +98,8 @@ class RetrievalService:
             # 初始化 OpenAI / Compatible
             if not api_key:
                 logger.warning("No API key found in user settings for embeddings. Checking environment variables.")
-                if not os.environ.get("OPENAI_API_KEY"):
-                    logger.warning("No OPENAI_API_KEY found in env. Retrieval WILL fail for OpenAI-compatible providers.")
+                if not os.environ.get("SILICONFLOW_API_KEY"):
+                    logger.warning("No SILICONFLOW_API_KEY found in env. Retrieval WILL fail for OpenAI-compatible providers.")
             
             self.embeddings = OpenAIEmbeddings(
                 model=model_name,

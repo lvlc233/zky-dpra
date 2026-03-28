@@ -53,6 +53,8 @@ class OpenAIEmbeddingModel(BaseEmbeddingModel):
     ):
         self.model = model
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.model_name = model # Add this attribute for compatibility
+        self.base_url = base_url
         logger.info(f"OpenAI兼容嵌入模型初始化完成: {model}, base_url={base_url}")
 
     async def embed_text(self, text: str) -> List[float]:
@@ -276,7 +278,15 @@ class EmbeddingService:
         # 简化逻辑: 只要有 SiliconFlow 的全局配置，就创建一个备用
         if settings.siliconflow_api_key:
             # 避免重复: 如果当前主模型已经是 SiliconFlow 且参数相同，则不需要
+            # 注意: 这里需要处理 self.provider 可能是 'local' 的情况，此时 api_key 可能为空，
+            # 而 settings.siliconflow_api_key 不为空，所以 is_same 会是 False，这是对的。
+            # 如果 provider 是 siliconflow，且 api_key 和 settings 一样，则 is_same 为 True，不创建回退。
             is_same = (self.provider == "siliconflow" and self.api_key == settings.siliconflow_api_key)
+            
+            # 特殊情况: 如果主模型初始化失败了 (primary_model is None)，那么即使配置相同，我们也应该尝试初始化回退模型吗？
+            # 不，如果配置完全相同且主模型失败，回退模型大概率也会失败。
+            # 但如果主模型是因为 provider='local' 而被置为 None，那么 is_same 为 False，我们应该初始化回退。
+            
             if not is_same:
                 try:
                     self.fallback_model = OpenAIEmbeddingModel(
@@ -287,6 +297,20 @@ class EmbeddingService:
                     logger.info("SiliconFlow 回退模型初始化成功")
                 except Exception as e:
                     logger.warning(f"回退模型初始化失败: {e}")
+            else:
+                # 如果配置相同，但主模型是 None (例如 siliconflow 初始化失败)，则尝试强制再试一次作为回退？
+                # 或者直接把 primary_model 赋值过去？
+                if self.primary_model is None:
+                     logger.warning("主模型初始化失败且与回退配置相同，尝试重新初始化回退模型...")
+                     try:
+                        self.fallback_model = OpenAIEmbeddingModel(
+                            model=settings.siliconflow_embedding_model,
+                            api_key=settings.siliconflow_api_key,
+                            base_url=settings.siliconflow_base_url
+                        )
+                        logger.info("SiliconFlow 回退模型初始化成功 (Retry)")
+                     except Exception as e:
+                        logger.warning(f"回退模型初始化失败: {e}")
 
     def _create_openai_compatible_model(self) -> OpenAIEmbeddingModel:
         if not self.api_key:
@@ -344,32 +368,55 @@ class EmbeddingService:
         
         raise RuntimeError(f"所有嵌入模型均不可用: {'; '.join(errors)}")
 
-    async def embed_batch(
-        self,
-        texts: List[str],
-        batch_size: int = 10
-    ) -> List[List[float]]:
-        """批量嵌入文本 (带回退机制)"""
-        # 分批逻辑
-        embeddings = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i+batch_size]
-            try:
-                batch_emb = await self._embed_batch_safe(batch)
-                embeddings.extend(batch_emb)
-            except Exception as e:
-                logger.error(f"批次处理失败: {e}")
-                # 再次尝试逐个处理或抛出
-                raise
-        return embeddings
+    async def embed_batch(self, texts: List[str], batch_size: int = 10, delay: float = 2.0) -> List[List[float]]:
+        """
+        批量生成向量嵌入，支持自动分批和限速
+        
+        Update: 2026-03-07: 恢复单批次处理，因属性错误已修复，且用户希望一次性处理。
+        保留参数签名以兼容调用。
+        """
+        if not texts:
+            return []
+            
+        # 恢复单批次处理，直接调用 _embed_batch_safe
+        # 如果确实需要分批，可以随时取消注释下方的分批逻辑
+        return await self._embed_batch_safe(texts)
+        
+        # --- 分批逻辑 (已禁用) ---
+        # all_embeddings = []
+        # total = len(texts)
+        # import asyncio
+        # for i in range(0, total, batch_size):
+        #     batch_texts = texts[i : i + batch_size]
+        #     logger.info(f"正在处理批次 {i // batch_size + 1}/{(total + batch_size - 1) // batch_size}, 大小: {len(batch_texts)}")
+        #     try:
+        #         embeddings = await self._embed_batch_safe(batch_texts)
+        #         all_embeddings.extend(embeddings)
+        #         if i + batch_size < total:
+        #             logger.debug(f"等待 {delay} 秒以避免限速...")
+        #             await asyncio.sleep(delay)
+        #     except Exception as e:
+        #         logger.error(f"批次处理失败: {e}")
+        #         raise
+        # return all_embeddings
 
     async def _embed_batch_safe(self, texts: List[str]) -> List[List[float]]:
+        import traceback
+        
+        # 调试日志：检查模型状态
+        logger.info(f"Preparing to embed batch. Primary: {self.primary_model is not None}, Fallback: {self.fallback_model is not None}")
+        if self.primary_model:
+            logger.info(f"Primary Model Info: {self.primary_model.model_name}, BaseURL: {self.primary_model.base_url}")
+            
         # 尝试主模型
+        errors = []
         if self.primary_model:
             try:
                 return await self.primary_model.embed_batch(texts)
             except Exception as e:
                 logger.error(f"主模型批量调用失败: {e}")
+                traceback.print_exc()
+                errors.append(f"Primary: {e}")
         
         # 尝试回退模型
         if self.fallback_model:
@@ -378,8 +425,12 @@ class EmbeddingService:
                 return await self.fallback_model.embed_batch(texts)
             except Exception as e:
                 logger.error(f"回退模型批量调用失败: {e},{self.fallback_model.model_name}")
+                traceback.print_exc()
+                errors.append(f"Fallback: {e}")
         
-        raise RuntimeError("所有嵌入模型均不可用")
+        error_msg = f"所有嵌入模型均不可用: {'; '.join(errors)}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
 # 辅助函数
 async def embed_batch(

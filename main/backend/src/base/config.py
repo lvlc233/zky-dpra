@@ -65,9 +65,10 @@ class Settings(BaseSettings):
     # 日志配置
     log_level: str = "INFO"
 
-    # class Config:
-    #     env_file = ".env"
-    #     env_file_encoding = "utf-8"
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
 
 
 # 创建全局配置实例

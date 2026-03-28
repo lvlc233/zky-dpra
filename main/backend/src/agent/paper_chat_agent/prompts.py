@@ -10,6 +10,10 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 PAPER_CHAT_SYSTEM = """你是一个专门阅读学术论文的 AI 助手。
 你的任务是回答用户关于特定论文的问题。
 
+当前论文信息:
+- 标题: {paper_title}
+- ID: {paper_id}
+
 你拥有以下工具：
 - `retrieve_paper_tool`: 用于检索论文内容。当用户询问具体细节、定义、实验结果或任何论文内容时，必须使用此工具。
 

@@ -67,8 +67,5 @@ async def generate_mindmap_node(state: MindMapAgentState, runtime: Runtime[MindM
         }
     except Exception as e:
         logger.error(f"MindMap generation failed: {e}")
-        # Fallback empty
-        return {
-            "mindmap_data": {"nodes": [], "edges": []},
-            "messages": [AIMessage(content=f"Mind map generation failed: {e}")]
-        }
+        # Re-raise to ensure proper failure state
+        raise e

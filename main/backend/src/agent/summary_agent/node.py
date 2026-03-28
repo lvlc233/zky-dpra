@@ -31,22 +31,34 @@ async def generate_summary_node(state: SummaryAgentState, runtime: Runtime[Summa
             "messages": [AIMessage(content="无法获取论文内容，无法生成总结。")]
         }
     
+    # 截断以适应 Context (参考 MindMapAgent)
+    # 目的: 防止超长论文导致 Connection error 或 Context Overflow
+    safe_content = paper_content[:15000]
+    if len(paper_content) > 15000:
+        logger.warning(f"Paper content truncated from {len(paper_content)} to 15000 chars")
+
     llm_config = runtime.context
-    logger.info(f"llm_config: {llm_config}")
-    llm:BaseChatModel = init_chat_model(
-        model=llm_config.get("model_name", "gpt-3.5-turbo"),
-        model_provider=llm_config.get("model_provider", "openai"),
-        base_url=llm_config.get("base_url"),
-        api_key=llm_config.get("api_key"),
-        temperature=llm_config.get("temperature", 0.3),
-    ) 
+    logger.info(f"SummaryAgent using llm_config: {llm_config.get('model_name')} at {llm_config.get('base_url')}")
     
-    response = await llm.ainvoke(
-        SUMMARY_SYSTEM_PROMPT.format(paper_content=paper_content, language="中文"),
-    ) 
-    
-    return {
-        "summary": response.content,
-        "messages": [response], # 将总结作为 AI 回复推入消息历史
-        "sender": "SummaryAgent"
-    }
+    try:
+        llm:BaseChatModel = init_chat_model(
+            model=llm_config.get("model_name", "gpt-3.5-turbo"),
+            model_provider=llm_config.get("model_provider", "openai"),
+            base_url=llm_config.get("base_url"),
+            api_key=llm_config.get("api_key"),
+            temperature=llm_config.get("temperature", 0.3),
+        ) 
+        
+        response = await llm.ainvoke(
+            SUMMARY_SYSTEM_PROMPT.format(paper_content=safe_content, language="中文"),
+        ) 
+        
+        return {
+            "summary": response.content,
+            "messages": [response], # 将总结作为 AI 回复推入消息历史
+            "sender": "SummaryAgent"
+        }
+    except Exception as e:
+        logger.error(f"SummaryAgent node failed: {e}", exc_info=True)
+        # Re-raise to ensure arq/LangGraph signals failure
+        raise e

@@ -961,6 +961,12 @@ class PaperProcessingService:
                         "api_key": summary_config.api_key,
                         "temperature": 0.3
                     })
+                    
+                    # 安全检查: 如果 API Key 为空或包含掩码, 则发出警告
+                    if not summary_config.api_key:
+                        logger.warning(f"Summary Job for paper {paper_id}: API Key is EMPTY")
+                    elif "****" in summary_config.api_key:
+                        logger.error(f"Summary Job for paper {paper_id}: API Key is MASKED, this will fail LLM call")
                 else:
                     logger.warning("No summary or fallback config found, using default config")
                 
@@ -1287,18 +1293,41 @@ class PaperProcessingService:
         """
         保存文本块到数据库
         """
-        async with async_session_factory() as session:
-            paper_chunks = []
-            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-                paper_chunks.append(PaperChunk(
-                    paper_id=paper_id,
-                    content=chunk,
-                    chunk_index=i,
-                    embedding=embedding
-                ))
-            
-            await PaperRepository.create_paper_chunks(session, paper_chunks)
-            logger.info(f"保存了 {len(chunks)} 个文本块")
+        try:
+            async with async_session_factory() as session:
+                paper_chunks = []
+                # 检查 chunks 是否包含元数据（如果之前用了 split_text_with_metadata）
+                # 这里假设 chunks 只是 str 列表，或者需要适配
+                
+                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                    # 防御性编程：处理 chunk 可能是 dict 的情况
+                    content = chunk
+                    chunk_idx = i
+                    page_num = None
+                    
+                    if isinstance(chunk, dict):
+                        content = chunk.get("text", "")
+                        # 尝试获取其他元数据
+                        if "page_number" in chunk:
+                            page_num = chunk["page_number"]
+                    
+                    paper_chunks.append(PaperChunk(
+                        paper_id=paper_id,
+                        content=content,
+                        chunk_index=chunk_idx,
+                        page_number=page_num,
+                        embedding=embedding
+                    ))
+                
+                if paper_chunks:
+                    await PaperRepository.create_paper_chunks(session, paper_chunks)
+                    logger.info(f"保存了 {len(paper_chunks)} 个文本块")
+                else:
+                    logger.warning("没有可保存的文本块")
+                    
+        except Exception as e:
+            logger.error(f"Failed to save chunks: {e}", exc_info=True)
+            raise
 
     async def _update_paper_after_processing(
         self,
