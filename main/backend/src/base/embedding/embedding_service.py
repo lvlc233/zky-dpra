@@ -97,7 +97,7 @@ class OpenAIEmbeddingModel(BaseEmbeddingModel):
         # Ideally, we should check the model config.
         if "bge-m3" in self.model.lower():
             return 1024
-        return 1536 # Default for OpenAI
+        return 1024 # Default for OpenAI
 
 # # 定义数据模型
 # class LocalOnnxEmbeddingModel(BaseEmbeddingModel):
