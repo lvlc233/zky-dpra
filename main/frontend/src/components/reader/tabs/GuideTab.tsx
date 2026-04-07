@@ -34,9 +34,10 @@ interface GuideTabProps {
   isProcessing?: boolean;
   loadingStage?: string;
   progress?: number;
+  jobStatus?: any;
 }
 
-export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadingStage, progress }) => {
+export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadingStage, progress, jobStatus }) => {
   const [isSummaryOpen, setIsSummaryOpen] = useState(true);
   const [inputValue, setInputValue] = useState('');
   const [summaryData, setSummaryData] = useState<Record<string, string>>({});
@@ -142,6 +143,13 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadi
       fetchSummary();
   }, [paperId]);
 
+  // Auto-refresh when background summary job succeeds
+  useEffect(() => {
+    if (jobStatus?.type === 'summary' && jobStatus.status === 'succeeded') {
+      fetchSummary();
+    }
+  }, [jobStatus?.status, jobStatus?.type]);
+
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isSending) return;
     const content = inputValue.trim();
@@ -215,7 +223,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ paperId, isProcessing, loadi
         
         {isSummaryOpen && (
           <div className="p-4 space-y-4 max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-slate-700">
-            {isGeneratingSummary || (isProcessing && Object.keys(summaryData).length === 0) ? (
+            {isGeneratingSummary || (isProcessing && Object.keys(summaryData).length === 0) || (jobStatus?.type === 'summary' && jobStatus.status === 'running') ? (
               <div className="flex flex-col items-center justify-center py-8 text-center space-y-3">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
                 <div className="space-y-1">

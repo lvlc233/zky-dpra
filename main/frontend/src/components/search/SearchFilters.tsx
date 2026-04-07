@@ -27,7 +27,7 @@ const FILTER_OPTIONS = [
   { id: 'match_title', label: '标题' },
   { id: 'match_author', label: '作者' },
   { id: 'match_abstract', label: '摘要' },
-  { id: 'match_source', label: '来源' },
+  { id: 'match_source', label: '本地' },
   { id: 'enable_web_search', label: '网络' },
 ] as const;
 

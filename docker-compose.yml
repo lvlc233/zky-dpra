@@ -1,0 +1,20 @@
+services:
+  postgres:
+    # 推荐使用 pg16 版本，性能更佳
+    # 如果客户端工具较旧，请阅读文末的“坑点排查”部分，可能需要降级到 pg14
+    image: pgvector/pgvector:pg16
+    container_name: postgres_vector
+    restart: always
+    environment:
+      POSTGRES_USER: postgres         # 数据库用户名
+      POSTGRES_PASSWORD: postgres # 数据库密码
+      # 不设置 POSTGRES_DB 时，默认数据库名会与用户名一致（即 postgres）
+    ports:
+      - "5433:5432"                 # 主机端口:容器端口
+    volumes:
+      # 数据持久化映射，确保容器删除后数据不丢失
+      # ./pgdata 代表当前目录下的 pgdata 文件夹
+      - ./pgdata:/var/lib/postgresql/data
+    # 共享内存配置，PostgreSQL 建议适当调大
+    shm_size: 1g
+

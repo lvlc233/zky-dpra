@@ -49,8 +49,8 @@ export const PaperStatusBadge: React.FC<PaperStatusBadgeProps> = ({
             <Clock className="w-3 h-3 animate-spin" />
             <span>
                 {stage === 'queued' ? '排队中' : 
-                 stage === 'parsing' ? '解析中' : 
-                 stage === 'embedding' ? '向量化' : 
+                 stage === 'parsing' || stage === 'process_pdf' ? '解析中' : 
+                 stage === 'embedding' || stage === 'vectorize' ? '向量化' : 
                  progress > 0 ? `${Math.round(progress)}%` : '处理中'}
             </span>
           </div>

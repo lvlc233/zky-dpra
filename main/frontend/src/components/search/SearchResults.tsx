@@ -51,9 +51,23 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
         if (paper.url) {
            const toastId = toast.loading('正在导入并移动论文...');
            try {
-              await paperService.uploadWeb([paper.url], targetCollectionId);
-              toast.success('已添加到收藏夹并开始处理', { id: toastId });
-              onPaperUpdate?.();
+              const responses = await paperService.uploadWeb([paper.url], targetCollectionId, {
+                title: paper.title,
+                authors: paper.authors,
+                summary: paper.summary,
+                source: paper.source,
+                published_at: paper.published_at,
+                source_id: paper.source_id,
+                arxiv_id: paper.arxiv_id,
+              });
+              
+              const failure = responses.find(r => r.status === 'failed');
+              if (failure) {
+                toast.error(`导入失败: ${failure.message || '未知错误'}`, { id: toastId });
+              } else {
+                toast.success('已添加到收藏夹并开始处理', { id: toastId });
+                onPaperUpdate?.();
+              }
            } catch (err: any) {
               toast.error(err.message || '导入失败', { id: toastId });
            }
@@ -177,15 +191,19 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
               {/* Source Column */}
               <div className="col-span-1">
                  {paper.source && (
-                    <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 rounded-full border border-gray-200 dark:border-slate-700 inline-block truncate max-w-full" title={paper.source}>
-                        {paper.source}
+                    <span className="text-[10px] px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-full border border-blue-200 dark:border-blue-800 inline-block truncate max-w-full" title={paper.source}>
+                        {paper.source === 'web' ? '网络' : paper.source}
                     </span>
                  )}
               </div>
 
               {/* Status Column */}
               <div className="col-span-1 text-xs">
-                 <PaperStatusBadge status={paper.analysis_status || paper.status} jobId={paper.job_id} />
+                 <PaperStatusBadge 
+                    status={paper.analysis_status || paper.status} 
+                    jobId={paper.job_id} 
+                    latestJobType={paper.latest_job_type}
+                 />
               </div>
 
               {/* Actions Column */}

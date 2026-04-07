@@ -175,5 +175,6 @@ cython_debug/
 *.db-shm
 *.gz
 *.xml
-
+pgdata/*
 .github/*
+/main/backend/upload/

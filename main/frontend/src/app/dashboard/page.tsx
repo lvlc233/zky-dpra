@@ -9,7 +9,7 @@ import { Paper } from "@/types/models";
 import { SearchResults } from "@/components/search/SearchResults";
 import { Pagination } from "@/components/ui/pagination-custom";
 import { SettingsModal } from "@/components/settings/SettingsModal";
-import { BookOpen, Sparkles } from 'lucide-react';
+import { BookOpen, Sparkles, AlertCircle, Clock } from 'lucide-react';
 import { useUploadStore } from "@/store/upload.store";
 
 import { searchService } from '@/services/search.service';
@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const [hasMore, setHasMore] = useState(false);
   const [currentQuery, setCurrentQuery] = useState('');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
   
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const openUpload = useUploadStore((s) => s.open);
@@ -174,6 +175,14 @@ export default function DashboardPage() {
     loadSearchSettings();
   }, [loadCollections]);
 
+  // Auto-trigger search when critical filters change (like Web Search)
+  React.useEffect(() => {
+    if (currentQuery && hasSearched) {
+      handleSearch(currentQuery, isAIEnabled);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchFilters.enable_web_search]);
+
   // Auto-select Default Collection
   React.useEffect(() => {
     if (collections.length > 0 && !activeCollection && !hasSearched) {
@@ -216,7 +225,6 @@ export default function DashboardPage() {
         const response = await searchService.search({
             query,
             page: 1,
-            limit: searchSettings.limit,
             // Only pass collection_id filter if we are NOT searching web (external)
             // If enable_web_search is true, we ignore collection context for the search itself
             filters: (!searchFilters.enable_web_search && activeCollection) ? { collection_id: activeCollection.id } : undefined,
@@ -227,7 +235,9 @@ export default function DashboardPage() {
         setSearchResults(response.items || []);
         setTotalResults(response.total);
         setHasMore(response.total > response.items.length); // Assuming response.total exists
+        setSearchMessage(response.message || null);
     } catch (error: any) {
+        setSearchMessage(null);
         logger.error("Search failed", error, 'DashboardPage');
         toast.error(error.message || "搜索失败");
     } finally {
@@ -243,7 +253,6 @@ export default function DashboardPage() {
         const response = await searchService.search({
             query: currentQuery,
             page: newPage,
-            limit: searchSettings.limit,
             filters: (!searchFilters.enable_web_search && activeCollection) ? { collection_id: activeCollection.id } : undefined,
             ...searchFilters,
             ...searchSettings
@@ -252,6 +261,7 @@ export default function DashboardPage() {
         setPage(newPage);
         setTotalResults(response.total);
         setHasMore(response.total > response.items.length);
+        setSearchMessage(response.message || null);
         
         // Scroll to top
         const mainContent = document.getElementById('main-content');
@@ -374,6 +384,27 @@ export default function DashboardPage() {
               }}
             />
           </div>
+
+          {/* Search Message Alert */}
+          {searchMessage && (
+            <div className="w-full max-w-5xl mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-4">
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                  搜索提示
+                </p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-1">
+                  {searchMessage}
+                </p>
+              </div>
+              <button 
+                onClick={() => setSearchMessage(null)}
+                className="text-amber-500 hover:text-amber-700 dark:text-amber-500 dark:hover:text-amber-300 transition-colors"
+              >
+                <Clock className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {/* Content Area */}
           <div className="flex-1 w-full max-w-5xl flex flex-col pb-10">

@@ -17,8 +17,12 @@ export const paperService = {
     return Promise.all(promises);
   },
 
-  uploadWeb: async (urls: string[], collectionId?: string): Promise<PapersUploadResponse[]> => {
-    return request.post('/papers/upload/web', { urls, collection_id: collectionId });
+  uploadWeb: async (urls: string[], collectionId?: string, metadata?: { title?: string, authors?: string[], summary?: string, source?: string, published_at?: string, source_id?: string, arxiv_id?: string }): Promise<PapersUploadResponse[]> => {
+    return request.post('/papers/upload/web', { 
+      urls, 
+      collection_id: collectionId,
+      ...metadata
+    });
   },
 
   // Get list of papers from backend
@@ -34,11 +38,12 @@ export const paperService = {
           url: item.file_url,
           authors: item.authors || [],
           summary: item.abstract,
-          published_at: item.created_at,
-          source: 'Upload',
+          published_at: item.published_at || item.created_at,
+          source: item.source || 'Upload',
           tags: [],
-          status: item.status === 'completed' ? 'success' : (item.status === 'pending' ? 'processing' : item.status),
-          job_id: item.job_id
+          status: item.status,
+          job_id: item.job_id,
+          latest_job_type: item.latest_job_type
       }));
   },
 
@@ -56,6 +61,10 @@ export const paperService = {
 
   getJob: async (jobId: string): Promise<JobResponse> => {
     return request.get(`/jobs/${jobId}`);
+  },
+
+  retryJob: async (jobId: string): Promise<void> => {
+    return request.post(`/jobs/${jobId}/retry`);
   },
 
   delete: async (id: string): Promise<void> => {

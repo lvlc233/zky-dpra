@@ -1,11 +1,12 @@
-export type AnnotationType = 'highlight' | 'note' | 'translate';
+export type AnnotationType = 'highlight' | 'note' | 'translate' | 'translation';
 
 export interface Rect {
   x: number; // Percentage 0-100
   y: number; // Percentage 0-100
   width: number; // Percentage 0-100
   height: number; // Percentage 0-100
-  pageIndex: number; // 0-based index
+  pageIndex?: number; // 0-based index
+  page_index?: number; // Backend compatibility
 }
 
 export interface Annotation {
@@ -14,7 +15,7 @@ export interface Annotation {
   rects: Rect[]; // Support multi-line highlights
   content?: string; // For notes or translation
   color?: string;
-  createdAt: number;
+  createdAt?: number;
 }
 
 export interface Layer {

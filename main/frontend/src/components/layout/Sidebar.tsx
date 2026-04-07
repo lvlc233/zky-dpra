@@ -16,13 +16,15 @@ import {
   Trash2,
   Edit2,
   X,
-  Check
+  Check,
+  Shield
 } from 'lucide-react';
 import * as Popover from '@radix-ui/react-popover';
 
 import { collectionService } from '@/services/collection.service';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { useAuthStore } from '@/store/use-auth-store';
 
 interface SidebarProps {
   className?: string;
@@ -52,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Local state is only a fallback or for optimistic UI, but mainly we rely on props now
   const [collections, setCollections] = useState<Collection[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const user = useAuthStore(state => state.user);
 
   // Sync with props
   React.useEffect(() => {
@@ -156,25 +159,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
       </button>
 
-      {/* Top Section: Search Navigation - Removed per request */}
-      {/* <div className="p-4 border-b border-gray-50 dark:border-slate-800">
-        <button 
-          onClick={handleResetSearch}
-          className={cn(
-            "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 w-full text-left",
-            activeId === null
-              ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-300" 
-              : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-gray-100",
-            isCollapsed && "justify-center"
-          )}
-        >
-          <Search className="w-5 h-5 flex-shrink-0" />
-          {!isCollapsed && <span className="font-medium">搜索论文</span>}
-        </button>
-      </div> */}
 
       {/* Middle Section: Collections */}
       <div className="flex-1 overflow-y-auto p-4">
+
         <div className={cn("flex items-center justify-between mb-4", isCollapsed && "justify-center")}>
           {!isCollapsed && <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">我的收藏夹</h3>}
           <button 

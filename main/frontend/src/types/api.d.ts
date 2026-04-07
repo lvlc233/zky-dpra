@@ -1,5 +1,7 @@
 import { User, Paper, Collection, View, Annotation, NoteMeta, Note, MindMap, AISummary, RecordItem, Message, Job, TocItem } from './models';
 
+export type { User, Paper, Collection, View, Annotation, NoteMeta, Note, MindMap, AISummary, RecordItem, Message, Job, TocItem };
+
 export interface ApiResponse<T = any> {
   code: number;
   message: string;
@@ -24,11 +26,13 @@ export interface PapersUploadResponse {
   job_id?: string;
   title: string;
   status: 'processing' | 'success' | 'failed';
+  message?: string;
 }
 
 export interface SearchedPaperMetaResponse {
   items: Paper[];
   total: number;
+  message?: string;
 }
 
 export interface PaperReaderMetaResponse {
@@ -91,6 +95,7 @@ export interface PaperJobStatusResponse {
   created_at: string;
   end_at?: string;
   result?: any;
+  type?: string;
 }
 
 export interface PaperStatusResponse {
@@ -104,7 +109,26 @@ export interface PaperStatusResponse {
   created_at: string;
   updated_at: string;
   toc?: any[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
   file_url?: string;
   published_at?: string;
   source?: string;
+}
+
+// Admin User Management
+export interface UserAdminResponse {
+  id: string;
+  email: string;
+  full_name: string | null;
+  is_active: boolean;
+  is_admin: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserAdminListResponse {
+  users: UserAdminResponse[];
+  total: number;
 }

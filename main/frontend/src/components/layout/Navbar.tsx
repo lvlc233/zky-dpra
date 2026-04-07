@@ -3,7 +3,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { BookOpen, Search, Upload, Bookmark, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { BookOpen, Search, Upload, Bookmark, LogIn, LogOut, User as UserIcon, Shield } from 'lucide-react';
 import { useAuthModal } from '@/components/auth/AuthModalContext';
 import { useAuthStore } from '@/store/use-auth-store';
 import { useUploadStore } from '@/store/upload.store';
@@ -64,6 +64,14 @@ export const Navbar: React.FC<NavbarProps> = ({ className, onCollectionsClick })
         >
           收藏夹
         </NavItem>
+        {user?.email === 'admin@drap.com' && (
+          <NavItem 
+            href="/dashboard/admin" 
+            icon={<Shield className="w-4 h-4" />}
+          >
+            管理员控制台
+          </NavItem>
+        )}
       </nav>
 
       {/* Auth Action */}

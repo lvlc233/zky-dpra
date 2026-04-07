@@ -28,7 +28,7 @@ export default function ChatPage() {
     try {
       const data = await chatService.getSessions();
       setSessions(data);
-      setActiveSessionId((prev) => prev ?? (data[0]?.id ?? null));
+      setActiveSessionId((prev) => prev ?? (data[0]?.session_id ?? null));
     } catch (error) {
       logger.error("Failed to load sessions", error, 'ChatPage');
     } finally {
@@ -167,17 +167,17 @@ export default function ChatPage() {
                  <div className="p-4 text-center text-gray-400 text-sm">加载中...</div>
               ) : sessions.map(session => (
                 <button
-                  key={session.id}
-                  onClick={() => setActiveSessionId(session.id)}
+                  key={session.session_id}
+                  onClick={() => setActiveSessionId(session.session_id)}
                   className={cn(
                     "w-full text-left px-3 py-3 rounded-lg text-sm flex items-center gap-3 transition-colors",
-                    activeSessionId === session.id 
+                    activeSessionId === session.session_id 
                       ? "bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300" 
                       : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800"
                   )}
                 >
                   <MessageSquare className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate flex-1">{session.title || session.id.substring(0, 8)}</span>
+                  <span className="truncate flex-1">{session.title || session.session_id.substring(0, 8)}</span>
                 </button>
               ))}
             </div>

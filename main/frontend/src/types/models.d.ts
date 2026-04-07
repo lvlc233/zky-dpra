@@ -8,6 +8,7 @@ export interface User {
   email: string;
   full_name: string;
   is_active: boolean;
+  is_admin: boolean;
   created_at: string;
   settings?: any; // Define Settings type if needed
 }
@@ -16,6 +17,7 @@ export interface Paper {
   paper_id?: string; // Optional for external search results
   title: string;
   url?: string; // Web URL or Proxy URL
+  file_url?: string; // PDF file URL
   authors: string[];
   summary?: string; // Abstract/Summary
   published_at?: string;
@@ -27,6 +29,9 @@ export interface Paper {
   analysis_status?: 'unprocessed' | 'processing' | 'processed' | 'error'; // From PaperMetaDTO
   is_bookmarked?: boolean;
   job_id?: string; // Active job ID for processing papers
+  latest_job_type?: string;
+  source_id?: string;
+  arxiv_id?: string;
 }
 
 export interface Collection {
@@ -49,15 +54,17 @@ export interface Rect {
   y: number;
   width: number;
   height: number;
-  page_index: number;
+  page_index?: number;
+  pageIndex?: number;
 }
 
 export interface Annotation {
   annotation_id: string;
-  type: 'highlight' | 'translation' | 'note';
+  type: 'highlight' | 'translation' | 'note' | 'translate';
   rects: Rect[];
-  content: string;
-  color: string;
+  content?: string;
+  color?: string;
+  createdAt?: number;
 }
 
 export interface View {
@@ -105,4 +112,15 @@ export interface MindMap {
 
 export interface AISummary {
   summary_config: Record<string, string>;
+}
+
+export interface Job {
+  id: string;
+  type: 'parsing' | 'embedding' | 'summarizing' | 'tracking';
+  status: 'pending' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  progress: number;
+  created_at: string;
+  end_at?: string;
+  error?: string;
+  result?: any;
 }

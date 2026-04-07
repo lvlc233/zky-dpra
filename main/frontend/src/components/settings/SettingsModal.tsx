@@ -23,7 +23,7 @@ interface SettingsModalProps {
   onSettingsChanged?: () => void;
 }
 
-type SettingsTab = 'system' | 'search' | 'reader' | 'agent';
+type SettingsTab = 'system' | 'search' | 'reader';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSettingsChanged }) => {
   const { setTheme } = useTheme();
@@ -35,7 +35,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [searchSettings, setSearchSettings] = useState<SearchSettings | null>(null);
   const [readerSettings, setReaderSettings] = useState<AIReaderSettings[]>([]);
-  const [agentSettings, setAgentSettings] = useState<AgentSettings | null>(null);
 
   // Fetch data when tab changes
   useEffect(() => {
@@ -54,9 +53,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           const res = await settingsService.getAIReaderSettings();
           // Ensure we have all types or at least what comes back
           setReaderSettings(res.items || []);
-        } else if (activeTab === 'agent') {
-          const data = await settingsService.getAgentSettings();
-          setAgentSettings(data);
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -86,9 +82,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
         toast.success('搜索设置已保存');
       } else if (activeTab === 'reader') {
         await settingsService.updateAIReaderSettings({ items: readerSettings });
-        toast.success('阅读设置已保存');
-      } else if (activeTab === 'agent' && agentSettings) {
-        await settingsService.updateAgentSettings(agentSettings);
         toast.success('Agent设置已保存');
       }
       // onClose(); // Optional: close on save? Usually better to stay.
@@ -130,12 +123,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 <TabButton 
                   active={activeTab === 'reader'} 
                   onClick={() => setActiveTab('reader')}
-                  icon={<BookOpen className="w-4 h-4" />}
-                  label="AI 阅读设置"
-                />
-                <TabButton 
-                  active={activeTab === 'agent'} 
-                  onClick={() => setActiveTab('agent')}
                   icon={<Bot className="w-4 h-4" />}
                   label="Agent 设置"
                 />
@@ -153,7 +140,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                   {activeTab === 'system' && "系统设置"}
                   {activeTab === 'search' && "搜索配置"}
-                  {activeTab === 'reader' && "AI 阅读助手配置"}
+                  {activeTab === 'reader' && "Agent 配置 (LLM)"}
                 </h3>
                 <button 
                   onClick={onClose}
@@ -187,12 +174,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                       <ReaderSettingsForm 
                         settings={readerSettings} 
                         onChange={setReaderSettings} 
-                      />
-                    )}
-                    {activeTab === 'agent' && agentSettings && (
-                      <AgentSettingsForm 
-                        settings={agentSettings} 
-                        onChange={setAgentSettings} 
                       />
                     )}
                   </>
@@ -237,7 +218,7 @@ const TabButton = ({ active, onClick, icon, label }: { active: boolean; onClick:
   </button>
 );
 
-import { AgentSettingsForm } from './AgentSettingsForm';
+// Reader components
 
 // --- Sub-components ---
 

@@ -1,4 +1,6 @@
 
+import { AgentSettings } from '@/types/settings';
+
 const AgentSettingsForm = ({ settings, onChange }: { settings: AgentSettings, onChange: (s: AgentSettings) => void }) => {
   return (
     <div className="space-y-8 pb-10">
@@ -30,7 +32,7 @@ const AgentSettingsForm = ({ settings, onChange }: { settings: AgentSettings, on
                       className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       value={settings.embedding_api_key}
                       onChange={(e) => onChange({...settings, embedding_api_key: e.target.value})}
-                      placeholder="sk-..."
+                      placeholder="留空则使用系统默认 (Leave blank for system default)"
                    />
                  </div>
                   <div className="space-y-2">
@@ -40,7 +42,7 @@ const AgentSettingsForm = ({ settings, onChange }: { settings: AgentSettings, on
                       className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       value={settings.embedding_base_url}
                       onChange={(e) => onChange({...settings, embedding_base_url: e.target.value})}
-                      placeholder="https://api.example.com/v1"
+                      placeholder="留空则使用系统默认 (Leave blank for system default)"
                    />
                  </div>
                   <div className="space-y-2">
@@ -50,7 +52,7 @@ const AgentSettingsForm = ({ settings, onChange }: { settings: AgentSettings, on
                       className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       value={settings.embedding_model}
                       onChange={(e) => onChange({...settings, embedding_model: e.target.value})}
-                      placeholder="text-embedding-3-small"
+                      placeholder="留空则使用系统默认 (Leave blank for system default)"
                    />
                  </div>
                </>
@@ -83,7 +85,7 @@ const AgentSettingsForm = ({ settings, onChange }: { settings: AgentSettings, on
                   className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   value={settings.rag_api_key}
                   onChange={(e) => onChange({...settings, rag_api_key: e.target.value})}
-                  placeholder="sk-..."
+                  placeholder="留空则使用系统默认 (Leave blank for system default)"
                />
              </div>
               <div className="space-y-2">
@@ -93,7 +95,7 @@ const AgentSettingsForm = ({ settings, onChange }: { settings: AgentSettings, on
                   className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   value={settings.rag_base_url}
                   onChange={(e) => onChange({...settings, rag_base_url: e.target.value})}
-                  placeholder="https://api.example.com/v1"
+                  placeholder="留空则使用系统默认 (Leave blank for system default)"
                />
              </div>
               <div className="space-y-2">
@@ -103,7 +105,7 @@ const AgentSettingsForm = ({ settings, onChange }: { settings: AgentSettings, on
                   className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   value={settings.rag_base_model}
                   onChange={(e) => onChange({...settings, rag_base_model: e.target.value})}
-                  placeholder="deepseek-ai/DeepSeek-V3"
+                  placeholder="留空则使用系统默认 (Leave blank for system default)"
                />
              </div>
              <div className="space-y-2">
@@ -123,3 +125,5 @@ const AgentSettingsForm = ({ settings, onChange }: { settings: AgentSettings, on
     </div>
   );
 }
+
+export { AgentSettingsForm };

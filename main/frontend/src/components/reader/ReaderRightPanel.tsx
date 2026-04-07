@@ -105,9 +105,9 @@ export const ReaderRightPanel: React.FC<ReaderRightPanelProps> = ({ className, p
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden bg-gray-50/30 dark:bg-slate-800/30 flex flex-col">
-        {activeTab === 'guide' && <GuideTab paperId={paperId} isProcessing={isProcessing} loadingStage={loadingStage} progress={progress} />}
+        {activeTab === 'guide' && <GuideTab paperId={paperId} isProcessing={isProcessing} loadingStage={loadingStage} progress={progress} jobStatus={jobStatus} />}
         {activeTab === 'notes' && <NotesTab paperId={paperId} />}
-        {activeTab === 'graph' && <GraphTab paperId={paperId} isProcessing={isProcessing} loadingStage={loadingStage} progress={progress} />}
+        {activeTab === 'graph' && <GraphTab paperId={paperId} isProcessing={isProcessing} loadingStage={loadingStage} progress={progress} jobStatus={jobStatus} />}
         {activeTab === 'settings' && <SettingsTab paperId={paperId} />}
       </div>
     </aside>

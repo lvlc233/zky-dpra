@@ -26,7 +26,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
   
   const { setAuthView, closeAuthModal } = useAuthModal();
   const login = useAuthStore((state) => state.login);
+  const [isAdminMode, setIsAdminMode] = useState(false);
 
+  // ... (existing code, handle `isAdminMode` in login logic)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -34,7 +36,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
     try {
       const response = await authService.login(formData.email, formData.password, formData.rememberMe);
       login(response, response.access_token);
-      toast.success('登录成功');
+      toast.success(isAdminMode ? '管理员登录成功' : '登录成功');
       
       if (isModal) {
         closeAuthModal();
@@ -52,30 +54,18 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // ... same
     const { name, value, type, checked } = e.target;
-    
-    // 如果 input 没有 name 属性，根据 type 推断 (为了兼容旧代码)
-    // 但建议所有 input 都加上 name
     const fieldName = name || (type === 'email' ? 'email' : 'password');
-    
-    setFormData(prev => ({
-      ...prev,
-      [fieldName]: type === 'checkbox' ? checked : value
-    }));
+    setFormData(prev => ({ ...prev, [fieldName]: type === 'checkbox' ? checked : value }));
   };
 
   const handleRegisterClick = (e: React.MouseEvent) => {
-    if (isModal) {
-      e.preventDefault();
-      setAuthView('register');
-    }
+    if (isModal) { e.preventDefault(); setAuthView('register'); }
   };
 
   const handleForgotPasswordClick = (e: React.MouseEvent) => {
-    if (isModal) {
-      e.preventDefault();
-      setAuthView('forgot-password');
-    }
+    if (isModal) { e.preventDefault(); setAuthView('forgot-password'); }
   };
 
   return (
@@ -101,8 +91,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({ className, isModal = false
 
       {/* Right: Form Area */}
       <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white dark:bg-slate-900">
-        <div className="mb-8 text-center md:text-left">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">欢迎回来</h1>
+        <div className="mb-0 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setIsAdminMode(!isAdminMode)}
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors flex items-center gap-1 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-full"
+          >
+            <Lock className="w-3 h-3" />
+            切换{isAdminMode ? '普通用户' : '管理员'}模式
+          </button>
+        </div>
+        <div className="mb-8 mt-2 text-center md:text-left">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            欢迎回来{isAdminMode && <span className="text-indigo-600 ml-2">管理员</span>}
+          </h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm">请输入您的账号信息以继续</p>
         </div>
 

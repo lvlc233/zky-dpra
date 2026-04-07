@@ -143,7 +143,7 @@ export const UploadModal: React.FC<UploadModalProps> = (props) => {
     
     for (const fileItem of pendingFiles) {
         try {
-            const responses = await paperService.uploadLocal([fileItem.file], uploadStore.collectionId);
+            const responses = await paperService.uploadLocal([fileItem.file], uploadStore.collectionId || undefined);
             const response = responses[0];
 
             setFiles(prev => prev.map(f => 

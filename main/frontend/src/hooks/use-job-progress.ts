@@ -67,40 +67,43 @@ export const useJobProgress = (jobId: string | null, options: UseJobProgressOpti
     // Listen for specific events
     eventSource.addEventListener('start', (e: MessageEvent) => {
         const data = JSON.parse(e.data);
+        const payload = data.payload || data;
         setState(prev => ({
             ...prev,
-            status: data.status,
-            progress: data.progress,
-            stage: data.stage || 'Starting...'
+            status: payload.status,
+            progress: payload.progress || 0,
+            stage: payload.stage || 'Starting...'
         }));
     });
 
     eventSource.addEventListener('progress', (e: MessageEvent) => {
         const data = JSON.parse(e.data);
+        const payload = data.payload || data;
         setState(prev => ({
             ...prev,
-            status: data.status,
-            progress: data.progress,
-            stage: data.stage
+            status: payload.status,
+            progress: payload.progress,
+            stage: payload.stage
         }));
     });
 
     eventSource.addEventListener('end', (e: MessageEvent) => {
         const data = JSON.parse(e.data);
+        const payload = data.payload || data;
         setState(prev => ({
             ...prev,
-            status: data.status,
+            status: payload.status,
             progress: 100,
             stage: 'Completed',
-            result: data.result
+            result: payload.result
         }));
         
         closeConnection();
         
-        if (data.status === 'succeeded' || data.status === 'success') {
-            options.onSucceeded?.(data.result);
+        if (payload.status === 'succeeded' || payload.status === 'success') {
+            options.onSucceeded?.(payload.result);
         } else {
-            options.onFailed?.(data.error || 'Unknown error');
+            options.onFailed?.(payload.error || 'Unknown error');
         }
     });
 

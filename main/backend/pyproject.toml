@@ -29,6 +29,7 @@ dependencies = [
     "onnxruntime>=1.23.2",
     "passlib[bcrypt]>=1.7.4",
     "pgvector>=0.3.6",
+    "psutil>=7.2.2",
     "psycopg2-binary>=2.9.11",
     "psycopg[binary,pool]>=3.3.2",
     "pyjwt>=2.10.1",

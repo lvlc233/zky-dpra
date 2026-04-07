@@ -368,7 +368,7 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
   // Combine visibleAnnotations with draftAnnotation for rendering
   const allAnnotationsToRender = [...visibleAnnotations];
   if (draftAnnotation && !visibleAnnotations.some(a => a.annotation_id === draftAnnotation.annotation_id)) {
-     allAnnotationsToRender.push(draftAnnotation);
+     allAnnotationsToRender.push({ ...draftAnnotation, layerColor: undefined });
   }
 
   return (
