@@ -1,0 +1,50 @@
+﻿ID: b7a4605e-e660-4c67-a6b6-a4781126b1b6
+  Type: parse_text
+  Status: succeeded
+  Error: None
+--------------------
+ID: 796f7058-0b18-43a4-8044-d4a26669d3f6
+  Type: mind_map
+  Status: failed
+  Error: Connection error.
+--------------------
+ID: 075f14f6-c568-46ea-a59c-0217b7796ebf
+  Type: vectorize
+  Status: failed
+  Error: "'code'"
+--------------------
+ID: b97b618f-b0db-4eeb-835f-143c3e24903c
+  Type: parse_text
+  Status: succeeded
+  Error: None
+--------------------
+ID: 04e5b510-69c1-41ca-880c-d791ad9e8b5f
+  Type: summary
+  Status: succeeded
+  Error: None
+--------------------
+ID: 3a6b6d2b-21a1-4754-9a7c-1055f9da0a33
+  Type: parse_text
+  Status: succeeded
+  Error: None
+--------------------
+ID: b880e984-1d82-4a89-895e-a8a570bd566e
+  Type: parse_text
+  Status: failed
+  Error: 'Paper' object has no attribute 'status'
+--------------------
+ID: 82596c65-7b3d-49f3-ab32-2c2fed7a3932
+  Type: parse_text
+  Status: failed
+  Error: 'Paper' object has no attribute 'status'
+--------------------
+ID: f03d74f2-c2f9-4c57-be20-14ec0fd5429f
+  Type: parse_text
+  Status: failed
+  Error: 'Paper' object has no attribute 'status'
+--------------------
+ID: 129ebe02-4aa8-4b30-bebd-01af6089704f
+  Type: parse_text
+  Status: failed
+  Error: 'Paper' object has no attribute 'status'
+--------------------

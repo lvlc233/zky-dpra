@@ -1,0 +1,92 @@
+﻿python : [32m2026-04-
+06 18:09:13.366[0m | 
+[1mINFO    [0m | [3
+6mworker.tasks[0m:[3
+6msummary_task[0m:[3
+6m91[0m - [1m��ʼ�ܽ��
+���: 3a36f388-5bf9-45c
+d-b454-2c28b7dd24b7, J
+obID: 38593814-1ce5-43
+91-a5a8-056ed84fc8d6[
+0m
+所在位置 行:1 字符: 22
++ ... ONPATH="."; pyth
+on run_single_summary.
+py > summary_debug_log
+_v2.txt 2 ...
++                 ~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: ([32m2026-   
+ 04-06...56ed84fc8    
+d6[0m:String) []    ,
+ RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+[32m2026-04-06 18:09:
+13.367[0m | [1mINFO 
+   [0m | [36mservice
+.papers.paper_service
+[0m:[36msummary[0m:
+[36m958[0m - [1m��ʼִ
+�� Job: summary, paper
+_id=3a36f388-5bf9-45cd
+-b454-2c28b7dd24b7[0m
+[32m2026-04-06 18:09:
+13.475[0m | [1mINFO 
+   [0m | [36mbase.re
+dis.service[0m:[36mg
+et_pool[0m:[36m22[0
+m - [1mCreating Redis
+ connection pool: redi
+s://localhost:6379/0[
+0m
+[32m2026-04-06 18:09:
+13.484[0m | [31m[1m
+ERROR   [0m | [36mse
+rvice.papers.paper_ser
+vice[0m:[36msummary
+[0m:[36m1045[0m - [
+31m[1mSummary Failed:
+ (sqlalchemy.dialects.
+postgresql.asyncpg.Pro
+grammingError) <class 
+'asyncpg.exceptions.Un
+definedTableError'>: �
+�ϵ "system_model_confi
+gs" ������
+[SQL: SELECT system_mo
+del_configs.id, system
+_model_configs.type, s
+ystem_model_configs.pr
+ovider, system_model_c
+onfigs.model_name, sys
+tem_model_configs.base
+_url, system_model_con
+figs.api_key, system_m
+odel_configs.system_pr
+ompt, system_model_con
+figs.temperature, syst
+em_model_configs.max_t
+okens, system_model_co
+nfigs.is_active, syste
+m_model_configs.create
+d_at, system_model_con
+figs.updated_at 
+FROM system_model_conf
+igs 
+WHERE system_model_con
+figs.type = $1::VARCHA
+R]
+[parameters: ('summary
+',)]
+(Background on this er
+ror at: https://sqlalc
+he.me/e/20/f405)[0m
+Running summary_task for paper: 3a36f388-5bf9-45cd-b454-2c28b7dd24b7, Job: 38593814-1ce5-4391-a5a8-056ed84fc8d6
+Task result: {'status': 'failed'}
