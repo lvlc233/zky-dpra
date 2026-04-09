@@ -112,6 +112,10 @@ export const readerService = {
     return request.get(`/papers/${paperId}/ai/record/${recordId}`);
   },
 
+  translateText: async (paperId: string, text: string): Promise<{ translated_text: string }> => {
+    return request.post(`/papers/${paperId}/ai/translate`, { text });
+  },
+
   // Helper to get full layers (views + annotations)
   getLayers: async (paperId: string): Promise<{ layers: any[] }> => {
     // This aggregates views and their annotations

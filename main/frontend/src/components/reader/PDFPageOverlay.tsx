@@ -12,6 +12,7 @@ interface PDFPageOverlayProps {
   onAddAnnotation?: (annotation: Annotation) => void;
   onUpdateAnnotation?: (annotation: Annotation) => void;
   onDeleteAnnotation?: (annotationId: string) => void;
+  onTranslateText?: (text: string) => Promise<string>;
 }
 
 const HIGHLIGHT_COLORS = [
@@ -22,14 +23,7 @@ const HIGHLIGHT_COLORS = [
   { name: 'Purple', value: 'bg-purple-300', hex: '#d8b4fe' },
 ];
 
-// Mock Translation Service
-const translateTextMock = async (text: string): Promise<string> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(`[译] ${text.substring(0, 100)}${text.length > 100 ? '...' : ''} (这里是模拟的翻译结果，实际应接入后端 API)`);
-    }, 800);
-  });
-};
+
 
 export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
   pageIndex,
@@ -38,7 +32,8 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
   activeViewId,
   onAddAnnotation,
   onUpdateAnnotation,
-  onDeleteAnnotation
+  onDeleteAnnotation,
+  onTranslateText
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const editPopupRef = useRef<HTMLDivElement>(null);
@@ -222,10 +217,10 @@ export const PDFPageOverlay: React.FC<PDFPageOverlayProps> = ({
 
       // Fetch translation
       try {
-        const translated = await translateTextMock(selectedText);
+        const translated = onTranslateText ? await onTranslateText(selectedText) : '翻译服务不可用';
         setTranslationModal(prev => ({ ...prev, result: translated, loading: false }));
       } catch (e) {
-        setTranslationModal(prev => ({ ...prev, result: '翻译失败', loading: false }));
+        setTranslationModal(prev => ({ ...prev, result: '翻译失败，请稍后重试', loading: false }));
       }
       return;
     }

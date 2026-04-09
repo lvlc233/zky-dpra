@@ -247,7 +247,13 @@ export default function ReaderPage({ params }: ReaderPageProps) {
           const annos = await readerService.getAnnotations(params.id, activeViewId);
           setLayers(layers.map(l => {
             if (l.view_id === activeViewId) {
-                return { ...l, annotations: annos.items || [] };
+                // Fix annotation_id compatibility
+                const normalizedAnnos = (annos.items || []).map((a: any) => ({
+                    ...a,
+                    annotation_id: a.annotation_id || a.id,
+                    rects: a.rects || (a.rect ? [a.rect] : [])
+                }));
+                return { ...l, annotations: normalizedAnnos };
             }
             return l;
           }));
@@ -259,10 +265,10 @@ export default function ReaderPage({ params }: ReaderPageProps) {
   const handleUpdateAnnotation = async (annotation: Annotation) => {
     // Optimistic
     setLayers(layers.map(l => {
-      if (l.annotations.some(a => a.annotation_id === annotation.annotation_id)) {
+      if (l.annotations.some(a => (a.annotation_id || (a as any).id) === annotation.annotation_id)) {
         return {
           ...l,
-          annotations: l.annotations.map(a => a.annotation_id === annotation.annotation_id ? annotation : a)
+          annotations: l.annotations.map(a => (a.annotation_id || (a as any).id) === annotation.annotation_id ? annotation : a)
         };
       }
       return l;
@@ -272,7 +278,7 @@ export default function ReaderPage({ params }: ReaderPageProps) {
         const { annotation_id, ...data } = annotation;
         // We need to find which view this annotation belongs to.
         // It should be the active view usually, or the view it belongs to.
-        const layer = layers.find(l => l.annotations.some(a => a.annotation_id === annotation_id));
+        const layer = layers.find(l => l.annotations.some(a => (a.annotation_id || (a as any).id) === annotation_id));
         if (layer) {
             await readerService.updateAnnotation(params.id, layer.view_id, annotation_id, data);
         }
@@ -284,11 +290,11 @@ export default function ReaderPage({ params }: ReaderPageProps) {
 
   const handleDeleteAnnotation = async (annotationId: string) => {
     // Optimistic
-    const layer = layers.find(l => l.annotations.some(a => a.annotation_id === annotationId));
+    const layer = layers.find(l => l.annotations.some(a => (a.annotation_id || (a as any).id) === annotationId));
     
     setLayers(layers.map(l => ({
       ...l,
-      annotations: l.annotations.filter(a => a.annotation_id !== annotationId)
+      annotations: l.annotations.filter(a => (a.annotation_id || (a as any).id) !== annotationId)
     })));
 
     if (layer) {
@@ -296,9 +302,18 @@ export default function ReaderPage({ params }: ReaderPageProps) {
             await readerService.deleteAnnotation(params.id, layer.view_id, annotationId);
         } catch (e) {
              toast.error("删除标注失败");
-             // Revert logic needed ideally
         }
     }
+  };
+
+  const handleTranslateText = async (text: string) => {
+      try {
+          const res = await readerService.translateText(params.id, text);
+          return res.translated_text;
+      } catch (e) {
+          toast.error("翻译请求失败");
+          throw e;
+      }
   };
 
   const handleToggleAnnotations = async () => {
@@ -361,7 +376,12 @@ export default function ReaderPage({ params }: ReaderPageProps) {
               const annos = await readerService.getAnnotations(params.id, activeViewId);
               setLayers(layers.map(l => {
                   if (l.view_id === activeViewId) {
-                      return { ...l, annotations: annos.items || [] };
+                      const normalizedAnnos = (annos.items || []).map((a: any) => ({
+                          ...a,
+                          annotation_id: a.annotation_id || a.id,
+                          rects: a.rects || (a.rect ? [a.rect] : [])
+                      }));
+                      return { ...l, annotations: normalizedAnnos };
                   }
                   return l;
               }));
@@ -492,6 +512,7 @@ export default function ReaderPage({ params }: ReaderPageProps) {
             onAddAnnotation={activeViewId ? handleAddAnnotation : undefined}
             onUpdateAnnotation={handleUpdateAnnotation}
             onDeleteAnnotation={handleDeleteAnnotation}
+            onTranslateText={handleTranslateText}
           />
         </div>
 

@@ -10,14 +10,16 @@ from service.reader.summary_service import SummaryService
 from service.reader.mind_map_service import MindMapService
 from service.reader.history_service import HistoryService
 from service.reader.job_service import JobService
-from base.pg.service import SessionDep
+from service.reader.translate_service import TranslateService
+from base.pg.service import SessionDep, PaperRepository
 from controller.api.auth.router import get_current_user
 from base.pg.entity import User
 from controller.api.reader.schema import (
     PaperReaderMetaResponse, TocResponse,
     NoteMetaResponse, NoteResponse, AISummaryResponse,
     MindMapResponse, RecordResponse, MessageResponse, JobListResponse,
-    AnnotationResponse, JobResponse, JobCreateRequest
+    AnnotationResponse, JobResponse, JobCreateRequest,
+    TranslateRequest, TranslateResponse
 )
 from service.reader.schema import (
     AnnotationRequest,
@@ -317,3 +319,21 @@ async def delete_note(
     if not success:
         raise HTTPException(status_code=404, detail="Note not found")
     return Response.success()
+
+@router.post("/{paper_id}/ai/translate", response_model=Response[TranslateResponse])
+async def translate_text(
+    paper_id: UUID,
+    req: TranslateRequest,
+    session: SessionDep,
+    current_user: User = Depends(get_current_user)
+):
+    """大模型翻译"""
+    # 鉴权
+    paper = await PaperRepository.get_paper_by_id(session, paper_id)
+    if not paper or paper.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Paper access denied")
+
+    translate_service = TranslateService(session)
+    translated_str = await translate_service.translate_text(paper_id, current_user.id, text=req.text)
+    
+    return Response.success(TranslateResponse(translated_text=translated_str))

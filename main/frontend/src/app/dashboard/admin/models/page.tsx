@@ -88,7 +88,7 @@ export default function AdminModelsPage() {
     }
   };
 
-  const configTypes = ['chat', 'summary', 'mind_map', 'embedding'];
+  const configTypes = ['chat', 'summary', 'mind_map', 'embedding', 'translate'];
   const existingTypes = Array.isArray(configs) ? configs.map(c => c.type) : [];
   const missingTypes = configTypes.filter(t => !existingTypes.includes(t));
 

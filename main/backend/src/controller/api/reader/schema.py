@@ -112,3 +112,10 @@ class SSEDataEnvelope(BaseModel):
 
 class JobListResponse(BaseModel):
     items: List[Job]
+
+
+class TranslateRequest(BaseModel):
+    text: str = Field(..., description="原文内容")
+
+class TranslateResponse(BaseModel):
+    translated_text: str = Field(..., description="翻译结果")

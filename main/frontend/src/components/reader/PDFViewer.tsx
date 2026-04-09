@@ -26,6 +26,7 @@ interface PDFViewerProps {
   searchQuery?: string;
   onUpdateAnnotation?: (annotation: Annotation) => void;
   onDeleteAnnotation?: (annotationId: string) => void;
+  onTranslateText?: (text: string) => Promise<string>;
 }
 
 export const PDFViewer: React.FC<PDFViewerProps> = ({ 
@@ -38,7 +39,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   activeViewId = '',
   onAddAnnotation,
   onUpdateAnnotation,
-  onDeleteAnnotation
+  onDeleteAnnotation,
+  onTranslateText
 }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(initialPage);
@@ -195,6 +197,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                   onAddAnnotation={onAddAnnotation}
                   onUpdateAnnotation={onUpdateAnnotation}
                   onDeleteAnnotation={onDeleteAnnotation}
+                  onTranslateText={onTranslateText}
                 />
               </Page>
             </div>
@@ -223,6 +226,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                     onAddAnnotation={onAddAnnotation}
                     onUpdateAnnotation={onUpdateAnnotation}
                     onDeleteAnnotation={onDeleteAnnotation}
+                    onTranslateText={onTranslateText}
                   />
                 </Page>
               </div>
